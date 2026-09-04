@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Button, Modal, Select, SideSheet, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Modal, SideSheet, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CMS_INTERACTION_KIND_LABELS, CMS_INTERACTION_PARTICIPANT_SCOPE_LABELS, CMS_INTERACTION_QUESTION_TYPE_LABELS, CMS_INTERACTION_REPEAT_POLICY_LABELS, CMS_INTERACTION_STATUS_LABELS, CMS_INTERACTION_KIND_OPTIONS, CMS_INTERACTION_STATUS_OPTIONS } from '@zenith/shared/cms';
 import type { CmsInteraction, CmsInteractionKind, CmsInteractionResponse, CmsInteractionStatus } from '@zenith/shared/cms';
@@ -27,7 +27,7 @@ import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import InteractionResultsSheet from './interaction/InteractionResultsSheet';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
@@ -228,11 +228,14 @@ export default function SurveysPage() {
     <>
       <CmsSiteSelect value={siteId} onChange={(value) => { setSiteId(value); setPage(1); setResponsePage(1); setSelectedIds([]); setResponseInteractionId(undefined); }} />
       <KeywordInput placeholder="标题/标识" value={draft.keyword} onChange={(value) => setDraft((current) => ({ ...current, keyword: value }))} onSearch={handleSearch} width={200} />
-      <Select placeholder="全部类型" showClear value={draft.kind} style={{ width: 130 }}
-        optionList={CMS_INTERACTION_KIND_OPTIONS}
-        onChange={(value) => { setDraft((current) => ({ ...current, kind: value as CmsInteractionKind | undefined })); setSelectedIds([]); }} />
-      <StatusSelect items={CMS_INTERACTION_STATUS_OPTIONS} value={draft.status} width={130}
-        onChange={(value) => { setDraft((current) => ({ ...current, status: (value as CmsInteractionStatus) || undefined })); setSelectedIds([]); }} />
+      <FilterSelect
+        placeholder="全部类型"
+        items={CMS_INTERACTION_KIND_OPTIONS}
+        value={draft.kind}
+        onChange={(value) => { setDraft((current) => ({ ...current, kind: value as CmsInteractionKind | undefined })); setSelectedIds([]); }}
+      />
+      <StatusSelect items={CMS_INTERACTION_STATUS_OPTIONS} value={draft.status}
+        onChange={(value) => { setDraft((current) => ({ ...current, status: value as CmsInteractionStatus | undefined })); setSelectedIds([]); }} />
       <SearchButton onClick={handleSearch} />
       <ResetButton onClick={handleReset} />
     </>
@@ -288,14 +291,22 @@ export default function SurveysPage() {
             primary={(
               <>
                 <CmsSiteSelect value={siteId} onChange={(value) => { setSiteId(value); setPage(1); setResponsePage(1); setSelectedIds([]); setResponseInteractionId(undefined); }} />
-                <Select placeholder="全部互动问卷" showClear value={responseInteractionId} style={{ width: 200 }}
+                <FilterSelect
+                  placeholder="全部互动问卷"
+                  items={(interactionOptionsQuery.data ?? []).map((item) => ({ value: item.id, label: item.title }))}
+                  value={responseInteractionId}
+                  onChange={(value) => { setResponseInteractionId(value as number | undefined); setResponsePage(1); }}
+                  width={200}
                   filter
                   loading={interactionOptionsQuery.isFetching}
-                  optionList={(interactionOptionsQuery.data ?? []).map((item) => ({ value: item.id, label: item.title }))}
-                  onChange={(value) => { setResponseInteractionId(value as number | undefined); setResponsePage(1); }} />
-                <Select placeholder="全部类型" showClear value={draft.kind} style={{ width: 140 }}
-                  optionList={CMS_INTERACTION_KIND_OPTIONS}
-                  onChange={(value) => setDraft((current) => ({ ...current, kind: value as CmsInteractionKind | undefined }))} />
+                />
+                <FilterSelect
+                  placeholder="全部类型"
+                  items={CMS_INTERACTION_KIND_OPTIONS}
+                  value={draft.kind}
+                  onChange={(value) => setDraft((current) => ({ ...current, kind: value as CmsInteractionKind | undefined }))}
+                  width={140}
+                />
                 <DateRangeFilter placeholder={['提交开始时间', '提交结束时间']} value={responseTimeRange} onChange={(value) => setResponseTimeRange(value as [Date, Date] | undefined)} width={330} />
                 <SearchButton onClick={handleSearch} />
                 <ResetButton onClick={handleReset} />

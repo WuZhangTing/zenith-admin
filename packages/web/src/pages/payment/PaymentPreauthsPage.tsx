@@ -23,7 +23,7 @@ import {
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_PREAUTH_STATUS_LABELS, PAYMENT_PREAUTH_STATUS_OPTIONS, PAYMENT_CHANNEL_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentPreauth, PaymentPreauthMethod, PaymentPreauthStatus } from '@zenith/shared/payment';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 
 const yuan = formatYuan;
 const STATUS_COLOR = { pending: 'grey', unknown: 'orange', frozen: 'blue', captured: 'green', released: 'teal', failed: 'red' } as const satisfies Record<PaymentPreauthStatus, string>;
@@ -35,8 +35,8 @@ const PREAUTH_METHOD_OPTIONS = [
 
 interface PreauthFormValues { applicationId: number; payMethod: PaymentPreauthMethod; currency: 'CNY'; payerAccount: string; subject: string; amountYuan: number; bizType?: string; bizId: string; remark?: string; }
 
-interface SearchParams { keyword: string; status: string; channel: string }
-const defaultSearchParams: SearchParams = { keyword: '', status: '', channel: '' };
+interface SearchParams { keyword: string; status?: string; channel?: string }
+const defaultSearchParams: SearchParams = { keyword: '', status: undefined, channel: '' };
 
 export default function PaymentPreauthsPage() {
   const { hasPermission } = usePermission();
@@ -206,7 +206,12 @@ export default function PaymentPreauthsPage() {
     <StatusSelect items={PAYMENT_PREAUTH_STATUS_OPTIONS} value={draftParams.status} onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))} />
   );
   const renderChannelFilter = () => (
-    <Select placeholder="全部渠道" value={draftParams.channel || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, channel: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={channelOptions} />
+    <FilterSelect
+      placeholder="全部渠道"
+      items={channelOptions}
+      value={draftParams.channel}
+      onChange={(v) => setDraftParams((p) => ({ ...p, channel: v }))}
+    />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} disabled={effectivePreauthAppId == null} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;

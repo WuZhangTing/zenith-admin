@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Select, Modal, Form, Toast, Row, Col, Spin, Switch, SideSheet, Descriptions, Tag, Divider } from '@douyinfe/semi-ui';
+import { Button, Modal, Form, Toast, Row, Col, Spin, Switch, SideSheet, Descriptions, Tag, Divider } from '@douyinfe/semi-ui';
 import type { Tenant } from '@zenith/shared/identity';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
@@ -23,13 +23,13 @@ import {
   useTenantStats,
 } from '@/hooks/queries/tenants';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 import { copyTextWithToast } from '@/utils/clipboard';
 
 interface SearchParams {
   keyword: string;
-  status: string;
+  status?: string;
 }
 
 const defaultSearchParams: SearchParams = { keyword: '', status: '' };
@@ -224,15 +224,10 @@ export default function TenantsPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="请选择状态"
-      value={draftParams.status || undefined}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as string) ?? '' }))}
-      style={{ width: 140, maxWidth: '100%' }}
-      optionList={[
-        { value: '', label: '全部状态' },
-        ...statusItems.map((item) => ({ value: item.value, label: item.label })),
-      ]}
+    <StatusSelect
+      items={statusItems}
+      value={draftParams.status}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: value }))}
     />
   );
 

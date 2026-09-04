@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { Form, Input, Select, Tag, Toast, Typography, Descriptions } from '@douyinfe/semi-ui';
+import { Form, Input, Tag, Toast, Typography, Descriptions } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -21,7 +21,7 @@ import {
   useRejectPaymentRefund,
 } from '@/hooks/queries/payment-refunds';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { compactQuery } from '@/lib/query';
 import { copyableNoColumn, dateTimeColumn } from '@/utils/table-columns';
 
@@ -29,8 +29,8 @@ const STATUS_COLOR = { pending: 'grey', processing: 'blue', unknown: 'amber', su
 const APPROVAL_COLOR = { none: 'grey', pending: 'amber', approved: 'green', rejected: 'red' } as const satisfies Record<PaymentRefundApprovalStatus, string>;
 const yuan = formatYuan;
 
-interface SearchParams { keyword: string; channel: string; status: string; approvalStatus: string; timeRange: [Date, Date] | null; }
-const defaultSearch: SearchParams = { keyword: '', channel: '', status: '', approvalStatus: '', timeRange: null };
+interface SearchParams { keyword: string; channel?: string; status?: string; approvalStatus?: string; timeRange: [Date, Date] | null; }
+const defaultSearch: SearchParams = { keyword: '', channel: undefined, status: undefined, approvalStatus: undefined, timeRange: null };
 
 export default function PaymentRefundsPage() {
   const { hasPermission } = usePermission();
@@ -138,13 +138,11 @@ export default function PaymentRefundsPage() {
   );
 
   const renderChannelFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部渠道"
-      value={draftParams.channel || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, channel: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 120 }}
-      optionList={PAYMENT_CHANNEL_OPTIONS}
+      items={PAYMENT_CHANNEL_OPTIONS}
+      value={draftParams.channel}
+      onChange={(v) => setDraftParams((p) => ({ ...p, channel: v }))}
     />
   );
 
@@ -157,13 +155,12 @@ export default function PaymentRefundsPage() {
   );
 
   const renderApprovalFilter = () => (
-    <Select
-      placeholder="审批状态"
-      value={draftParams.approvalStatus || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, approvalStatus: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 120 }}
-      optionList={PAYMENT_REFUND_APPROVAL_STATUS_OPTIONS}
+    <FilterSelect
+      placeholder="全部审批状态"
+      items={PAYMENT_REFUND_APPROVAL_STATUS_OPTIONS}
+      value={draftParams.approvalStatus}
+      onChange={(v) => setDraftParams((p) => ({ ...p, approvalStatus: v }))}
+      width={140}
     />
   );
 

@@ -69,7 +69,7 @@ function formatDateValue(v: string | Date | undefined | null): string | null {
 // ─── 计划列表 Tab ─────────────────────────────────────────────────────────────
 interface ScheduleSearchParams {
   keyword: string;
-  status: string;
+  status?: string;
 }
 
 const defaultSearch: ScheduleSearchParams = { keyword: '', status: '' };

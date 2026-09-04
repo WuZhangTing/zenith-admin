@@ -13,6 +13,7 @@ import { usePagination } from '@/hooks/usePagination';
 import type { AnalyticsEventQueryGroupByField, AnalyticsEventQueryInput, AnalyticsEventQueryMetric, AnalyticsEventQueryRow, AnalyticsSegmentPropertyFilter } from '@zenith/shared/analytics';
 import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_ENVIRONMENT_OPTIONS, ANALYTICS_EVENT_QUERY_GROUP_BY_LABELS, ANALYTICS_EVENT_QUERY_GROUP_BY_OPTIONS, ANALYTICS_EVENT_QUERY_METRIC_OPTIONS, ANALYTICS_EVENT_SOURCE_OPTIONS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS, analyticsMetricRequiresProperty } from '@zenith/shared/analytics';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { FilterSelect } from '@/components/search-filters';
 
 const DAY_OPTIONS = [7, 14, 30, 90].map((value) => ({ value, label: `近 ${value} 天` }));
 
@@ -240,26 +241,43 @@ export default function AnalyticsEventQueryTab() {
           )}
           <div>
             <Typography.Text type="tertiary" size="small">来源</Typography.Text>
-            <Select placeholder="全部来源" value={draft.source} optionList={ANALYTICS_EVENT_SOURCE_OPTIONS} onChange={(v) => updateDraft('source', v as string)} showClear style={{ width: '100%' }} />
+            <FilterSelect
+              placeholder="全部来源"
+              items={ANALYTICS_EVENT_SOURCE_OPTIONS}
+              value={draft.source}
+              onChange={(v) => updateDraft('source', v as string)}
+              width="100%"
+            />
           </div>
           <div>
             <Typography.Text type="tertiary" size="small">环境</Typography.Text>
-            <Select placeholder="全部环境" value={draft.environment} optionList={ANALYTICS_ENVIRONMENT_OPTIONS} onChange={(v) => updateDraft('environment', v as string)} showClear style={{ width: '100%' }} />
+            <FilterSelect
+              placeholder="全部环境"
+              items={ANALYTICS_ENVIRONMENT_OPTIONS}
+              value={draft.environment}
+              onChange={(v) => updateDraft('environment', v as string)}
+              width="100%"
+            />
           </div>
           <div>
             <Typography.Text type="tertiary" size="small">设备</Typography.Text>
-            <Select placeholder="全部设备" value={draft.deviceType} optionList={ANALYTICS_DEVICE_TYPE_OPTIONS} onChange={(v) => updateDraft('deviceType', v as string)} showClear style={{ width: '100%' }} />
+            <FilterSelect
+              placeholder="全部设备"
+              items={ANALYTICS_DEVICE_TYPE_OPTIONS}
+              value={draft.deviceType}
+              onChange={(v) => updateDraft('deviceType', v as string)}
+              width="100%"
+            />
           </div>
           <div>
             <Typography.Text type="tertiary" size="small">仅统计分群</Typography.Text>
-            <Select
+            <FilterSelect
               placeholder="全部用户"
+              items={segmentOptions}
               value={draft.segmentId}
-              optionList={segmentOptions}
-              onChange={(v) => updateDraft('segmentId', v == null ? undefined : Number(v))}
+              onChange={(v) => updateDraft('segmentId', v)}
+              width="100%"
               loading={segmentsQuery.isFetching}
-              showClear
-              style={{ width: '100%' }}
             />
           </div>
           <div>

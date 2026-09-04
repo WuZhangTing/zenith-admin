@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { Banner, Button, Col, DatePicker, Form, Row, Select, SideSheet, TabPane, Tabs, Tag, Toast } from '@douyinfe/semi-ui';
+import { Banner, Button, Col, DatePicker, Form, Row, SideSheet, TabPane, Tabs, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CMS_CONTENT_TYPES, CMS_CONTENT_TYPE_LABELS, CMS_DISTRIBUTION_CONFLICT_STRATEGIES, CMS_DISTRIBUTION_CONFLICT_STRATEGY_LABELS, CMS_DISTRIBUTION_MODES, CMS_DISTRIBUTION_MODE_LABELS, CMS_DISTRIBUTION_RUN_OUTCOME_LABELS, CMS_DISTRIBUTION_TASK_STATUSES, CMS_DISTRIBUTION_TASK_STATUS_LABELS } from '@zenith/shared/cms';
 import type { CmsChannel, CmsDistributionRule, CmsDistributionRun } from '@zenith/shared/cms';
@@ -29,7 +29,7 @@ import {
 } from '@/hooks/queries/cms-stage5';
 import { useQueryClient } from '@tanstack/react-query';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
@@ -389,20 +389,17 @@ export default function DistributionPage() {
             primary={(
               <>
                 <KeywordInput placeholder="搜索规则名称" value={ruleDraft.keyword} onChange={(keyword) => setRuleDraft((value) => ({ ...value, keyword }))} onSearch={searchRules} />
-                <Select
-                  placeholder="来源站点"
+                <FilterSelect
+                  placeholder="全部来源站点"
+                  items={siteOptions}
                   value={ruleDraft.sourceSiteId}
-                  optionList={siteOptions}
-                  showClear
-                  style={{ width: 150 }}
                   onChange={(sourceSiteId) => setRuleDraft((value) => ({ ...value, sourceSiteId: sourceSiteId as number | undefined }))}
+                  width={150}
                 />
-                <Select
-                  placeholder="模式"
+                <FilterSelect
+                  placeholder="全部模式"
+                  items={CMS_DISTRIBUTION_MODES.map((mode) => ({ value: mode, label: CMS_DISTRIBUTION_MODE_LABELS[mode] }))}
                   value={ruleDraft.mode}
-                  optionList={CMS_DISTRIBUTION_MODES.map((mode) => ({ value: mode, label: CMS_DISTRIBUTION_MODE_LABELS[mode] }))}
-                  showClear
-                  style={{ width: 130 }}
                   onChange={(mode) => setRuleDraft((value) => ({ ...value, mode: mode as string | undefined }))}
                 />
                 <SearchButton onClick={searchRules} />
@@ -411,21 +408,19 @@ export default function DistributionPage() {
             )}
             filters={(
               <>
-                <Select
-                  placeholder="目标站点"
+                <FilterSelect
+                  placeholder="全部目标站点"
+                  items={siteOptions}
                   value={ruleDraft.targetSiteId}
-                  optionList={siteOptions}
-                  showClear
-                  style={{ width: 150 }}
                   onChange={(targetSiteId) => setRuleDraft((value) => ({ ...value, targetSiteId: targetSiteId as number | undefined }))}
+                  width={150}
                 />
-                <Select
-                  placeholder="规则状态"
+                <FilterSelect
+                  placeholder="全部规则状态"
+                  items={commonStatuses}
                   value={ruleDraft.status}
-                  optionList={commonStatuses.map((item) => ({ value: item.value, label: item.label }))}
-                  showClear
-                  style={{ width: 130 }}
                   onChange={(status) => setRuleDraft((value) => ({ ...value, status: status as string | undefined }))}
+                  width={140}
                 />
               </>
             )}
@@ -458,25 +453,23 @@ export default function DistributionPage() {
         <TabPane tab="同步结果" itemKey="runs">
           <SearchToolbar
             primary={(
-              <Select
-                placeholder="分发规则"
+              <FilterSelect
+                placeholder="全部分发规则"
+                items={ruleOptions}
                 value={runDraft.ruleId}
-                optionList={ruleOptions}
-                showClear
-                filter
-                style={{ width: 180 }}
                 onChange={(ruleId) => setRunDraft((value) => ({ ...value, ruleId: ruleId as number | undefined }))}
+                width={180}
+                filter
               />
             )}
             filters={(
               <>
-                <Select
-                  placeholder="站点"
+                <FilterSelect
+                  placeholder="全部站点"
+                  items={siteOptions}
                   value={runDraft.siteId}
-                  optionList={siteOptions}
-                  showClear
-                  style={{ width: 150 }}
                   onChange={(siteId) => setRunDraft((value) => ({ ...value, siteId: siteId as number | undefined }))}
+                  width={150}
                 />
                 <DatePicker
                   type="dateTimeRange"
@@ -484,16 +477,15 @@ export default function DistributionPage() {
                   onChange={(range) => setRunDraft((value) => ({ ...value, range: (range as Date[] | null) ?? [] }))}
                   style={{ width: 330 }}
                 />
-                <Select
-                  placeholder="任务状态"
-                  value={runDraft.status}
-                  optionList={CMS_DISTRIBUTION_TASK_STATUSES.map((status) => ({
+                <FilterSelect
+                  placeholder="全部任务状态"
+                  items={CMS_DISTRIBUTION_TASK_STATUSES.map((status) => ({
                     value: status,
                     label: CMS_DISTRIBUTION_TASK_STATUS_LABELS[status],
                   }))}
-                  showClear
-                  style={{ width: 130 }}
+                  value={runDraft.status}
                   onChange={(status) => setRunDraft((value) => ({ ...value, status: status as string | undefined }))}
+                  width={140}
                 />
               </>
             )}
@@ -517,13 +509,12 @@ export default function DistributionPage() {
             )}
             mobilePrimary={(
               <>
-                <Select
-                  placeholder="分发规则"
+                <FilterSelect
+                  placeholder="全部分发规则"
+                  items={ruleOptions}
                   value={runDraft.ruleId}
-                  optionList={ruleOptions}
-                  showClear
-                  style={{ width: 180 }}
                   onChange={(ruleId) => setRunDraft((value) => ({ ...value, ruleId: ruleId as number | undefined }))}
+                  width={180}
                 />
                 <SearchButton onClick={searchRuns} />
               </>

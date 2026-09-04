@@ -67,6 +67,7 @@ import { ComparisonPicker, DrillUsersSheet, isComparisonReady, useDrillSheet } f
 import { BEHAVIOR_DAYS_OPTIONS, BehaviorDaysProvider, useBehaviorDays } from './behavior-days-context';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
+import { FilterSelect } from '@/components/search-filters';
 
 function msToReadable(ms: number | null): string {
   if (ms == null) return '–';
@@ -114,16 +115,6 @@ function retentionPeriodOptions(periodType: AnalyticsRetentionPeriodType): Array
     .filter((n) => n <= maxPeriods)
     .map((n) => ({ label: `${n} 个${unit}周期`, value: n }));
 }
-
-const DEVICE_OPTIONS = [
-  { label: '全部设备', value: '' },
-  ...ANALYTICS_DEVICE_TYPE_OPTIONS,
-];
-
-const HEATMAP_SOURCE_OPTIONS = [
-  { label: '全部来源', value: '' },
-  ...ANALYTICS_EVENT_SOURCE_OPTIONS,
-];
 
 const EMPTY_HEATMAP_PAGES: HeatmapPageListItem[] = [];
 
@@ -642,7 +633,7 @@ function FeatureTab() {
   );
 }
 
-type DeviceFilter = '' | 'desktop' | 'mobile' | 'tablet' | 'bot' | 'unknown';
+type DeviceFilter = 'desktop' | 'mobile' | 'tablet' | 'bot' | 'unknown';
 
 // 标签取 shared SSOT；颜色是时间轴 UI 表现，留在页面侧
 const TIMELINE_EVENT_META: Record<string, { label: string; color: 'blue' | 'green' | 'orange' | 'grey' | 'red' | 'purple' }> = {
@@ -716,8 +707,8 @@ function SessionTimelineSheet({ sessionId, onClose }: { sessionId: string | null
 function SessionsTab() {
   const queryClient = useQueryClient();
   const [usernameInput, setUsernameInput] = useState('');
-  const [deviceInput, setDeviceInput] = useState<DeviceFilter>('');
-  const [filters, setFilters] = useState({ username: '', deviceType: '' as DeviceFilter });
+  const [deviceInput, setDeviceInput] = useState<DeviceFilter | undefined>();
+  const [filters, setFilters] = useState<{ username: string; deviceType?: DeviceFilter }>({ username: '' });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [timelineSessionId, setTimelineSessionId] = useState<string | null>(null);
@@ -725,7 +716,7 @@ function SessionsTab() {
     page,
     pageSize,
     username: filters.username || undefined,
-    deviceType: filters.deviceType || undefined,
+    deviceType: filters.deviceType,
   });
   const data = sessionsQuery.data ?? { list: [], total: 0, page: 1, pageSize: 20 };
 
@@ -737,9 +728,9 @@ function SessionsTab() {
 
   const handleReset = () => {
     setUsernameInput('');
-    setDeviceInput('');
+    setDeviceInput(undefined);
     setPage(1);
-    setFilters({ username: '', deviceType: '' });
+    setFilters({ username: '' });
     void queryClient.invalidateQueries({ queryKey: analyticsKeys.sessionsLists });
   };
 
@@ -782,11 +773,12 @@ function SessionsTab() {
     />
   );
   const renderDeviceFilter = () => (
-    <Select
+    <FilterSelect
+      placeholder="全部设备"
+      items={ANALYTICS_DEVICE_TYPE_OPTIONS}
       value={deviceInput}
-      optionList={DEVICE_OPTIONS}
-      onChange={(v) => setDeviceInput(String(v ?? '') as DeviceFilter)}
-      style={{ width: 150 }}
+      onChange={setDeviceInput}
+      width={150}
     />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
@@ -1638,8 +1630,8 @@ function HeatmapTab() {
   const [days, setDays] = useBehaviorDays();
   const [pagePath, setPagePath] = useState('');
   const [componentArea, setComponentArea] = useState('');
-  const [deviceType, setDeviceType] = useState<DeviceFilter>('');
-  const [source, setSource] = useState('');
+  const [deviceType, setDeviceType] = useState<DeviceFilter | undefined>();
+  const [source, setSource] = useState<string | undefined>();
   const pagesQuery = useAnalyticsHeatmapPages(days);
   const pages = pagesQuery.data?.pages ?? EMPTY_HEATMAP_PAGES;
   const heatmapQuery = useAnalyticsHeatmap(pagePath, componentArea, days, deviceType, source);
@@ -1738,8 +1730,14 @@ function HeatmapTab() {
             <Select value={days} optionList={DAYS_OPTIONS} onChange={(v) => setDays(Number(v))} style={{ width: 120 }} />
             <Select placeholder="选择页面" value={pagePath || undefined} optionList={pageOptions} loading={pagesLoading} onChange={(v) => setPagePath(String(v ?? ''))} style={{ width: 280 }} />
             <Select placeholder="选择区域" value={componentArea} optionList={areaOptions} onChange={(v) => setComponentArea(String(v ?? ''))} style={{ width: 180 }} />
-            <Select value={deviceType} optionList={DEVICE_OPTIONS} onChange={(v) => setDeviceType(String(v ?? '') as DeviceFilter)} style={{ width: 140 }} />
-            <Select value={source} optionList={HEATMAP_SOURCE_OPTIONS} onChange={(v) => setSource(String(v ?? ''))} style={{ width: 150 }} />
+            <FilterSelect
+              placeholder="全部设备"
+              items={ANALYTICS_DEVICE_TYPE_OPTIONS}
+              value={deviceType}
+              onChange={setDeviceType}
+              width={140}
+            />
+            <FilterSelect placeholder="全部来源" items={ANALYTICS_EVENT_SOURCE_OPTIONS} value={source} onChange={setSource} width={150} />
           </div>
         )}
       />

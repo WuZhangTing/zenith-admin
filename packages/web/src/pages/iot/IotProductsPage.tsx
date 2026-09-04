@@ -24,7 +24,7 @@ const { Text } = Typography;
 
 interface SearchParams {
   keyword: string;
-  status: string;
+  status?: string;
 }
 
 const defaultSearchParams: SearchParams = { keyword: '', status: '' };

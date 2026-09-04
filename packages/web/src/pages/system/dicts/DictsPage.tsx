@@ -52,6 +52,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
+import { StatusSelect } from '@/components/search-filters';
 
 export default function DictsPage() {
   const { hasPermission } = usePermission();
@@ -71,9 +72,9 @@ export default function DictsPage() {
   const [itemModalVisible, setItemModalVisible] = useState(false);
   const [editingItemRecord, setEditingItemRecord] = useState<DictItem | null>(null);
   const [pendingItemKeyword, setPendingItemKeyword] = useState('');
-  const [pendingItemStatus, setPendingItemStatus] = useState('');
+  const [pendingItemStatus, setPendingItemStatus] = useState<string | undefined>();
   const [itemKeyword, setItemKeyword] = useState('');
-  const [itemStatusFilter, setItemStatusFilter] = useState('');
+  const [itemStatusFilter, setItemStatusFilter] = useState<string | undefined>();
   const [itemParentId, setItemParentId] = useState<number | null>(null);
   const [itemColor, setItemColor] = useState<string | null>(null);
   // metadataStr 仅用于 JsonViewer 的初始值（非受控），提交时通过 ref.getValue() 读取
@@ -156,9 +157,9 @@ export default function DictsPage() {
   const selectDict = (dict: Dict) => {
     setSelectedDictKey(String(dict.id));
     setPendingItemKeyword('');
-    setPendingItemStatus('');
+    setPendingItemStatus(undefined);
     setItemKeyword('');
-    setItemStatusFilter('');
+    setItemStatusFilter(undefined);
   };
 
   function handleItemSearch() {
@@ -169,9 +170,9 @@ export default function DictsPage() {
 
   function handleItemReset() {
     setPendingItemKeyword('');
-    setPendingItemStatus('');
+    setPendingItemStatus(undefined);
     setItemKeyword('');
-    setItemStatusFilter('');
+    setItemStatusFilter(undefined);
     if (selectedDict) void queryClient.invalidateQueries({ queryKey: dictKeys.items(selectedDict.id) });
   }
 
@@ -522,7 +523,7 @@ export default function DictsPage() {
       placeholder="标签/键值"
       showClear
       value={pendingItemKeyword}
-      onChange={(v) => setPendingItemKeyword(v)}
+      onChange={setPendingItemKeyword}
       onEnterPress={handleItemSearch}
       style={{ width: 180, maxWidth: '100%' }}
       disabled={!selectedDict}
@@ -530,18 +531,12 @@ export default function DictsPage() {
   );
 
   const renderItemStatusFilter = () => (
-    <Select
-      placeholder="状态"
-      showClear
-      value={pendingItemStatus || undefined}
-      onChange={(val) => setPendingItemStatus((val as string) ?? '')}
-      style={{ width: 120, maxWidth: '100%' }}
+    <StatusSelect
+      items={statusItems}
+      value={pendingItemStatus}
+      onChange={setPendingItemStatus}
       disabled={!selectedDict}
-    >
-      {statusItems.map((i) => (
-        <Select.Option key={i.value} value={i.value}>{i.label}</Select.Option>
-      ))}
-    </Select>
+    />
   );
 
   const renderItemSearchButton = () => (

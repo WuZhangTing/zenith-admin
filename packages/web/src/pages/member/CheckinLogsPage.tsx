@@ -156,7 +156,7 @@ export default function CheckinLogsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <KeywordInput placeholder="会员ID/昵称" value={draftParams.memberKeyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, memberKeyword: value || undefined }))} onSearch={handleSearch} width={180} />
+    <KeywordInput placeholder="会员ID/昵称" value={draftParams.memberKeyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, memberKeyword: value }))} onSearch={handleSearch} width={180} />
   );
 
   const renderDateRangeFilter = () => (

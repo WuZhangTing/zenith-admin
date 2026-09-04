@@ -1,4 +1,4 @@
-import { Col, Form, Row, Select, Spin, Toast, Switch } from '@douyinfe/semi-ui';
+import { Col, Form, Row, Spin, Toast, Switch } from '@douyinfe/semi-ui';
 import type { EmailTemplate } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -17,7 +17,7 @@ import {
   useSaveEmailTemplate,
 } from '@/hooks/queries/email-templates';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 
 export default function EmailTemplatesPage() {
@@ -120,8 +120,11 @@ export default function EmailTemplatesPage() {
         primary={(
           <>
             <KeywordInput placeholder="搜索模板名称/编码/主题" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} />
-            <Select placeholder="状态" value={draftParams.filterStatus} onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as string | undefined })}
-              optionList={statusItems.map((i) => ({ label: i.label, value: i.value }))} showClear style={{ width: 110 }} />
+            <StatusSelect
+              items={statusItems}
+              value={draftParams.filterStatus}
+              onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as string | undefined })}
+            />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
             {can('system:email-template:create') && (
@@ -139,8 +142,11 @@ export default function EmailTemplatesPage() {
           </>
         )}
         mobileFilters={(
-          <Select placeholder="状态" value={draftParams.filterStatus} onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as string | undefined })}
-            optionList={statusItems.map((i) => ({ label: i.label, value: i.value }))} showClear style={{ width: 110 }} />
+          <StatusSelect
+            items={statusItems}
+            value={draftParams.filterStatus}
+            onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as string | undefined })}
+          />
         )}
         filterTitle="邮件模板筛选"
         onFilterApply={handleSearch}

@@ -13,6 +13,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useRecentTraceFailures, useTraceTimeline } from '@/hooks/queries/trace';
 import { useLogFiles, useLogFileContent } from '@/hooks/queries/log-files';
 import { renderEllipsis } from '@/utils/table-columns';
+import { FilterSelect } from '@/components/search-filters';
 
 const { Text, Paragraph } = Typography;
 
@@ -87,7 +88,7 @@ function TraceLogsPanel({ traceId }: { traceId: string }) {
 /** 最近失败链路列表（排障入口：不知道 ID 时从这里进） */
 function RecentFailuresPanel({ onView }: { onView: (traceId: string) => void }) {
   const [days, setDays] = useState(7);
-  const [kind, setKind] = useState<TraceNodeKind | ''>('');
+  const [kind, setKind] = useState<TraceNodeKind | undefined>();
   const failuresQuery = useRecentTraceFailures(days, kind);
   const list = failuresQuery.data ?? [];
 
@@ -114,13 +115,12 @@ function RecentFailuresPanel({ onView }: { onView: (traceId: string) => void }) 
           optionList={[{ value: 1, label: '近 1 天' }, { value: 3, label: '近 3 天' }, { value: 7, label: '近 7 天' }, { value: 30, label: '近 30 天' }]}
           style={{ width: 120 }}
         />
-        <Select
+        <FilterSelect
           placeholder="全部类型"
-          value={kind || undefined}
-          showClear
-          onChange={(v) => setKind((v as TraceNodeKind | undefined) ?? '')}
-          optionList={TRACE_NODE_KINDS.filter((k) => k !== 'event').map((k) => ({ value: k, label: TRACE_NODE_KIND_LABELS[k] }))}
-          style={{ width: 140 }}
+          items={TRACE_NODE_KINDS.filter((k) => k !== 'event').map((k) => ({ value: k, label: TRACE_NODE_KIND_LABELS[k] }))}
+          value={kind}
+          onChange={(v) => setKind(v as TraceNodeKind | undefined)}
+          width={140}
         />
       </div>
       <ConfigurableTable

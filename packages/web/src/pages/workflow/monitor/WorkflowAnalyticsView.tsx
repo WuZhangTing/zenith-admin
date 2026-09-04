@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, Empty, Spin, Typography, Select } from '@douyinfe/semi-ui';
+import { Button, Card, Empty, Spin, Typography } from '@douyinfe/semi-ui';
 import { RotateCcw } from 'lucide-react';
 import WorkflowInstanceCell from '@/components/workflow/WorkflowInstanceCell';
 import {
@@ -17,6 +17,7 @@ import {
 import type { WorkflowDefinition } from '@zenith/shared/workflow';
 import { useWorkflowAnalytics, useWorkflowOverdueTasks } from '@/hooks/queries/workflow-monitor';
 import { WORKFLOW_INSTANCE_STATUS_LABELS } from '@zenith/shared/workflow';
+import { FilterSelect } from '@/components/search-filters';
 
 // 文案统一来自 @zenith/shared；hex 色值为图表 canvas 专用（Semi Tag 色名不适用）
 const STATUS_META: Record<string, { text: string; color: string }> = {
@@ -61,10 +62,9 @@ function ChartCard({ title, children }: Readonly<{ title: string; children: Reac
 
 export default function WorkflowAnalyticsView({ definitions }: Readonly<{ definitions: WorkflowDefinition[] }>) {
   const palette = useChartPalette();
-  const [definitionId, setDefinitionId] = useState<number | ''>('');
-  const selectedDefinitionId = definitionId === '' ? undefined : definitionId;
-  const analyticsQuery = useWorkflowAnalytics(selectedDefinitionId);
-  const overdueQuery = useWorkflowOverdueTasks(selectedDefinitionId);
+  const [definitionId, setDefinitionId] = useState<number | undefined>();
+  const analyticsQuery = useWorkflowAnalytics(definitionId);
+  const overdueQuery = useWorkflowOverdueTasks(definitionId);
   const data = analyticsQuery.data ?? null;
   const overdue = overdueQuery.data?.list ?? [];
 
@@ -136,13 +136,12 @@ export default function WorkflowAnalyticsView({ definitions }: Readonly<{ defini
   return (
     <div className="zx-flat-panels" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <Select
+        <FilterSelect
           placeholder="全部流程"
-          showClear
-          value={definitionId === '' ? undefined : definitionId}
-          onChange={(v) => setDefinitionId((v as number) ?? '')}
-          style={{ width: 220 }}
-          optionList={definitions.map((d) => ({ label: d.name, value: d.id }))}
+          items={definitions.map((d) => ({ label: d.name, value: d.id }))}
+          value={definitionId}
+          onChange={(v) => setDefinitionId(v as number | undefined)}
+          width={220}
         />
         <Button
           icon={<RotateCcw size={14} />}

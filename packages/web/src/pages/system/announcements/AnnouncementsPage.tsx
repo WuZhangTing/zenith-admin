@@ -33,7 +33,7 @@ import {
   useUpdateAnnouncementStatus,
 } from '@/hooks/queries/announcements';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDelete, confirmDanger } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 
@@ -63,15 +63,15 @@ function mergeUserOptions(prev: SelectOption[], newResults: SelectOption[], sele
 
 type SearchParams = {
   title: string;
-  type: string;
-  publishStatus: string;
+  type?: string;
+  publishStatus?: string;
   timeRange: [Date, Date] | null;
 };
 
 export default function AnnouncementsPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
-  const defaultSearchParams: SearchParams = { title: '', type: '', publishStatus: '', timeRange: null };
+  const defaultSearchParams: SearchParams = { title: '', type: undefined, publishStatus: undefined, timeRange: null };
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
@@ -596,21 +596,19 @@ export default function AnnouncementsPage() {
         primary={(
           <>
             <KeywordInput placeholder="搜索标题" value={draftParams.title} onChange={(v) => setDraftParams((prev) => ({ ...prev, title: v }))} onSearch={handleSearch} width={200} />
-            <Select
-              placeholder="公告类型"
-              value={draftParams.type || undefined}
-              onChange={(v) => setDraftParams((prev) => ({ ...prev, type: typeof v === 'string' ? v : '' }))}
-              optionList={typeItems.map((i) => ({ label: i.label, value: i.value }))}
-              showClear
-              style={{ width: 140 }}
+            <FilterSelect
+              placeholder="全部公告类型"
+              items={typeItems}
+              value={draftParams.type}
+              onChange={(v) => setDraftParams((prev) => ({ ...prev, type: v }))}
+              width={140}
             />
-            <Select
-              placeholder="发布状态"
-              value={draftParams.publishStatus || undefined}
-              onChange={(v) => setDraftParams((prev) => ({ ...prev, publishStatus: typeof v === 'string' ? v : '' }))}
-              optionList={statusItems.map((i) => ({ label: i.label, value: i.value }))}
-              showClear
-              style={{ width: 140 }}
+            <FilterSelect
+              placeholder="全部发布状态"
+              items={statusItems}
+              value={draftParams.publishStatus}
+              onChange={(v) => setDraftParams((prev) => ({ ...prev, publishStatus: v }))}
+              width={140}
             />
             <DateRangeFilter value={draftParams.timeRange ?? undefined} onChange={(v) => setDraftParams((prev) => ({ ...prev, timeRange: v ? (v as [Date, Date]) : null }))} />
             <SearchButton onClick={handleSearch} />
@@ -637,21 +635,19 @@ export default function AnnouncementsPage() {
         )}
         mobileFilters={(
           <>
-            <Select
-              placeholder="公告类型"
-              value={draftParams.type || undefined}
-              onChange={(v) => setDraftParams((prev) => ({ ...prev, type: typeof v === 'string' ? v : '' }))}
-              optionList={typeItems.map((i) => ({ label: i.label, value: i.value }))}
-              showClear
-              style={{ width: 140 }}
+            <FilterSelect
+              placeholder="全部公告类型"
+              items={typeItems}
+              value={draftParams.type}
+              onChange={(v) => setDraftParams((prev) => ({ ...prev, type: v }))}
+              width={140}
             />
-            <Select
-              placeholder="发布状态"
-              value={draftParams.publishStatus || undefined}
-              onChange={(v) => setDraftParams((prev) => ({ ...prev, publishStatus: typeof v === 'string' ? v : '' }))}
-              optionList={statusItems.map((i) => ({ label: i.label, value: i.value }))}
-              showClear
-              style={{ width: 140 }}
+            <FilterSelect
+              placeholder="全部发布状态"
+              items={statusItems}
+              value={draftParams.publishStatus}
+              onChange={(v) => setDraftParams((prev) => ({ ...prev, publishStatus: v }))}
+              width={140}
             />
             <DateRangeFilter value={draftParams.timeRange ?? undefined} onChange={(v) => setDraftParams((prev) => ({ ...prev, timeRange: v ? (v as [Date, Date]) : null }))} />
           </>

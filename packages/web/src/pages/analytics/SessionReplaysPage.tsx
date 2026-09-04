@@ -4,7 +4,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, Checkbox, Descriptions, Select, SideSheet, Space, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
+import { Button, Checkbox, Descriptions, SideSheet, Space, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Download, Trash2 } from 'lucide-react';
 import type { ReplaySession, ReplayTriggerType } from '@zenith/shared/analytics';
@@ -13,7 +13,7 @@ import ReplayPlayer from '@/components/ReplayPlayer';
 import ReplayHeatmapTab from './ReplayHeatmapTab';
 import ReplayAccessLogsTab from './ReplayAccessLogsTab';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { dateTimeColumn } from '@/utils/table-columns';
@@ -28,16 +28,16 @@ import { formatBytes } from '@zenith/shared/core';
 const { Text } = Typography;
 
 interface SearchParams {
-  status: string;
-  triggerType: string;
-  source: string;
+  status?: string;
+  triggerType?: string;
+  source?: string;
   keyword: string;
   hasError: boolean;
   pagePath: string;
   clickLabel: string;
 }
 
-const defaultSearchParams: SearchParams = { status: '', triggerType: '', source: '', keyword: '', hasError: false, pagePath: '', clickLabel: '' };
+const defaultSearchParams: SearchParams = { status: undefined, triggerType: undefined, source: undefined, keyword: '', hasError: false, pagePath: '', clickLabel: '' };
 const EMPTY_LIST: ReplaySession[] = [];
 
 const STATUS_META = {
@@ -55,14 +55,12 @@ const TRIGGER_META: Record<ReplayTriggerType, { label: string; color: string }> 
 };
 
 const statusOptions = [
-  { value: '', label: '全部状态' },
   { value: 'recording', label: '录制中' },
   { value: 'completed', label: '已完成' },
   { value: 'expired', label: '已超时' },
 ];
 
 const triggerOptions = [
-  { value: '', label: '全部触发' },
   { value: 'error', label: '错误触发' },
   { value: 'sampled', label: '采样录制' },
   { value: 'manual', label: '手动开启' },
@@ -71,7 +69,6 @@ const triggerOptions = [
 ];
 
 const sourceOptions = [
-  { value: '', label: '全部来源' },
   { value: 'web_admin', label: '管理后台' },
   { value: 'web_member', label: '会员前台' },
 ];
@@ -220,26 +217,23 @@ export default function SessionReplaysPage() {
       <Tabs type="line" lazyRender>
         <TabPane tab="回放列表" itemKey="list">
           <SearchToolbar>
-        <Select
-          placeholder="状态"
-          value={draftParams.status || undefined}
-          optionList={statusOptions}
-          onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as string) ?? '' }))}
-          style={{ width: 120 }}
+        <StatusSelect
+          items={statusOptions}
+          value={draftParams.status}
+          onChange={(value) => setDraftParams((prev) => ({ ...prev, status: value }))}
         />
-        <Select
-          placeholder="触发方式"
-          value={draftParams.triggerType || undefined}
-          optionList={triggerOptions}
-          onChange={(value) => setDraftParams((prev) => ({ ...prev, triggerType: (value as string) ?? '' }))}
-          style={{ width: 130 }}
+        <FilterSelect
+          placeholder="全部触发方式"
+          items={triggerOptions}
+          value={draftParams.triggerType}
+          onChange={(value) => setDraftParams((prev) => ({ ...prev, triggerType: value }))}
+          width={140}
         />
-        <Select
-          placeholder="来源"
-          value={draftParams.source || undefined}
-          optionList={sourceOptions}
-          onChange={(value) => setDraftParams((prev) => ({ ...prev, source: (value as string) ?? '' }))}
-          style={{ width: 120 }}
+        <FilterSelect
+          placeholder="全部来源"
+          items={sourceOptions}
+          value={draftParams.source}
+          onChange={(value) => setDraftParams((prev) => ({ ...prev, source: value }))}
         />
         <KeywordInput
           placeholder="用户名/页面/回放 ID"

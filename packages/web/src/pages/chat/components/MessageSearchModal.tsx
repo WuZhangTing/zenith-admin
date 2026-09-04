@@ -6,6 +6,7 @@ import { formatConvTime } from '@/utils/date';
 import type { ChatMessage, ChatMessageSearchItem } from '@zenith/shared/chat';
 import { CHAT_MESSAGE_TYPE_OPTIONS } from '../types';
 import type { SearchDatePreset, Setter } from '../types';
+import { FilterSelect } from '@/components/search-filters';
 
 const { Text } = Typography;
 
@@ -78,14 +79,13 @@ export function MessageSearchModal({
               maxTagCount={2}
             />
 
-            <Select
-              showClear
-              filter
-              style={{ width: '100%' }}
-              placeholder="发送人"
+            <FilterSelect
+              placeholder="全部发送人"
+              items={senderOptions}
               value={searchSenderId}
-              onChange={(val) => setSearchSenderId(val ? Number(val) : undefined)}
-              optionList={senderOptions}
+              onChange={setSearchSenderId}
+              width="100%"
+              filter
             />
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

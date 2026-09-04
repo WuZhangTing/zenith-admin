@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { Button, Form, Select, SideSheet, Spin, Toast, Switch, Tag, Row, Col } from '@douyinfe/semi-ui';
+import { Button, Form, SideSheet, Spin, Toast, Switch, Tag, Row, Col } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -21,16 +21,16 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 
 interface SearchParams {
   keyword: string;
-  channel: string;
-  status: string;
+  channel?: string;
+  status?: string;
 }
-const defaultSearch: SearchParams = { keyword: '', channel: '', status: '' };
+const defaultSearch: SearchParams = { keyword: '', channel: undefined, status: '' };
 
 export default function PaymentChannelsPage() {
   const { items: statusItems } = useDictItems('common_status');
@@ -189,13 +189,11 @@ export default function PaymentChannelsPage() {
   );
 
   const renderChannelFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部渠道"
-      value={draftParams.channel || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, channel: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 130 }}
-      optionList={PAYMENT_CHANNEL_OPTIONS}
+      items={PAYMENT_CHANNEL_OPTIONS}
+      value={draftParams.channel}
+      onChange={(v) => setDraftParams((p) => ({ ...p, channel: v }))}
     />
   );
 

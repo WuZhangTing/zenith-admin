@@ -4,7 +4,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Select, Tag, Typography } from '@douyinfe/semi-ui';
+import { Button, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus } from 'lucide-react';
 import type { AsyncTask, ImportEntityMeta } from '@zenith/shared/tasks';
@@ -12,7 +12,7 @@ import { ImportProgressModal } from '@/components/ImportButton';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { dateTimeColumn } from '@/utils/table-columns';
@@ -24,12 +24,12 @@ import NewImportModal from './NewImportModal';
 const { Text } = Typography;
 
 interface SearchParams {
-  entity: string;
-  status: string;
+  entity?: string;
+  status?: string;
   keyword: string;
 }
 
-const defaultSearchParams: SearchParams = { entity: '', status: '', keyword: '' };
+const defaultSearchParams: SearchParams = { entity: undefined, status: undefined, keyword: '' };
 const EMPTY_ENTITIES: ImportEntityMeta[] = [];
 const EMPTY_TASKS: AsyncTask[] = [];
 
@@ -42,7 +42,6 @@ const TASK_STATUS_META = {
 } as const satisfies Record<AsyncTask['status'], { label: string; color: string }>;
 
 const statusOptions = [
-  { value: '', label: '全部状态' },
   { value: 'pending', label: '排队中' },
   { value: 'running', label: '执行中' },
   { value: 'success', label: '成功' },
@@ -150,25 +149,17 @@ export default function ImportCenterPage() {
   return (
     <div className="page-container">
       <SearchToolbar>
-        <Select
-          placeholder="导入实体"
-          value={draftParams.entity || undefined}
-          onChange={(value) => setDraftParams((prev) => ({ ...prev, entity: (value as string) ?? '' }))}
-          style={{ width: 160 }}
-          showClear
-        >
-          {entityOptions.map(([module, items]) => (
-            <Select.OptGroup key={module} label={module}>
-              {items.map((e) => <Select.Option key={e.entity} value={e.entity}>{e.title}</Select.Option>)}
-            </Select.OptGroup>
-          ))}
-        </Select>
-        <Select
-          placeholder="状态"
-          value={draftParams.status || undefined}
-          optionList={statusOptions}
-          onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as string) ?? '' }))}
-          style={{ width: 130 }}
+        <FilterSelect
+          placeholder="全部导入实体"
+          groups={entityOptions.map(([module, items]) => ({ label: module, items: items.map((e) => ({ value: e.entity, label: e.title })) }))}
+          value={draftParams.entity}
+          onChange={(value) => setDraftParams((prev) => ({ ...prev, entity: value }))}
+          width={160}
+        />
+        <StatusSelect
+          items={statusOptions}
+          value={draftParams.status}
+          onChange={(value) => setDraftParams((prev) => ({ ...prev, status: value }))}
         />
         <KeywordInput
           placeholder="搜索任务名/文件名"

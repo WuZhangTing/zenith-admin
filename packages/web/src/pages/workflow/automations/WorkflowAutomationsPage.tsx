@@ -32,6 +32,7 @@ import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { dateTimeColumn } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
+import { FilterSelect, StatusSelect } from '@/components/search-filters';
 
 const TRIGGER_OPTIONS: Array<{ value: WorkflowAutomationTrigger; label: string; color: TagColor }> = [
   { value: 'created',   label: '流程发起时', color: 'blue' },
@@ -313,8 +314,8 @@ export default function WorkflowAutomationsPage() {
   const { hasPermission } = usePermission();
   const canEditAutomation = hasPermission('workflow:definition:edit');
 
-  interface SearchParams { definitionId: number | ''; trigger: WorkflowAutomationTrigger | ''; status: 'enabled' | 'disabled' | '' }
-  const defaultSearchParams: SearchParams = { definitionId: '', trigger: '', status: '' };
+  interface SearchParams { definitionId?: number; trigger?: WorkflowAutomationTrigger; status?: 'enabled' | 'disabled' }
+  const defaultSearchParams: SearchParams = { definitionId: undefined, trigger: undefined, status: undefined };
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
@@ -323,7 +324,7 @@ export default function WorkflowAutomationsPage() {
   const listQuery = useWorkflowAutomationList({
     page,
     pageSize,
-    definitionId: submittedParams.definitionId === '' ? undefined : submittedParams.definitionId,
+    definitionId: submittedParams.definitionId,
     trigger: submittedParams.trigger || undefined,
     status: submittedParams.status || undefined,
   });
@@ -471,35 +472,30 @@ export default function WorkflowAutomationsPage() {
   ];
 
   const renderDefinitionFilter = () => (
-    <Select
-      placeholder="所属流程"
-      value={draftParams.definitionId === '' ? undefined : draftParams.definitionId}
-      onChange={(v) => setDraftParams(prev => ({ ...prev, definitionId: (v as number) ?? '' }))}
-      showClear
-      style={{ width: 220 }}
-      optionList={filterDefOptions}
+    <FilterSelect
+      placeholder="全部所属流程"
+      items={filterDefOptions}
+      value={draftParams.definitionId}
+      onChange={(v) => setDraftParams(prev => ({ ...prev, definitionId: v as number | undefined }))}
+      width={220}
     />
   );
 
   const renderTriggerFilter = () => (
-    <Select
-      placeholder="触发时机"
-      value={draftParams.trigger || undefined}
-      onChange={(v) => setDraftParams(prev => ({ ...prev, trigger: (v as WorkflowAutomationTrigger) ?? '' }))}
-      showClear
-      style={{ width: 140 }}
-      optionList={TRIGGER_OPTIONS}
+    <FilterSelect
+      placeholder="全部触发时机"
+      items={TRIGGER_OPTIONS}
+      value={draftParams.trigger}
+      onChange={(v) => setDraftParams(prev => ({ ...prev, trigger: v as WorkflowAutomationTrigger | undefined }))}
+      width={140}
     />
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="状态"
-      value={draftParams.status || undefined}
-      onChange={(v) => setDraftParams(prev => ({ ...prev, status: (v as 'enabled' | 'disabled') ?? '' }))}
-      showClear
-      style={{ width: 120 }}
-      optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))}
+    <StatusSelect
+      items={statusItems}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams(prev => ({ ...prev, status: v as 'enabled' | 'disabled' | undefined }))}
     />
   );
 

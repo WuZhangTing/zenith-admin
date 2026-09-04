@@ -61,7 +61,7 @@ const EDITABLE_STATUSES: BroadcastStatus[] = ['draft', 'failed', 'cancelled'];
 
 interface SearchParams {
   keyword: string;
-  status: string;
+  status?: string;
 }
 
 const defaultSearchParams: SearchParams = { keyword: '', status: '' };

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Input, Select, Space, Switch, Tag, Toast, Tabs, TabPane, Banner, Typography, TextArea } from '@douyinfe/semi-ui';
+import { Button, Input, Space, Switch, Tag, Toast, Tabs, TabPane, Banner, Typography, TextArea } from '@douyinfe/semi-ui';
 import { Search, RefreshCw, Briefcase } from 'lucide-react';
 import type { MpMessageTemplate } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
@@ -28,6 +28,7 @@ import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { StatusSelect } from '@/components/search-filters';
 export default function MpTemplateMessagesPage() {
   const { hasPermission: can } = usePermission();
   const queryClient = useQueryClient();
@@ -162,13 +163,10 @@ export default function MpTemplateMessagesPage() {
     );
   };
   const renderLogStatusFilter = () => (
-    <Select
-      placeholder="状态"
+    <StatusSelect
+      items={[{ label: '成功', value: 'success' }, { label: '失败', value: 'failed' }]}
       value={draftLogStatus}
       onChange={(v) => setDraftLogStatus(v as string | undefined)}
-      optionList={[{ label: '成功', value: 'success' }, { label: '失败', value: 'failed' }]}
-      showClear
-      style={{ width: 120 }}
     />
   );
   const refreshLogs = () => {

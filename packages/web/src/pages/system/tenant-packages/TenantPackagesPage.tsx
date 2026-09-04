@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Select, Form, Toast, Spin, Switch, CheckboxGroup, Tag, Space } from '@douyinfe/semi-ui';
+import { Button, Form, Toast, Spin, Switch, CheckboxGroup, Tag, Space } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Trash2 } from 'lucide-react';
 import type { TenantPackage } from '@zenith/shared/identity';
@@ -22,12 +22,12 @@ import {
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
-  status: string;
+  status?: string;
 }
 
 const defaultSearchParams: SearchParams = { keyword: '', status: '' };
@@ -191,15 +191,10 @@ export default function TenantPackagesPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="请选择状态"
-      value={draftParams.status || undefined}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as string) ?? '' }))}
-      style={{ width: 140, maxWidth: '100%' }}
-      optionList={[
-        { value: '', label: '全部状态' },
-        ...statusItems.map((item) => ({ value: item.value, label: item.label })),
-      ]}
+    <StatusSelect
+      items={statusItems}
+      value={draftParams.status}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: value }))}
     />
   );
 

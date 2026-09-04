@@ -1,4 +1,4 @@
-import { Col, Form, Row, Select, Spin, Tag, Toast, Switch } from '@douyinfe/semi-ui';
+import { Col, Form, Row, Spin, Tag, Toast, Switch } from '@douyinfe/semi-ui';
 import type { InAppMessageType, InAppTemplate } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -18,7 +18,7 @@ import {
 } from '@/hooks/queries/in-app-templates';
 import { IN_APP_MESSAGE_TYPE_OPTIONS_WITH_COLOR as TYPE_OPTIONS } from '../in-app-message-constants';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 
 export default function InAppTemplatesPage() {
@@ -126,10 +126,17 @@ export default function InAppTemplatesPage() {
         primary={(
           <>
             <KeywordInput placeholder="搜索模板名称/编码/标题" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={240} />
-            <Select placeholder="类型" value={draftParams.filterType} onChange={(v) => setDraftParams({ ...draftParams, filterType: v as InAppMessageType | undefined })}
-              optionList={TYPE_OPTIONS} showClear style={{ width: 110 }} />
-            <Select placeholder="状态" value={draftParams.filterStatus} onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as string | undefined })}
-              optionList={statusItems.map((i) => ({ label: i.label, value: i.value }))} showClear style={{ width: 110 }} />
+            <FilterSelect
+              placeholder="全部类型"
+              items={TYPE_OPTIONS}
+              value={draftParams.filterType}
+              onChange={(v) => setDraftParams({ ...draftParams, filterType: v as InAppMessageType | undefined })}
+            />
+            <StatusSelect
+              items={statusItems}
+              value={draftParams.filterStatus}
+              onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as string | undefined })}
+            />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
             {can('system:in-app-template:create') && (
@@ -148,10 +155,17 @@ export default function InAppTemplatesPage() {
         )}
         mobileFilters={(
           <>
-            <Select placeholder="类型" value={draftParams.filterType} onChange={(v) => setDraftParams({ ...draftParams, filterType: v as InAppMessageType | undefined })}
-              optionList={TYPE_OPTIONS} showClear style={{ width: 110 }} />
-            <Select placeholder="状态" value={draftParams.filterStatus} onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as string | undefined })}
-              optionList={statusItems.map((i) => ({ label: i.label, value: i.value }))} showClear style={{ width: 110 }} />
+            <FilterSelect
+              placeholder="全部类型"
+              items={TYPE_OPTIONS}
+              value={draftParams.filterType}
+              onChange={(v) => setDraftParams({ ...draftParams, filterType: v as InAppMessageType | undefined })}
+            />
+            <StatusSelect
+              items={statusItems}
+              value={draftParams.filterStatus}
+              onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as string | undefined })}
+            />
           </>
         )}
         filterTitle="站内信模板筛选"

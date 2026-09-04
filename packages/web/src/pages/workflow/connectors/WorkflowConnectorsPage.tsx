@@ -35,7 +35,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 
@@ -63,8 +63,8 @@ const BREAKER_META: Record<WorkflowConnectorBreakerState, { text: string; color:
   halfOpen: { text: '半开', color: 'orange' },
 };
 
-interface SearchParams { keyword: string; type: string; status: string }
-const defaultSearchParams: SearchParams = { keyword: '', type: '', status: '' };
+interface SearchParams { keyword: string; type?: string; status?: string }
+const defaultSearchParams: SearchParams = { keyword: '', type: undefined, status: '' };
 
 interface ConnectorFormValues {
   name: string; code: string; description?: string; type: WorkflowConnectorType;
@@ -249,7 +249,12 @@ export default function WorkflowConnectorsPage() {
     <KeywordInput placeholder="搜索名称 / 编码..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} />
   );
   const renderTypeFilter = () => (
-    <Select placeholder="全部类型" value={draftParams.type || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, type: (v as string) ?? '' }))} showClear style={{ width: 130 }} optionList={TYPE_OPTIONS} />
+    <FilterSelect
+      placeholder="全部类型"
+      items={TYPE_OPTIONS}
+      value={draftParams.type}
+      onChange={(v) => setDraftParams((p) => ({ ...p, type: v }))}
+    />
   );
   const renderStatusFilter = () => (
     <StatusSelect items={STATUS_OPTIONS} value={draftParams.status} onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))} />

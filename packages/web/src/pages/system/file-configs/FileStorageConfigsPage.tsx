@@ -24,7 +24,9 @@ import {
   useTestFileStorageConfig,
 } from '@/hooks/queries/file-storage-configs';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter } from '@/components/search-filters';
+import { DateRangeFilter, StatusSelect } from '@/components/search-filters';
+
+const STATUS_FILTER_OPTIONS = [{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '禁用' }];
 import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 import './FileStorageConfigsPage.css';
 
@@ -198,11 +200,11 @@ function getStorageSummary(config: FileStorageConfig) {
 export default function FileStorageConfigsPage() {
   const { hasPermission } = usePermission();
   interface SearchParams {
-    status: string;
+    status?: string;
     timeRange: [Date, Date] | null;
   }
 
-  const defaultSearchParams: SearchParams = { status: '', timeRange: null };
+  const defaultSearchParams: SearchParams = { status: undefined, timeRange: null };
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
@@ -524,16 +526,11 @@ export default function FileStorageConfigsPage() {
       <SearchToolbar
         primary={(
           <>
-            <Select
-              placeholder="请选择状态"
-              value={draftParams.status || undefined}
-              onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as string) ?? '' }))}
-              style={{ width: 140 }}
-            >
-              <Select.Option value="">全部状态</Select.Option>
-              <Select.Option value="enabled">启用</Select.Option>
-              <Select.Option value="disabled">禁用</Select.Option>
-            </Select>
+            <StatusSelect
+              items={STATUS_FILTER_OPTIONS}
+              value={draftParams.status}
+              onChange={(value) => setDraftParams((prev) => ({ ...prev, status: value }))}
+            />
             <DateRangeFilter value={draftParams.timeRange ?? undefined} onChange={(value) => setDraftParams((prev) => ({ ...prev, timeRange: value ? (value as [Date, Date]) : null }))} />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
@@ -547,16 +544,11 @@ export default function FileStorageConfigsPage() {
         )}
         mobilePrimary={(
           <>
-            <Select
-              placeholder="请选择状态"
-              value={draftParams.status || undefined}
-              onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as string) ?? '' }))}
-              style={{ width: 140 }}
-            >
-              <Select.Option value="">全部状态</Select.Option>
-              <Select.Option value="enabled">启用</Select.Option>
-              <Select.Option value="disabled">禁用</Select.Option>
-            </Select>
+            <StatusSelect
+              items={STATUS_FILTER_OPTIONS}
+              value={draftParams.status}
+              onChange={(value) => setDraftParams((prev) => ({ ...prev, status: value }))}
+            />
             <SearchButton onClick={handleSearch} />
             {hasPermission('system:file:config:create') && <CreateButton onClick={openCreate} />}
           </>
@@ -651,7 +643,7 @@ export default function FileStorageConfigsPage() {
                 </Col>
               </Row>
               <Form.Slot label="设为默认服务">
-                <Switch checked={formIsDefault} onChange={(checked) => setFormIsDefault(checked)} />
+                <Switch checked={formIsDefault} onChange={setFormIsDefault} />
               </Form.Slot>
               <Row gutter={16}>
                 <Col span={24}>

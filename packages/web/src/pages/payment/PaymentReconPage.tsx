@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { Button, Form, Select, SideSheet, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, SideSheet, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CloudDownload } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -30,7 +30,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { confirmDelete } from '@/utils/confirm';
 import { copyableNoColumn, dateColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
-import { StatusSelect } from '@/components/search-filters';
+import { FilterSelect, StatusSelect } from '@/components/search-filters';
 
 const STATUS_COLOR = { pending: 'grey', comparing: 'blue', done: 'green', failed: 'red' } as const satisfies Record<PaymentReconStatus, string>;
 const RESULT_COLOR = { matched: 'green', local_only: 'amber', channel_only: 'orange', amount_diff: 'red', status_diff: 'red' } as const satisfies Record<PaymentReconResult, string>;
@@ -46,8 +46,8 @@ const PROVIDER_HANDLE_ACTION_OPTIONS = [
 ];
 const yuan = formatYuan;
 
-interface SearchParams { channel: string; status: string; }
-const defaultSearch: SearchParams = { channel: '', status: '' };
+interface SearchParams { channel?: string; status?: string; }
+const defaultSearch: SearchParams = { channel: undefined, status: '' };
 
 interface ReconFormValues {
   applicationId: number;
@@ -73,8 +73,8 @@ export default function PaymentReconPage() {
 
   const [detailBatch, setDetailBatch] = useState<PaymentReconBatch | null>(null);
   const canAdjustDetailBatch = detailBatch?.source === 'provider_download';
-  const [itemResult, setItemResult] = useState('');
-  const [itemHandleStatus, setItemHandleStatus] = useState('');
+  const [itemResult, setItemResult] = useState<string | undefined>();
+  const [itemHandleStatus, setItemHandleStatus] = useState<string | undefined>();
   const {
     page: itemPage,
     pageSize: itemPageSize,
@@ -228,12 +228,12 @@ export default function PaymentReconPage() {
     createModal.openCreate();
   }
 
-  function handleItemResultChange(value: string) {
+  function handleItemResultChange(value: string | undefined) {
     setItemResult(value);
     setItemPage(1);
   }
 
-  function handleItemHandleStatusChange(value: string) {
+  function handleItemHandleStatusChange(value: string | undefined) {
     setItemHandleStatus(value);
     setItemPage(1);
   }
@@ -311,13 +311,11 @@ export default function PaymentReconPage() {
   ];
 
   const renderChannelFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部渠道"
-      value={draftParams.channel || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, channel: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 120 }}
-      optionList={PAYMENT_CHANNEL_OPTIONS}
+      items={PAYMENT_CHANNEL_OPTIONS}
+      value={draftParams.channel}
+      onChange={(v) => setDraftParams((p) => ({ ...p, channel: v }))}
     />
   );
 
@@ -409,10 +407,20 @@ export default function PaymentReconPage() {
       <SideSheet title={`对账明细${detailBatch ? `（${detailBatch.batchNo}）` : ''}`} visible={!!detailBatch} onCancel={() => setDetailBatch(null)} width={760} closeOnEsc>
         <Spin spinning={itemsQuery.isFetching}>
           <div style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
-            <Select placeholder="全部结果" value={itemResult || undefined} onChange={(v) => handleItemResultChange((v as string) ?? '')} showClear style={{ width: 180 }}
-              optionList={PAYMENT_RECON_RESULT_OPTIONS} />
-            <Select placeholder="全部处理状态" value={itemHandleStatus || undefined} onChange={(v) => handleItemHandleStatusChange((v as string) ?? '')} showClear style={{ width: 160 }}
-              optionList={PAYMENT_RECON_HANDLE_STATUS_OPTIONS} />
+            <FilterSelect
+              placeholder="全部结果"
+              items={PAYMENT_RECON_RESULT_OPTIONS}
+              value={itemResult}
+              onChange={handleItemResultChange}
+              width={180}
+            />
+            <FilterSelect
+              placeholder="全部处理状态"
+              items={PAYMENT_RECON_HANDLE_STATUS_OPTIONS}
+              value={itemHandleStatus}
+              onChange={handleItemHandleStatusChange}
+              width={160}
+            />
           </div>
           <ConfigurableTable
             bordered columns={itemColumns} dataSource={itemsData} loading={itemsQuery.isFetching} rowKey="id" size="small" empty="暂无数据"

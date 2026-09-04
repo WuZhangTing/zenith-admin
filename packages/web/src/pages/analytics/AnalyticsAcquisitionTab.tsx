@@ -100,7 +100,7 @@ export default function AnalyticsAcquisitionTab() {
             value={conversionEvent}
             optionList={eventOptions}
             loading={eventMetaQuery.isFetching}
-            onChange={(v) => setConversionEvent((v as string) || undefined)}
+            onChange={(v) => setConversionEvent(v as string | undefined)}
             filter
             showClear
             style={{ width: 240 }}

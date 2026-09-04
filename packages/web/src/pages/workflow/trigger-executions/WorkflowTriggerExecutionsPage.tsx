@@ -3,7 +3,7 @@
  * 列表 + 详情抽屉，支持按状态 / 实例 ID / 节点 key 过滤
  */
 import { useState } from 'react';
-import { InputNumber, Select, SideSheet, Tag, Typography } from '@douyinfe/semi-ui';
+import { InputNumber, SideSheet, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTime } from '@/utils/date';
 import { createdAtColumn } from '@/utils/table-columns';
@@ -23,7 +23,7 @@ import {
   workflowTriggerExecutionKeys,
 } from '@/hooks/queries/workflow-trigger-executions';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { useListSearch } from '@/hooks/useListSearch';
 import { JsonBlock } from '@/components/JsonBlock';
 
@@ -43,7 +43,6 @@ const TRIGGER_TYPE_LABEL: Record<WorkflowTriggerType, string> = {
 };
 
 const STATUS_OPTIONS = [
-  { value: '', label: '全部状态' },
   ...(Object.entries(STATUS_MAP) as [WorkflowTriggerExecutionStatus, { label: string }][]).map(
     ([value, meta]) => ({ value, label: meta.label }),
   ),
@@ -51,8 +50,8 @@ const STATUS_OPTIONS = [
 
 export default function WorkflowTriggerExecutionsPage() {
 
-  interface SearchParams { status: WorkflowTriggerExecutionStatus | ''; instanceId: number | undefined; nodeKey: string }
-  const defaultSearchParams: SearchParams = { status: '', instanceId: undefined, nodeKey: '' };
+  interface SearchParams { status?: WorkflowTriggerExecutionStatus; instanceId: number | undefined; nodeKey: string }
+  const defaultSearchParams: SearchParams = { status: undefined, instanceId: undefined, nodeKey: '' };
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
@@ -145,11 +144,10 @@ export default function WorkflowTriggerExecutionsPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
+    <StatusSelect
+      items={STATUS_OPTIONS}
       value={draftParams.status}
-      onChange={(v) => setDraftParams(prev => ({ ...prev, status: v as WorkflowTriggerExecutionStatus | '' }))}
-      style={{ width: 140 }}
-      optionList={STATUS_OPTIONS}
+      onChange={(v) => setDraftParams((prev) => ({ ...prev, status: v }))}
     />
   );
 

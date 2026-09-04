@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Select, Tag, Typography } from '@douyinfe/semi-ui';
+import { Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { AiFeedbackItem } from '@zenith/shared/ai';
 import type { PaginatedResponse } from '@zenith/shared/core';
@@ -16,7 +16,7 @@ import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import type { AiFeedbackContext } from '@/hooks/queries/ai-feedback';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, KeywordInput } from '@/components/search-filters';
 
 const { Text } = Typography;
 
@@ -52,7 +52,6 @@ function useAuditContext(msgId: number | null) {
 }
 
 const ROLE_OPTIONS = [
-  { value: '', label: '全部角色' },
   { value: 'user', label: '用户提问' },
   { value: 'assistant', label: 'AI 回复' },
 ];
@@ -60,9 +59,9 @@ const ROLE_OPTIONS = [
 /** 对话内容合规审计：跨用户全量消息检索 */
 export default function AiAuditPage() {
   const queryClient = useQueryClient();
-  const [draft, setDraft] = useState({ keyword: '', role: '' });
+  const [draft, setDraft] = useState<{ keyword: string; role?: string }>({ keyword: '' });
   const [draftRange, setDraftRange] = useState<[Date, Date] | null>(null);
-  const [submitted, setSubmitted] = useState({ keyword: '', role: '', startDate: '', endDate: '' });
+  const [submitted, setSubmitted] = useState<{ keyword: string; role?: string; startDate: string; endDate: string }>({ keyword: '', startDate: '', endDate: '' });
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [contextMsgId, setContextMsgId] = useState<number | null>(null);
   const [traceMsg, setTraceMsg] = useState<AiFeedbackItem | null>(null);
@@ -87,9 +86,9 @@ export default function AiAuditPage() {
     void queryClient.invalidateQueries({ queryKey: auditKeys.lists });
   };
   const handleReset = () => {
-    setDraft({ keyword: '', role: '' });
+    setDraft({ keyword: '' });
     setDraftRange(null);
-    setSubmitted({ keyword: '', role: '', startDate: '', endDate: '' });
+    setSubmitted({ keyword: '', startDate: '', endDate: '' });
     setPage(1);
     void queryClient.invalidateQueries({ queryKey: auditKeys.lists });
   };
@@ -151,7 +150,12 @@ export default function AiAuditPage() {
     <KeywordInput placeholder="搜索消息内容" value={draft.keyword} onChange={(v) => setDraft((p) => ({ ...p, keyword: String(v ?? '') }))} onSearch={handleSearch} />
   );
   const renderRole = () => (
-    <Select value={draft.role} onChange={(v) => setDraft((p) => ({ ...p, role: String(v ?? '') }))} optionList={ROLE_OPTIONS} style={{ width: 120 }} />
+    <FilterSelect
+      placeholder="全部角色"
+      items={ROLE_OPTIONS}
+      value={draft.role}
+      onChange={(v) => setDraft((p) => ({ ...p, role: v }))}
+    />
   );
   const renderRange = () => (
     <DateRangeFilter type="dateRange" value={draftRange ?? undefined} onChange={(value) => {

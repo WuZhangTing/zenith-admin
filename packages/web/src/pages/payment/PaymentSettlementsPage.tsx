@@ -1,6 +1,6 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import { formatMinorAmount, formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { Button, Form, Select, SideSheet, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, SideSheet, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -27,14 +27,14 @@ import type { PaymentChannel, PaymentSettlementBatch, PaymentSettlementItem, Pay
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { abortSubmit } from '@/lib/abort-submit';
 import { confirmDelete } from '@/utils/confirm';
-import { StatusSelect } from '@/components/search-filters';
+import { FilterSelect, StatusSelect } from '@/components/search-filters';
 
 const yuan = formatYuan;
 const channelOptions = PAYMENT_CHANNEL_OPTIONS;
 const STATUS_COLOR = { pending: 'grey', settling: 'blue', settled: 'green', failed: 'red' } as const satisfies Record<PaymentSettlementStatus, string>;
 
-interface SearchParams { channel: string; status: string; }
-const defaultSearch: SearchParams = { channel: '', status: '' };
+interface SearchParams { channel?: string; status?: string; }
+const defaultSearch: SearchParams = { channel: undefined, status: '' };
 
 interface GenerateFormValues { applicationId: number; channelConfigId: number; currency: 'CNY'; period: [Date, Date]; remark?: string; }
 interface SettlementReferenceFormValues { reference: string; }
@@ -248,13 +248,11 @@ export default function PaymentSettlementsPage() {
   ];
 
   const renderChannelFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部渠道"
-      value={draftParams.channel || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, channel: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 130 }}
-      optionList={channelOptions}
+      items={channelOptions}
+      value={draftParams.channel}
+      onChange={(v) => setDraftParams((p) => ({ ...p, channel: v }))}
     />
   );
 

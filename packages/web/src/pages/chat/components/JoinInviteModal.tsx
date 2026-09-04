@@ -69,7 +69,7 @@ export function JoinInviteModal({
                   rows={2}
                   maxCount={255}
                   value={message}
-                  onChange={(v) => setMessage(v)}
+                  onChange={setMessage}
                   style={{ width: '100%' }}
                 />
               )}

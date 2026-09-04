@@ -27,6 +27,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
+import { StatusSelect } from '@/components/search-filters';
 
 const STATUS_OPTIONS = [
   { label: '草稿', value: 'draft' },
@@ -195,13 +196,10 @@ export default function MpBroadcastsPage() {
     <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
   );
   const renderStatusFilter = () => (
-    <Select
-      placeholder="状态"
+    <StatusSelect
+      items={STATUS_OPTIONS}
       value={draftStatus}
       onChange={(v) => setDraftStatus(v as MpBroadcastStatus | undefined)}
-      optionList={STATUS_OPTIONS}
-      showClear
-      style={{ width: 130 }}
     />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;

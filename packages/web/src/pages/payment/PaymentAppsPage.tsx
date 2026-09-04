@@ -18,7 +18,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
-interface SearchParams { keyword: string; status: string; }
+interface SearchParams { keyword: string; status?: string; }
 const defaultSearch: SearchParams = { keyword: '', status: '' };
 const STATUS_COLOR = { enabled: 'green', disabled: 'grey' } as const satisfies Record<PaymentApp['status'], string>;
 const STATUS_LABEL = { enabled: '启用', disabled: '停用' } as const satisfies Record<PaymentApp['status'], string>;

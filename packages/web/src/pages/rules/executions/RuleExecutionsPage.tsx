@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { DatePicker, Select, Space, Tag, Typography } from '@douyinfe/semi-ui';
+import { DatePicker, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { RuleExecution, RuleExecutionSource, RuleRefKind } from '@zenith/shared/rules';
 import { RULE_EXECUTION_SOURCE_LABELS, RULE_REF_KIND_LABELS, RULE_EXECUTION_SOURCES, RULE_REF_KINDS } from '@zenith/shared/rules';
@@ -10,7 +10,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { ruleKeys, useRuleExecutions } from '@/hooks/queries/rules';
 import { formatDateTimeRangeValuesForApi } from '@/utils/date';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { dateTimeColumn } from '@/utils/table-columns';
 import { JsonBlock } from '@/components/JsonBlock';
 
@@ -97,11 +97,26 @@ export default function RuleExecutionsPage() {
       <SearchToolbar
         primary={(
           <>
-            <KeywordInput placeholder="规则 Key" value={draft.ruleKey ?? ''} onChange={(v) => setDraft((p) => ({ ...p, ruleKey: v || undefined }))} onSearch={handleSearch} width={180} />
-            <Select placeholder="类型" value={draft.refKind} onChange={(v) => setDraft((p) => ({ ...p, refKind: v as Filters['refKind'] }))} optionList={RULE_REF_KINDS.map((k) => ({ value: k, label: RULE_REF_KIND_LABELS[k] }))} showClear style={{ width: 110 }} />
-            <KeywordInput placeholder="调用方" value={draft.caller ?? ''} onChange={(v) => setDraft((p) => ({ ...p, caller: v || undefined }))} onSearch={handleSearch} width={150} />
-            <Select placeholder="来源" value={draft.source} onChange={(v) => setDraft((p) => ({ ...p, source: v as Filters['source'] }))} optionList={RULE_EXECUTION_SOURCES.map((s) => ({ value: s, label: RULE_EXECUTION_SOURCE_LABELS[s] }))} showClear style={{ width: 110 }} />
-            <Select placeholder="结果" value={draft.matched === undefined ? undefined : String(draft.matched)} onChange={(v) => setDraft((p) => ({ ...p, matched: v === undefined ? undefined : v === 'true' }))} optionList={[{ value: 'true', label: '命中' }, { value: 'false', label: '未命中' }]} showClear style={{ width: 100 }} />
+            <KeywordInput placeholder="规则 Key" value={draft.ruleKey ?? ''} onChange={(v) => setDraft((p) => ({ ...p, ruleKey: v }))} onSearch={handleSearch} width={180} />
+            <FilterSelect
+              placeholder="全部类型"
+              items={RULE_REF_KINDS.map((k) => ({ value: k, label: RULE_REF_KIND_LABELS[k] }))}
+              value={draft.refKind}
+              onChange={(v) => setDraft((p) => ({ ...p, refKind: v as Filters['refKind'] }))}
+            />
+            <KeywordInput placeholder="调用方" value={draft.caller ?? ''} onChange={(v) => setDraft((p) => ({ ...p, caller: v }))} onSearch={handleSearch} width={150} />
+            <FilterSelect
+              placeholder="全部来源"
+              items={RULE_EXECUTION_SOURCES.map((s) => ({ value: s, label: RULE_EXECUTION_SOURCE_LABELS[s] }))}
+              value={draft.source}
+              onChange={(v) => setDraft((p) => ({ ...p, source: v as Filters['source'] }))}
+            />
+            <FilterSelect
+              placeholder="全部结果"
+              items={[{ value: 'true', label: '命中' }, { value: 'false', label: '未命中' }]}
+              value={draft.matched === undefined ? undefined : String(draft.matched)}
+              onChange={(v) => setDraft((p) => ({ ...p, matched: v === undefined ? undefined : v === 'true' }))}
+            />
             <DatePicker
               type="dateTimeRange"
               value={draft.dateStart && draft.dateEnd ? [draft.dateStart, draft.dateEnd] : undefined}

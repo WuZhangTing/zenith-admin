@@ -9,7 +9,7 @@ import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
 import { ipAccessKeys, useIpAccessConfigs, useIpAccessLogs, useSaveIpAccessSection } from '@/hooks/queries/ip-access';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 const { Title, Text } = Typography;
@@ -32,7 +32,9 @@ function toJsonArray(text: string): string {
 
 function IpAccessLogsTab() {
 
-  interface SearchParams { filterIp: string; filterBlockType: string | undefined; }
+  const BLOCK_TYPE_OPTIONS = [{ value: 'blacklist', label: '黑名单' }, { value: 'whitelist', label: '白名单' }];
+
+interface SearchParams { filterIp: string; filterBlockType: string | undefined; }
   const defaultSearchParams: SearchParams = { filterIp: '', filterBlockType: undefined };
   const {
     page, pageSize, buildPagination,
@@ -91,16 +93,13 @@ function IpAccessLogsTab() {
           </>
         )}
         mobileFilters={(
-          <Select
-            placeholder="拦截类型"
+          <FilterSelect
+            placeholder="全部拦截类型"
+            items={BLOCK_TYPE_OPTIONS}
             value={draftParams.filterBlockType}
-            onChange={(v) => { setDraftParams((prev) => ({ ...prev, filterBlockType: v as string | undefined })); }}
-            showClear
-            style={{ width: 140 }}
-          >
-            <Select.Option value="blacklist">黑名单</Select.Option>
-            <Select.Option value="whitelist">白名单</Select.Option>
-          </Select>
+            onChange={(v) => { setDraftParams((prev) => ({ ...prev, filterBlockType: v })); }}
+            width={140}
+          />
         )}
         filterTitle="IP 访问筛选"
         onFilterApply={handleSearch}
@@ -173,13 +172,13 @@ export default function IpAccessPage() {
           <Switch
             checked={whitelistEnabled}
             disabled={!canUpdate}
-            onChange={(v) => setWhitelistEnabled(v)}
+            onChange={setWhitelistEnabled}
           />
         </div>
         <TextArea
           placeholder={'每行一条，支持单个 IP 或 CIDR，例如：\n192.168.1.1\n10.0.0.0/24'}
           value={whitelistText}
-          onChange={(v) => setWhitelistText(v)}
+          onChange={setWhitelistText}
           disabled={!canUpdate}
           maxCount={5000}
           rows={6}
@@ -206,13 +205,13 @@ export default function IpAccessPage() {
           <Switch
             checked={blacklistEnabled}
             disabled={!canUpdate}
-            onChange={(v) => setBlacklistEnabled(v)}
+            onChange={setBlacklistEnabled}
           />
         </div>
         <TextArea
           placeholder={'每行一条，支持单个 IP 或 CIDR，例如：\n1.2.3.4\n5.6.7.0/24'}
           value={blacklistText}
-          onChange={(v) => setBlacklistText(v)}
+          onChange={setBlacklistText}
           disabled={!canUpdate}
           maxCount={5000}
           rows={6}

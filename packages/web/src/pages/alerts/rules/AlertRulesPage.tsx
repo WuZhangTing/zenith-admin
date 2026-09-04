@@ -31,7 +31,7 @@ import {
   formatMonitorMetricValue,
 } from './constants';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
 import AlertRecipientUserSelect from './AlertRecipientUserSelect';
@@ -48,13 +48,13 @@ const STATE_OPTIONS = [{ value: 'firing', label: '告警中' }, { value: 'ok', l
 
 interface SearchParams {
   keyword: string;
-  metric: string;
-  level: string;
-  enabled: string;
-  state: string;
+  metric?: string;
+  level?: string;
+  enabled?: string;
+  state?: string;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', metric: '', level: '', enabled: '', state: '' };
+const defaultSearchParams: SearchParams = { keyword: '', metric: undefined, level: undefined, enabled: undefined, state: undefined };
 
 /** 阈值输入提示随指标单位变化：百分比与吞吐的量级差了 7 个数量级，统一文案必然误导 */
 function thresholdHint(metric: MonitorMetric | undefined): string {
@@ -69,25 +69,10 @@ function thresholdHint(metric: MonitorMetric | undefined): string {
 }
 
 /** 指标筛选下拉：指标接近 30 个，按业务域分组并支持搜索 */
-function MetricFilterSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <Select
-      placeholder="全部指标"
-      value={value || undefined}
-      onChange={(v) => onChange((v as string) ?? '')}
-      showClear
-      filter
-      style={{ width: 170 }}
-    >
-      {METRIC_GROUPS.map((group) => (
-        <Select.OptGroup key={group.group} label={group.label}>
-          {group.children.map((option) => (
-            <Select.Option key={option.value} value={option.value}>{option.label}</Select.Option>
-          ))}
-        </Select.OptGroup>
-      ))}
-    </Select>
-  );
+const METRIC_FILTER_GROUPS = METRIC_GROUPS.map((group) => ({ label: group.label, items: group.children }));
+
+function MetricFilterSelect({ value, onChange }: { value: string | undefined; onChange: (v: string | undefined) => void }) {
+  return <FilterSelect placeholder="全部指标" groups={METRIC_FILTER_GROUPS} value={value} onChange={onChange} width={170} filter />;
 }
 
 export default function AlertRulesPage() {
@@ -324,35 +309,31 @@ export default function AlertRulesPage() {
   );
 
   const renderLevelFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部级别"
-      value={draftParams.level || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, level: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 120 }}
-      optionList={MONITOR_ALERT_LEVEL_OPTIONS}
+      items={MONITOR_ALERT_LEVEL_OPTIONS}
+      value={draftParams.level}
+      onChange={(v) => setDraftParams((p) => ({ ...p, level: v }))}
     />
   );
 
   const renderStateFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部告警状态"
-      value={draftParams.state || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, state: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 140 }}
-      optionList={STATE_OPTIONS}
+      items={STATE_OPTIONS}
+      value={draftParams.state}
+      onChange={(v) => setDraftParams((p) => ({ ...p, state: v }))}
+      width={140}
     />
   );
 
   const renderEnabledFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部启用状态"
-      value={draftParams.enabled || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, enabled: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 140 }}
-      optionList={ENABLED_OPTIONS}
+      items={ENABLED_OPTIONS}
+      value={draftParams.enabled}
+      onChange={(v) => setDraftParams((p) => ({ ...p, enabled: v }))}
+      width={140}
     />
   );
 

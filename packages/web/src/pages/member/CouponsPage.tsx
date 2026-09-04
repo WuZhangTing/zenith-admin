@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Select, Form, Toast, Tag, Row, Col, Typography, SideSheet, Button } from '@douyinfe/semi-ui';
+import { Form, Toast, Tag, Row, Col, Typography, SideSheet, Button } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { Coupon, CouponType, CouponTemplateStatus } from '@zenith/shared/member';
@@ -22,7 +22,7 @@ import {
   useSaveCoupon,
 } from '@/hooks/queries/member-admin';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete as confirmDeleteModal } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -195,17 +195,15 @@ export default function CouponsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <KeywordInput placeholder="券名称" value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v || undefined }))} onSearch={handleSearch} width={180} />
+    <KeywordInput placeholder="券名称" value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} width={180} />
   );
 
   const renderTypeFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部类型"
+      items={typeOptions}
       value={draftParams.type}
-      style={{ width: 120 }}
-      showClear
       onChange={(v) => setDraftParams((p) => ({ ...p, type: v as string | undefined }))}
-      optionList={typeOptions}
     />
   );
 
@@ -213,7 +211,7 @@ export default function CouponsPage() {
     <StatusSelect
       items={statusOptions}
       value={draftParams.status}
-      onChange={(v) => setDraftParams((p) => ({ ...p, status: v || undefined }))}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
     />
   );
 

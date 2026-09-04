@@ -1,4 +1,4 @@
-import { Select, Tabs, TabPane, InputNumber } from '@douyinfe/semi-ui';
+import { Tabs, TabPane, InputNumber } from '@douyinfe/semi-ui';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import { OperationLogsTable } from '@/components/logs/OperationLogsTable';
@@ -9,24 +9,27 @@ import OperationLogStatsPanel from './OperationLogStatsPanel';
 import { operationLogKeys, useCleanOperationLogs, useOperationLogList } from '@/hooks/queries/operation-logs';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
+
+const METHOD_OPTIONS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((value) => ({ value, label: value }));
+const STATUS_OPTIONS = [{ value: 'success', label: '成功' }, { value: 'fail', label: '失败' }];
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 interface SearchParams {
   username: string;
   module: string;
   description: string;
-  method: string;
+  method?: string;
   path: string;
   ip: string;
-  status: string;
+  status?: string;
   content: string;
   timeRange: [Date, Date] | null;
   minDurationMs: number | null;
   maxDurationMs: number | null;
 }
 
-const defaultParams: SearchParams = { username: '', module: '', description: '', method: '', path: '', ip: '', status: '', content: '', timeRange: null, minDurationMs: null, maxDurationMs: null };
+const defaultParams: SearchParams = { username: '', module: '', description: '', method: undefined, path: '', ip: '', status: undefined, content: '', timeRange: null, minDurationMs: null, maxDurationMs: null };
 
 export default function OperationLogsPage() {
   const [activeTab, setActiveTab] = useUrlTabState(['list', 'stats'] as const, 'list');
@@ -89,19 +92,13 @@ export default function OperationLogsPage() {
   );
 
   const renderMethodFilter = () => (
-    <Select
-      placeholder="请求方法"
-      value={draftParams.method || undefined}
-      onChange={(v) => setDraftParams({ ...draftParams, method: v as string })}
-      style={{ width: 130 }}
-      showClear
-    >
-      <Select.Option value="GET">GET</Select.Option>
-      <Select.Option value="POST">POST</Select.Option>
-      <Select.Option value="PUT">PUT</Select.Option>
-      <Select.Option value="PATCH">PATCH</Select.Option>
-      <Select.Option value="DELETE">DELETE</Select.Option>
-    </Select>
+    <FilterSelect
+      placeholder="全部请求方法"
+      items={METHOD_OPTIONS}
+      value={draftParams.method}
+      onChange={(v) => setDraftParams({ ...draftParams, method: v })}
+      width={140}
+    />
   );
 
   const renderPathSearch = () => (
@@ -117,16 +114,11 @@ export default function OperationLogsPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="操作状态"
-      value={draftParams.status || undefined}
-      onChange={(v) => setDraftParams({ ...draftParams, status: v as string })}
-      style={{ width: 130 }}
-      showClear
-    >
-      <Select.Option value="success">成功</Select.Option>
-      <Select.Option value="fail">失败</Select.Option>
-    </Select>
+    <StatusSelect
+      items={STATUS_OPTIONS}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams({ ...draftParams, status: v })}
+    />
   );
 
   const renderTimeRangeFilter = () => (

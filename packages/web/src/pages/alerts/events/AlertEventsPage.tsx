@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, Form, Select, Tag, Toast, Tooltip } from '@douyinfe/semi-ui';
+import { Button, Form, Tag, Toast, Tooltip } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -8,7 +8,7 @@ import ExportButton from '@/components/ExportButton';
 import AppModal from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { formatDateTimeRangeForApi } from '@/utils/date';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -48,16 +48,16 @@ const LOG_METRIC_LEVEL: Record<string, 'error' | 'warn'> = {
 
 interface SearchParams {
   keyword: string;
-  metric: string;
-  level: string;
-  status: string;
-  notifyStatus: string;
-  handleStatus: string;
+  metric?: string;
+  level?: string;
+  status?: string;
+  notifyStatus?: string;
+  handleStatus?: string;
   timeRange: [Date, Date] | null;
 }
 
 const defaultSearchParams: SearchParams = {
-  keyword: '', metric: '', level: '', status: '', notifyStatus: '', handleStatus: '', timeRange: null,
+  keyword: '', metric: undefined, level: undefined, status: undefined, notifyStatus: undefined, handleStatus: undefined, timeRange: null,
 };
 
 /** 处理动作的文案随目标状态变化，避免「确定」按钮下用户不知道自己在做什么；
@@ -82,25 +82,10 @@ const HANDLE_ACTION_META: Record<
 };
 
 /** 指标筛选下拉：桌面与移动端共用，按业务域分组并支持搜索（指标已接近 30 个，平铺难以定位） */
-function MetricFilterSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <Select
-      placeholder="全部指标"
-      value={value || undefined}
-      onChange={(v) => onChange((v as string) ?? '')}
-      showClear
-      filter
-      style={{ width: 170 }}
-    >
-      {METRIC_GROUPS.map((group) => (
-        <Select.OptGroup key={group.group} label={group.label}>
-          {group.children.map((option) => (
-            <Select.Option key={option.value} value={option.value}>{option.label}</Select.Option>
-          ))}
-        </Select.OptGroup>
-      ))}
-    </Select>
-  );
+const METRIC_FILTER_GROUPS = METRIC_GROUPS.map((group) => ({ label: group.label, items: group.children }));
+
+function MetricFilterSelect({ value, onChange }: { value: string | undefined; onChange: (v: string | undefined) => void }) {
+  return <FilterSelect placeholder="全部指标" groups={METRIC_FILTER_GROUPS} value={value} onChange={onChange} width={170} filter />;
 }
 
 export default function AlertEventsPage() {
@@ -266,13 +251,11 @@ export default function AlertEventsPage() {
   );
 
   const renderLevelFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部级别"
-      value={draftParams.level || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, level: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 120 }}
-      optionList={[...MONITOR_ALERT_LEVEL_OPTIONS]}
+      items={MONITOR_ALERT_LEVEL_OPTIONS}
+      value={draftParams.level}
+      onChange={(v) => setDraftParams((p) => ({ ...p, level: v }))}
     />
   );
 
@@ -285,24 +268,22 @@ export default function AlertEventsPage() {
   );
 
   const renderHandleStatusFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部处理状态"
-      value={draftParams.handleStatus || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, handleStatus: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 140 }}
-      optionList={[...MONITOR_ALERT_HANDLE_STATUS_OPTIONS]}
+      items={MONITOR_ALERT_HANDLE_STATUS_OPTIONS}
+      value={draftParams.handleStatus}
+      onChange={(v) => setDraftParams((p) => ({ ...p, handleStatus: v }))}
+      width={140}
     />
   );
 
   const renderNotifyStatusFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部通知状态"
-      value={draftParams.notifyStatus || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, notifyStatus: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 140 }}
-      optionList={[...MONITOR_ALERT_NOTIFY_STATUS_OPTIONS]}
+      items={MONITOR_ALERT_NOTIFY_STATUS_OPTIONS}
+      value={draftParams.notifyStatus}
+      onChange={(v) => setDraftParams((p) => ({ ...p, notifyStatus: v }))}
+      width={140}
     />
   );
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Tag, TagGroup, Modal, Form, Toast, Typography, Select, Banner, SideSheet, Descriptions } from '@douyinfe/semi-ui';
+import { Button, Tag, TagGroup, Modal, Form, Toast, Typography, Banner, SideSheet, Descriptions } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { OPEN_WEBHOOK_DELIVERY_STATUS_LABELS, OPEN_WEBHOOK_EVENT_LABELS, PAYMENT_WEBHOOK_EVENTS, OPEN_WEBHOOK_DELIVERY_STATUS_OPTIONS } from '@zenith/shared/open-platform';
 import type { AppWebhookSubscription, AppWebhookDelivery } from '@zenith/shared/open-platform';
@@ -26,7 +26,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -307,8 +307,19 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
         primary={(
           <>
             <KeywordInput placeholder="搜索名称 / URL" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
-            <Select placeholder="所属应用" value={draftParams.clientId} onChange={(v) => setDraftParams({ ...draftParams, clientId: v as string })} optionList={appOptions.map((a) => ({ value: a.clientId, label: a.name }))} showClear filter style={{ width: 180 }} />
-            <Select placeholder="状态" value={draftParams.status} onChange={(v) => setDraftParams({ ...draftParams, status: v as 'enabled' | 'disabled' })} optionList={STATUS_OPTIONS} showClear style={{ width: 110 }} />
+            <FilterSelect
+              placeholder="全部所属应用"
+              items={appOptions.map((a) => ({ value: a.clientId, label: a.name }))}
+              value={draftParams.clientId}
+              onChange={(v) => setDraftParams({ ...draftParams, clientId: v as string })}
+              width={180}
+              filter
+            />
+            <StatusSelect
+              items={STATUS_OPTIONS}
+              value={draftParams.status}
+              onChange={(v) => setDraftParams({ ...draftParams, status: v as 'enabled' | 'disabled' })}
+            />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
             {canManage && <CreateButton onClick={openCreate} />}
@@ -381,30 +392,28 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
       {/* 投递日志抽屉 */}
       <SideSheet title={`投递日志 - ${drawerSub?.name ?? ''}`} visible={!!drawerSub} onCancel={() => setDrawerSub(null)} width={720}>
         <SearchToolbar>
-          <Select
-            placeholder="投递状态"
+          <FilterSelect
+            placeholder="全部投递状态"
+            items={OPEN_WEBHOOK_DELIVERY_STATUS_OPTIONS}
             value={deliveryStatus}
             onChange={(value) => {
               setDeliveryStatus(value as AppWebhookDelivery['status']);
               setDeliveryPage(1);
               setSelectedDeliveryIds([]);
             }}
-            optionList={OPEN_WEBHOOK_DELIVERY_STATUS_OPTIONS}
-            showClear
-            style={{ width: 130 }}
+            width={140}
           />
-          <Select
-            placeholder="事件类型"
+          <FilterSelect
+            placeholder="全部事件类型"
+            items={eventOptions.map((event) => ({ value: event.code, label: event.label }))}
             value={deliveryEventType}
             onChange={(value) => {
               setDeliveryEventType(value as string);
               setDeliveryPage(1);
               setSelectedDeliveryIds([]);
             }}
-            optionList={eventOptions.map((event) => ({ value: event.code, label: event.label }))}
-            showClear
+            width={180}
             filter
-            style={{ width: 180 }}
           />
           {selectedDeliveryIds.length > 0 && canManage && (
             <Button

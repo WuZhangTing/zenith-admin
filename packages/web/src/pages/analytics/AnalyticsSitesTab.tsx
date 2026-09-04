@@ -1,7 +1,7 @@
 
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Form, Modal, Select, Space, Tag, Typography } from '@douyinfe/semi-ui';
+import { Form, Modal, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { AnalyticsSite } from '@zenith/shared/analytics';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
@@ -16,7 +16,7 @@ import {
   useUpdateSite,
 } from '@/hooks/queries/analytics';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { copyableNoColumn, dateTimeColumn } from '@/utils/table-columns';
 import { confirmDelete } from '@/utils/confirm';
@@ -31,7 +31,7 @@ const STATUS_META: Record<AnalyticsSite['status'], { label: string; color: 'gree
   disabled: { label: '停用', color: 'red' },
 };
 
-interface SearchState { name: string; status: '' | AnalyticsSite['status'] }
+interface SearchState { name: string; status?: AnalyticsSite['status'] }
 type SiteFormValues = {
   name: string;
   appId: string;
@@ -41,7 +41,7 @@ type SiteFormValues = {
   remark?: string | null;
 };
 
-const defaultSearch: SearchState = { name: '', status: '' };
+const defaultSearch: SearchState = { name: '', status: undefined };
 
 function normalizeForm(values: SiteFormValues) {
   return {
@@ -142,7 +142,11 @@ export default function AnalyticsSitesTab() {
     <>
       <SearchToolbar>
         <KeywordInput placeholder="站点名称" value={draft.name} onChange={(name) => setDraft((prev) => ({ ...prev, name }))} />
-        <Select placeholder="状态" value={draft.status || undefined} optionList={STATUS_OPTIONS} onChange={(status) => setDraft((prev) => ({ ...prev, status: (status as AnalyticsSite['status']) ?? '' }))} showClear style={{ width: 120 }} />
+        <StatusSelect
+          items={STATUS_OPTIONS}
+          value={draft.status}
+          onChange={(status) => setDraft((prev) => ({ ...prev, status: status as AnalyticsSite['status'] | undefined }))}
+        />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
         <CreateButton onClick={siteModal.openCreate} />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Modal, Tag, Toast, Dropdown, SplitButtonGroup, Typography, Space, Select } from '@douyinfe/semi-ui';
+import { Button, Modal, Tag, Toast, Dropdown, SplitButtonGroup, Typography, Space } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Trash2, ChevronDown, Copy, Terminal, Star } from 'lucide-react';
 import { request } from '@/utils/request';
@@ -22,7 +22,7 @@ import {
   type RecordingEvent,
 } from '@/hooks/queries/terminal';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { CLEAR_LOGS_LABELS } from '@/hooks/useClearLogs';
@@ -284,16 +284,15 @@ export default function TerminalRecordingsPage() {
         primary={(
           <>
             <KeywordInput placeholder="搜索标题" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} />
-            <Select
-              placeholder="操作人"
+            <FilterSelect
+              placeholder="全部操作人"
+              items={userOptions}
               value={draftParams.operatorUserId ?? undefined}
-              optionList={userOptions}
+              onChange={(v) => setDraftParams({ ...draftParams, operatorUserId: v ?? null })}
+              width={180}
               loading={userOptionsLoading}
               filter
-              showClear
               onFocus={() => { void ensureLoaded(); }}
-              onChange={(v) => setDraftParams({ ...draftParams, operatorUserId: typeof v === 'number' ? v : null })}
-              style={{ width: 180 }}
             />
             <DateRangeFilter value={draftParams.timeRange ?? undefined} onChange={(v) => setDraftParams({ ...draftParams, timeRange: v ? (v as [Date, Date]) : null })} />
             <SearchButton onClick={handleSearch} />
@@ -337,16 +336,15 @@ export default function TerminalRecordingsPage() {
         )}
         mobileActions={(
           <>
-            <Select
-              placeholder="操作人"
+            <FilterSelect
+              placeholder="全部操作人"
+              items={userOptions}
               value={draftParams.operatorUserId ?? undefined}
-              optionList={userOptions}
+              onChange={(v) => setDraftParams({ ...draftParams, operatorUserId: v ?? null })}
+              width={220}
               loading={userOptionsLoading}
               filter
-              showClear
               onFocus={() => { void ensureLoaded(); }}
-              onChange={(v) => setDraftParams({ ...draftParams, operatorUserId: typeof v === 'number' ? v : null })}
-              style={{ width: 220 }}
             />
             <DateRangeFilter value={draftParams.timeRange ?? undefined} onChange={(v) => setDraftParams({ ...draftParams, timeRange: v ? (v as [Date, Date]) : null })} width={260} />
             <ResetButton onClick={handleReset} />

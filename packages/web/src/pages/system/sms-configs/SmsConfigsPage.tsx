@@ -1,4 +1,4 @@
-import { Col, Form, Row, Select, Spin, Tag, Toast, Switch } from '@douyinfe/semi-ui';
+import { Col, Form, Row, Spin, Tag, Toast, Switch } from '@douyinfe/semi-ui';
 import { SMS_PROVIDER_OPTIONS } from '@zenith/shared/messaging';
 import type { SmsConfig, SmsProvider } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
@@ -19,7 +19,7 @@ import {
   useSmsConfigList,
 } from '@/hooks/queries/sms-configs';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 
 export default function SmsConfigsPage() {
@@ -153,10 +153,18 @@ export default function SmsConfigsPage() {
         primary={(
           <>
             <KeywordInput placeholder="搜索名称/签名" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
-            <Select placeholder="服务商" value={draftParams.filterProvider} onChange={(v) => setDraftParams({ ...draftParams, filterProvider: v as SmsProvider | undefined })}
-              optionList={SMS_PROVIDER_OPTIONS} showClear style={{ width: 120 }} />
-            <Select placeholder="状态" value={draftParams.filterStatus} onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as string | undefined })}
-              optionList={statusItems.map((i) => ({ label: i.label, value: i.value }))} showClear style={{ width: 110 }} />
+            <FilterSelect
+              placeholder="全部服务商"
+              items={SMS_PROVIDER_OPTIONS}
+              value={draftParams.filterProvider}
+              onChange={(v) => setDraftParams({ ...draftParams, filterProvider: v as SmsProvider | undefined })}
+              width={140}
+            />
+            <StatusSelect
+              items={statusItems}
+              value={draftParams.filterStatus}
+              onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as string | undefined })}
+            />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
             {can('system:sms-config:create') && (
@@ -175,10 +183,18 @@ export default function SmsConfigsPage() {
         )}
         mobileFilters={(
           <>
-            <Select placeholder="服务商" value={draftParams.filterProvider} onChange={(v) => setDraftParams({ ...draftParams, filterProvider: v as SmsProvider | undefined })}
-              optionList={SMS_PROVIDER_OPTIONS} showClear style={{ width: 120 }} />
-            <Select placeholder="状态" value={draftParams.filterStatus} onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as string | undefined })}
-              optionList={statusItems.map((i) => ({ label: i.label, value: i.value }))} showClear style={{ width: 110 }} />
+            <FilterSelect
+              placeholder="全部服务商"
+              items={SMS_PROVIDER_OPTIONS}
+              value={draftParams.filterProvider}
+              onChange={(v) => setDraftParams({ ...draftParams, filterProvider: v as SmsProvider | undefined })}
+              width={140}
+            />
+            <StatusSelect
+              items={statusItems}
+              value={draftParams.filterStatus}
+              onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as string | undefined })}
+            />
           </>
         )}
         filterTitle="短信配置筛选"

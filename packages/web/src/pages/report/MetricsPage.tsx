@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banner, Button, Col, Empty, Form, Modal, Row, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Empty, Form, Modal, Row, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportMetric, ReportMetricType } from '@zenith/shared/report';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -26,19 +26,19 @@ import { useAllUsers } from '@/hooks/queries/users';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { isRevisionConflict, metricLifecyclePayload, normalizeMetricFormValues } from './report-platform-utils';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface MetricSearch {
   keyword: string;
-  type: '' | ReportMetricType;
-  status: '' | 'draft' | 'published' | 'deprecated';
+  type?: ReportMetricType;
+  status?: 'draft' | 'published' | 'deprecated';
   datasetId?: number;
   folderId?: number;
   ownerId?: number;
 }
 
-const defaultSearch: MetricSearch = { keyword: '', type: '', status: '' };
+const defaultSearch: MetricSearch = { keyword: '', type: undefined, status: undefined };
 const typeOptions = [
   { value: 'simple', label: '简单指标' },
   { value: 'ratio', label: '比率指标' },
@@ -214,11 +214,45 @@ export default function MetricsPage() {
   );
   const filters = (
     <>
-      <Select placeholder="指标类型" value={draft.type || undefined} optionList={typeOptions} showClear style={{ width: 130 }} onChange={(value) => setDraft((p) => ({ ...p, type: (value as MetricSearch['type']) ?? '' }))} />
-      <Select placeholder="生命周期" value={draft.status || undefined} optionList={statusOptions} showClear style={{ width: 130 }} onChange={(value) => setDraft((p) => ({ ...p, status: (value as MetricSearch['status']) ?? '' }))} />
-      <Select placeholder="数据集" value={draft.datasetId} filter remote optionList={datasets.map((item) => ({ value: item.id, label: item.name }))} showClear style={{ width: 160 }} onChange={(value) => setDraft((p) => ({ ...p, datasetId: value as number | undefined }))} />
-      <Select placeholder="负责人" value={draft.ownerId} filter optionList={users.map((item) => ({ value: item.id, label: item.nickname || item.username }))} showClear style={{ width: 150 }} onChange={(value) => setDraft((p) => ({ ...p, ownerId: value as number | undefined }))} />
-      <Select placeholder="指标目录" value={draft.folderId} filter optionList={folders.map((item) => ({ value: item.id, label: item.name }))} showClear style={{ width: 150 }} onChange={(value) => setDraft((p) => ({ ...p, folderId: value as number | undefined }))} />
+      <FilterSelect
+        placeholder="全部指标类型"
+        items={typeOptions}
+        value={draft.type}
+        onChange={(value) => setDraft((p) => ({ ...p, type: value as MetricSearch['type'] | undefined }))}
+        width={140}
+      />
+      <FilterSelect
+        placeholder="全部生命周期"
+        items={statusOptions}
+        value={draft.status}
+        onChange={(value) => setDraft((p) => ({ ...p, status: value as MetricSearch['status'] | undefined }))}
+        width={140}
+      />
+      <FilterSelect
+        placeholder="全部数据集"
+        items={datasets.map((item) => ({ value: item.id, label: item.name }))}
+        value={draft.datasetId}
+        onChange={(value) => setDraft((p) => ({ ...p, datasetId: value as number | undefined }))}
+        width={160}
+        filter
+        remote
+      />
+      <FilterSelect
+        placeholder="全部负责人"
+        items={users.map((item) => ({ value: item.id, label: item.nickname || item.username }))}
+        value={draft.ownerId}
+        onChange={(value) => setDraft((p) => ({ ...p, ownerId: value as number | undefined }))}
+        width={150}
+        filter
+      />
+      <FilterSelect
+        placeholder="全部指标目录"
+        items={folders.map((item) => ({ value: item.id, label: item.name }))}
+        value={draft.folderId}
+        onChange={(value) => setDraft((p) => ({ ...p, folderId: value as number | undefined }))}
+        width={150}
+        filter
+      />
     </>
   );
   const buttons = (

@@ -5,7 +5,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -40,11 +40,11 @@ const MAPPING_SOURCE_OPTIONS = DIRECTORY_SYNC_MAPPABLE_SOURCE_FIELDS.map((f) => 
 
 interface SearchParams {
   keyword: string;
-  type: string;
-  status: string;
+  type?: string;
+  status?: string;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', type: '', status: '' };
+const defaultSearchParams: SearchParams = { keyword: '', type: undefined, status: '' };
 
 const RUN_STATUS_TAG_COLOR: Record<string, 'green' | 'red' | 'orange' | 'blue' | 'grey'> = {
   success: 'green',
@@ -287,7 +287,7 @@ export default function DirectorySyncSourcesPage() {
   );
 
   const renderTypeFilter = () => (
-    <StatusSelect
+    <FilterSelect
       placeholder="全部类型"
       items={DIRECTORY_SYNC_SOURCE_TYPES.map((t) => ({ value: t, label: DIRECTORY_SYNC_SOURCE_TYPE_LABELS[t] }))}
       value={draftParams.type}

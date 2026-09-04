@@ -5,7 +5,7 @@ import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import ExportButton from '@/components/ExportButton';
 import ImportButton from '@/components/ImportButton';
@@ -31,13 +31,13 @@ const { Text } = Typography;
 
 interface SearchParams {
   keyword: string;
-  status: string;
+  status?: string;
   productId: number | null;
   groupId: number | null;
-  nodeType: string;
+  nodeType?: string;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', status: '', productId: null, groupId: null, nodeType: '' };
+const defaultSearchParams: SearchParams = { keyword: '', status: undefined, productId: null, groupId: null, nodeType: '' };
 
 function renderMetricValue(v: number | string | boolean): string {
   if (typeof v === 'boolean') return v ? 'on' : 'off';
@@ -325,7 +325,7 @@ export default function IotDevicesPage() {
   );
 
   const renderProductFilter = () => (
-    <StatusSelect
+    <FilterSelect
       placeholder="全部产品"
       items={products.map((p) => ({ value: String(p.id), label: p.name }))}
       value={draftParams.productId === null ? '' : String(draftParams.productId)}
@@ -334,7 +334,7 @@ export default function IotDevicesPage() {
   );
 
   const renderGroupFilter = () => (
-    <StatusSelect
+    <FilterSelect
       placeholder="全部分组"
       items={groups.map((g) => ({ value: String(g.id), label: g.name }))}
       value={draftParams.groupId === null ? '' : String(draftParams.groupId)}
@@ -343,9 +343,9 @@ export default function IotDevicesPage() {
   );
 
   const renderNodeTypeFilter = () => (
-    <StatusSelect
+    <FilterSelect
       placeholder="全部形态"
-      items={IOT_NODE_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+      items={IOT_NODE_TYPE_OPTIONS}
       value={draftParams.nodeType}
       onChange={(v) => setDraftParams((p) => ({ ...p, nodeType: v }))}
     />

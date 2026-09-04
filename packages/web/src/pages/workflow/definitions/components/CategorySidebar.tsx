@@ -187,7 +187,7 @@ export default function CategorySidebar({ categories, selectedId, onSelect, onCh
               ))}
               <Input
                 value={selectedColor}
-                onChange={(v) => setSelectedColor(v)}
+                onChange={setSelectedColor}
                 placeholder="自定义 #hex"
                 size="small"
                 style={{ width: 110 }}

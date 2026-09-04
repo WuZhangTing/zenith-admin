@@ -29,7 +29,7 @@ import { ASYNC_TASK_STATUS_TAG_MAP } from '@/utils/async-task';
 import { formatDateTime, formatDateTimeRangeForApi } from '@/utils/date';
 import { createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, KeywordInput } from '@/components/search-filters';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 type TabKey = 'queue' | 'history' | 'artifacts' | 'failed';
@@ -247,8 +247,20 @@ export default function PublishingPage() {
 
   const filters = (
     <>
-      <Select placeholder="全部站点" showClear optionList={siteOptions} value={draft.siteId} onChange={(value) => setDraft((prev) => ({ ...prev, siteId: value ? Number(value) : undefined }))} style={{ width: 150 }} />
-      <Select placeholder="目标类型" optionList={[{ value: '', label: '全部目标' }, ...CMS_PUBLISH_TARGET_TYPES.map((value) => ({ value, label: CMS_PUBLISH_TARGET_TYPE_LABELS[value] }))]} value={draft.targetType ?? ''} onChange={(value) => setDraft((prev) => ({ ...prev, targetType: value ? value as CmsPublishTargetType : undefined }))} style={{ width: 150 }} />
+      <FilterSelect
+        placeholder="全部站点"
+        items={siteOptions}
+        value={draft.siteId}
+        onChange={(value) => setDraft((prev) => ({ ...prev, siteId: value }))}
+        width={150}
+      />
+      <FilterSelect
+        placeholder="全部目标类型"
+        items={CMS_PUBLISH_TARGET_TYPES.map((value) => ({ value, label: CMS_PUBLISH_TARGET_TYPE_LABELS[value] }))}
+        value={draft.targetType}
+        onChange={(value) => setDraft((prev) => ({ ...prev, targetType: value ? value as CmsPublishTargetType : undefined }))}
+        width={150}
+      />
       <Input placeholder="创建人" value={draft.createdBy} onChange={(createdBy) => setDraft((prev) => ({ ...prev, createdBy }))} style={{ width: 130 }} />
       <DateRangeFilter value={dateValue} onChange={(value) => {
           const range = Array.isArray(value) ? value : [];

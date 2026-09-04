@@ -4,23 +4,7 @@
  * 提供事件订阅 CRUD + 启用/禁用 + 投递记录查看与重试。
  */
 import { useState } from 'react';
-import {
-  Button,
-  Col,
-  DatePicker,
-  Form,
-  Input,
-  Modal,
-  Row,
-  Select,
-  Space,
-  SideSheet,
-  Spin,
-  Switch,
-  Tag,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Button, Col, DatePicker, Form, Input, Modal, Row, Space, SideSheet, Spin, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RotateCcw, Search } from 'lucide-react';
@@ -53,6 +37,7 @@ import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { dateTimeColumn } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
+import { FilterSelect, StatusSelect } from '@/components/search-filters';
 
 const EVENT_OPTIONS: Array<{ value: WorkflowEventType; label: string }> = [
   { value: 'instance.created',   label: '实例创建' },
@@ -100,8 +85,8 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 export default function WorkflowEventSubscriptionsPage() {
   const { hasPermission } = usePermission();
   const canManageEventSubscription = hasPermission('workflow:event-subscription:view');
-  interface SearchParams { keyword: string; definitionId: number | ''; enabled: '' | 'true' | 'false' }
-  const defaultSearchParams: SearchParams = { keyword: '', definitionId: '', enabled: '' };
+  interface SearchParams { keyword: string; definitionId?: number; enabled?: 'true' | 'false' }
+  const defaultSearchParams: SearchParams = { keyword: '', definitionId: undefined, enabled: undefined };
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
@@ -111,7 +96,7 @@ export default function WorkflowEventSubscriptionsPage() {
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    definitionId: submittedParams.definitionId === '' ? undefined : submittedParams.definitionId,
+    definitionId: submittedParams.definitionId,
     enabled: submittedParams.enabled || undefined,
   });
   const list = listQuery.data?.list ?? [];
@@ -235,7 +220,7 @@ export default function WorkflowEventSubscriptionsPage() {
 
   // 4B 按筛选批量重放（订阅内：事件类型 + 状态 + 时间范围，含补发已成功）
   const [replayVisible, setReplayVisible] = useState(false);
-  const [replayStatus, setReplayStatus] = useState<'all' | 'success' | 'failed' | 'pending'>('failed');
+  const [replayStatus, setReplayStatus] = useState<'success' | 'failed' | 'pending' | undefined>('failed');
   const [replayEventType, setReplayEventType] = useState<WorkflowEventType | undefined>(undefined);
   const [replayRange, setReplayRange] = useState<Date[] | undefined>(undefined);
 
@@ -251,7 +236,7 @@ export default function WorkflowEventSubscriptionsPage() {
     const result = await replayDeliveriesMutation.mutateAsync({
       ...body,
       ...(replayEventType ? { eventType: replayEventType } : {}),
-      ...(replayStatus !== 'all' ? { status: replayStatus } : {}),
+      ...(replayStatus ? { status: replayStatus } : {}),
       ...(start ? { startAt: formatDateTimeForApi(start) } : {}),
       ...(end ? { endAt: formatDateTimeForApi(end) } : {}),
     });
@@ -379,27 +364,23 @@ export default function WorkflowEventSubscriptionsPage() {
   );
 
   const renderDefinitionFilter = () => (
-    <Select
-      placeholder="所属流程"
-      value={draftParams.definitionId === '' ? undefined : draftParams.definitionId}
-      onChange={(v) => setDraftParams(prev => ({ ...prev, definitionId: (v as number) ?? '' }))}
-      showClear
-      style={{ width: 200 }}
-      optionList={[{ value: '', label: '全部（含全局）' }, ...defs.map((d) => ({ value: d.id, label: d.name }))]}
+    <FilterSelect
+      placeholder="全部所属流程"
+      items={defs.map((d) => ({ value: d.id, label: d.name }))}
+      value={draftParams.definitionId}
+      onChange={(v) => setDraftParams(prev => ({ ...prev, definitionId: v as number | undefined }))}
+      width={200}
     />
   );
 
   const renderEnabledFilter = () => (
-    <Select
-      placeholder="状态"
-      value={draftParams.enabled || undefined}
-      onChange={(v) => setDraftParams(prev => ({ ...prev, enabled: (v as 'true' | 'false') ?? '' }))}
-      showClear
-      style={{ width: 120 }}
-      optionList={[
+    <StatusSelect
+      items={[
         { value: 'true', label: '启用' },
         { value: 'false', label: '禁用' },
       ]}
+      value={draftParams.enabled}
+      onChange={(v) => setDraftParams(prev => ({ ...prev, enabled: v as 'true' | 'false' | undefined }))}
     />
   );
 
@@ -671,27 +652,25 @@ export default function WorkflowEventSubscriptionsPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
             <Typography.Text size="small" strong style={{ display: 'block', marginBottom: 4 }}>状态</Typography.Text>
-            <Select
-              style={{ width: '100%' }}
-              value={replayStatus}
-              onChange={(v) => setReplayStatus(v as 'all' | 'success' | 'failed' | 'pending')}
-              optionList={[
+            <StatusSelect
+              items={[
                 { value: 'failed', label: '失败 / 死信' },
                 { value: 'success', label: '已成功（补发）' },
                 { value: 'pending', label: '排队 / 进行中' },
-                { value: 'all', label: '全部状态' },
               ]}
+              value={replayStatus}
+              onChange={setReplayStatus}
+              width="100%"
             />
           </div>
           <div>
             <Typography.Text size="small" strong style={{ display: 'block', marginBottom: 4 }}>事件类型（可选）</Typography.Text>
-            <Select
-              style={{ width: '100%' }}
+            <FilterSelect
               placeholder="全部事件类型"
-              showClear
+              items={EVENT_OPTIONS}
               value={replayEventType}
               onChange={(v) => setReplayEventType(v as WorkflowEventType | undefined)}
-              optionList={EVENT_OPTIONS}
+              width="100%"
             />
           </div>
           <div>

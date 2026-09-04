@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Select, Tag, Toast } from '@douyinfe/semi-ui';
+import { Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useNavigate } from 'react-router-dom';
 import type { WorkflowForm, WorkflowFormStatus } from '@zenith/shared/workflow';
@@ -17,34 +17,28 @@ import {
   workflowFormKeys,
 } from '@/hooks/queries/workflow-forms';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
 
-type StatusFilter = WorkflowFormStatus | '';
+type StatusFilter = WorkflowFormStatus | undefined;
 type TagColor = 'green' | 'grey';
 
 interface SearchParams {
   keyword: string;
   status: StatusFilter;
-  categoryId: number | null;
+  categoryId: number | undefined;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', status: '', categoryId: null };
+const defaultSearchParams: SearchParams = { keyword: '', status: undefined, categoryId: undefined };
 
 const STATUS_MAP: Record<WorkflowFormStatus, { text: string; color: TagColor }> = {
   enabled: { text: '启用', color: 'green' },
   disabled: { text: '停用', color: 'grey' },
 };
 
-function toCategoryId(value: unknown): number | null {
-  if (value === undefined || value === null || value === '') return null;
-  const id = Number(value);
-  return Number.isFinite(id) ? id : null;
-}
-
 function toStatus(value: unknown): StatusFilter {
-  return value === 'enabled' || value === 'disabled' ? value : '';
+  return value === 'enabled' || value === 'disabled' ? value : undefined;
 }
 
 export default function WorkflowFormsPage() {
@@ -62,17 +56,14 @@ export default function WorkflowFormsPage() {
     pageSize,
     keyword: submittedParams.keyword || undefined,
     status: submittedParams.status || undefined,
-    categoryId: submittedParams.categoryId ?? undefined,
+    categoryId: submittedParams.categoryId,
   });
   const data = listQuery.data ?? null;
   const deleteMutation = useDeleteWorkflowForm();
   const duplicateMutation = useDuplicateWorkflowForm();
 
   const categoryOptions = useMemo(
-    () => [
-      { label: '全部分类', value: '' },
-      ...categories.map((category) => ({ label: category.name, value: String(category.id) })),
-    ],
+    () => categories.map((category) => ({ label: category.name, value: category.id })),
     [categories],
   );
 
@@ -188,24 +179,20 @@ export default function WorkflowFormsPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="状态"
+    <StatusSelect
+      items={statusItems}
       value={draftParams.status}
       onChange={(value) => setDraftParams((prev) => ({ ...prev, status: toStatus(value) }))}
-      optionList={[{ value: '', label: '全部' }, ...statusItems.map((i) => ({ value: i.value as StatusFilter, label: i.label }))]}
-      showClear
-      style={{ width: 120 }}
     />
   );
 
   const renderCategoryFilter = () => (
-    <Select
-      placeholder="分类"
-      value={draftParams.categoryId === null ? '' : String(draftParams.categoryId)}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, categoryId: toCategoryId(value) }))}
-      optionList={categoryOptions}
-      showClear
-      style={{ width: 160 }}
+    <FilterSelect
+      placeholder="全部分类"
+      items={categoryOptions}
+      value={draftParams.categoryId}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, categoryId: value }))}
+      width={160}
     />
   );
 

@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banner, Form, Select, Space, Switch, Tabs, TabPane, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Form, Space, Switch, Tabs, TabPane, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -28,7 +28,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { useRuleListList } from '@/hooks/queries/rules';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
@@ -40,8 +40,8 @@ const dimensionOptions = PAYMENT_RISK_DIMENSION_OPTIONS;
 const reviewStatusOptions = PAYMENT_RISK_REVIEW_STATUS_OPTIONS;
 const REVIEW_STATUS_COLOR = { pending: 'orange', approved: 'green', rejected: 'red' } as const satisfies Record<PaymentRiskReviewStatus, string>;
 
-interface SearchParams { scope: string; status: string; }
-const defaultSearch: SearchParams = { scope: '', status: '' };
+interface SearchParams { scope?: string; status?: string; }
+const defaultSearch: SearchParams = { scope: undefined, status: '' };
 
 interface RiskFormValues {
   name: string;
@@ -82,15 +82,15 @@ export default function PaymentRiskRulesPage() {
   // ── 拦截记录 ──
   const { page: hPage, pageSize: hPageSize, setPage: setHPage, buildPagination: buildHPagination } = usePagination();
   const [hitKeyword, setHitKeyword] = useState('');
-  const [hitAction, setHitAction] = useState('');
-  const [hitDimension, setHitDimension] = useState('');
-  const [submittedHitParams, setSubmittedHitParams] = useState({ keyword: '', action: '', dimension: '' });
+  const [hitAction, setHitAction] = useState<string | undefined>();
+  const [hitDimension, setHitDimension] = useState<string | undefined>();
+  const [submittedHitParams, setSubmittedHitParams] = useState<{ keyword: string; action?: string; dimension?: string }>({ keyword: '' });
 
   // ── 审核队列 ──
   const { page: rPage, pageSize: rPageSize, setPage: setRPage, buildPagination: buildRPagination } = usePagination();
   const [reviewKeyword, setReviewKeyword] = useState('');
-  const [reviewStatus, setReviewStatus] = useState('');
-  const [submittedReviewParams, setSubmittedReviewParams] = useState({ keyword: '', status: '' });
+  const [reviewStatus, setReviewStatus] = useState<string | undefined>();
+  const [submittedReviewParams, setSubmittedReviewParams] = useState<{ keyword: string; status?: string }>({ keyword: '' });
 
   const listQuery = usePaymentRiskRuleList({
     page,
@@ -132,9 +132,9 @@ export default function PaymentRiskRulesPage() {
   const allowListOptions = allRuleLists.filter((l) => l.type === 'white').map((l) => ({ value: l.key, label: `${l.name}（${l.key}）` }));
 
   function handleHitSearch() { setHPage(1); setSubmittedHitParams({ keyword: hitKeyword, action: hitAction, dimension: hitDimension }); void queryClient.invalidateQueries({ queryKey: paymentRiskKeys.hitLists }); }
-  function handleHitReset() { setHitKeyword(''); setHitAction(''); setHitDimension(''); setHPage(1); setSubmittedHitParams({ keyword: '', action: '', dimension: '' }); void queryClient.invalidateQueries({ queryKey: paymentRiskKeys.hitLists }); }
+  function handleHitReset() { setHitKeyword(''); setHitAction(undefined); setHitDimension(undefined); setHPage(1); setSubmittedHitParams({ keyword: '', action: '', dimension: '' }); void queryClient.invalidateQueries({ queryKey: paymentRiskKeys.hitLists }); }
   function handleReviewSearch() { setRPage(1); setSubmittedReviewParams({ keyword: reviewKeyword, status: reviewStatus }); void queryClient.invalidateQueries({ queryKey: paymentRiskKeys.reviewLists }); }
-  function handleReviewReset() { setReviewKeyword(''); setReviewStatus(''); setRPage(1); setSubmittedReviewParams({ keyword: '', status: '' }); void queryClient.invalidateQueries({ queryKey: paymentRiskKeys.reviewLists }); }
+  function handleReviewReset() { setReviewKeyword(''); setReviewStatus(undefined); setRPage(1); setSubmittedReviewParams({ keyword: '' }); void queryClient.invalidateQueries({ queryKey: paymentRiskKeys.reviewLists }); }
 
   const modal = useEditModal<PaymentRiskRule, RiskFormValues, Partial<PaymentRiskRule>>({
     entityName: '风控规则',
@@ -297,7 +297,13 @@ export default function PaymentRiskRulesPage() {
   ];
 
   const renderScopeFilter = () => (
-    <Select placeholder="全部作用域" value={draftParams.scope || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, scope: (v as string) ?? '' }))} showClear style={{ width: 130 }} optionList={scopeOptions} />
+    <FilterSelect
+      placeholder="全部作用域"
+      items={scopeOptions}
+      value={draftParams.scope}
+      onChange={(v) => setDraftParams((p) => ({ ...p, scope: v }))}
+      width={140}
+    />
   );
   const renderStatusFilter = () => (
     <StatusSelect items={statusItems} value={draftParams.status} onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))} />
@@ -312,10 +318,15 @@ export default function PaymentRiskRulesPage() {
     <KeywordInput placeholder="规则名/订单号/业务ID..." value={hitKeyword} onChange={setHitKeyword} onSearch={handleHitSearch} />
   );
   const renderHitActionFilter = () => (
-    <Select placeholder="全部动作" value={hitAction || undefined} onChange={(v) => setHitAction((v as string) ?? '')} showClear style={{ width: 120 }} optionList={actionOptions} />
+    <FilterSelect placeholder="全部动作" items={actionOptions} value={hitAction} onChange={setHitAction} />
   );
   const renderHitDimensionFilter = () => (
-    <Select placeholder="全部维度" value={hitDimension || undefined} onChange={(v) => setHitDimension((v as string) ?? '')} showClear style={{ width: 140 }} optionList={dimensionOptions} />
+    <FilterSelect
+      placeholder="全部维度"
+      items={dimensionOptions}
+      value={hitDimension}
+      onChange={setHitDimension}
+    />
   );
 
   const renderReviewKeyword = () => (

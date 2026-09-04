@@ -75,7 +75,7 @@ import {
   useUpdateFrontendErrorGroup,
 } from '@/hooks/queries/analytics';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
 import { formatBytes } from '@zenith/shared/core';
@@ -127,11 +127,11 @@ const ENVIRONMENT_OPTIONS = [
 ];
 
 interface IssueFilters {
-  status: ErrorStatus | '';
-  errorType: FrontendErrorType | '';
-  level: ErrorLevel | '';
+  status?: ErrorStatus;
+  errorType?: FrontendErrorType;
+  level?: ErrorLevel;
   keyword: string;
-  environment: AnalyticsEnvironment | '';
+  environment?: AnalyticsEnvironment;
 }
 
 interface GroupHandleForm {
@@ -164,7 +164,7 @@ type TabKey = 'overview' | 'issues' | 'events' | 'sourcemaps' | 'alerts' | 'aler
 
 const ERROR_TABS: readonly TabKey[] = ['overview', 'issues', 'events', 'sourcemaps', 'alerts', 'alertlogs'];
 
-const defaultIssueFilters: IssueFilters = { status: '', errorType: '', level: '', keyword: '', environment: '' };
+const defaultIssueFilters: IssueFilters = { status: undefined, errorType: undefined, level: undefined, keyword: '', environment: undefined };
 const EMPTY_ADMIN_USERS: { id: number; nickname?: string | null; username: string }[] = [];
 
 const defaultAlertForm: AlertFormState = {
@@ -963,43 +963,35 @@ export default function FrontendErrorsPage() {
     <Button type="primary" icon={<RefreshCcw size={14} />} loading={overviewQuery.isFetching} onClick={() => void overviewQuery.refetch()}>刷新</Button>
   );
   const renderIssueStatusFilter = () => (
-    <Select
-      showClear
-      placeholder="状态"
-      value={issueFilters.status || undefined}
-      style={{ width: 130 }}
-      optionList={statusOptions}
-      onChange={(value) => setIssueFilters((prev) => ({ ...prev, status: (value as ErrorStatus | undefined) ?? '' }))}
+    <StatusSelect
+      items={statusOptions}
+      value={issueFilters.status}
+      onChange={(value) => setIssueFilters((prev) => ({ ...prev, status: value as ErrorStatus | undefined }))}
     />
   );
   const renderIssueTypeFilter = () => (
-    <Select
-      showClear
-      placeholder="类型"
-      value={issueFilters.errorType || undefined}
-      style={{ width: 150 }}
-      optionList={typeOptions}
-      onChange={(value) => setIssueFilters((prev) => ({ ...prev, errorType: (value as FrontendErrorType | undefined) ?? '' }))}
+    <FilterSelect
+      placeholder="全部类型"
+      items={typeOptions}
+      value={issueFilters.errorType}
+      onChange={(value) => setIssueFilters((prev) => ({ ...prev, errorType: value as FrontendErrorType | undefined }))}
+      width={150}
     />
   );
   const renderIssueLevelFilter = () => (
-    <Select
-      showClear
-      placeholder="级别"
-      value={issueFilters.level || undefined}
-      style={{ width: 130 }}
-      optionList={levelOptions}
-      onChange={(value) => setIssueFilters((prev) => ({ ...prev, level: (value as ErrorLevel | undefined) ?? '' }))}
+    <FilterSelect
+      placeholder="全部级别"
+      items={levelOptions}
+      value={issueFilters.level}
+      onChange={(value) => setIssueFilters((prev) => ({ ...prev, level: value as ErrorLevel | undefined }))}
     />
   );
   const renderIssueEnvironmentFilter = () => (
-    <Select
-      showClear
-      placeholder="环境"
-      value={issueFilters.environment || undefined}
-      style={{ width: 130 }}
-      optionList={ENVIRONMENT_OPTIONS}
-      onChange={(value) => setIssueFilters((prev) => ({ ...prev, environment: (value as AnalyticsEnvironment | undefined) ?? '' }))}
+    <FilterSelect
+      placeholder="全部环境"
+      items={ENVIRONMENT_OPTIONS}
+      value={issueFilters.environment}
+      onChange={(value) => setIssueFilters((prev) => ({ ...prev, environment: value as AnalyticsEnvironment | undefined }))}
     />
   );
   const renderIssueKeywordSearch = () => (

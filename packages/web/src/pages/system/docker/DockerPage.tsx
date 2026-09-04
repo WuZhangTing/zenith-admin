@@ -702,7 +702,7 @@ function ImagesTab() {
         onOk={() => void handlePull()} okText="开始拉取" okButtonProps={{ loading: pullImageMutation.isPending }} width={440}>
         <Form labelPosition="left" labelWidth={90}>
           <Form.Slot label="镜像标签">
-            <Input placeholder="nginx:latest" value={pullTag} onChange={(v) => setPullTag(v)} style={{ width: '100%' }} />
+            <Input placeholder="nginx:latest" value={pullTag} onChange={setPullTag} style={{ width: '100%' }} />
             <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 6 }}>
               格式：&lt;镜像名&gt;:&lt;标签&gt;，留空标签默认 latest
             </Typography.Text>

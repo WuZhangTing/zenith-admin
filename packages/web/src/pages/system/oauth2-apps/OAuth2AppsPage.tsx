@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Tag, TagGroup, Modal, Form, Toast, Typography, Checkbox, Spin, Banner, Row, Col, Switch, Select, SideSheet, TextArea } from '@douyinfe/semi-ui';
+import { Button, Tag, TagGroup, Modal, Form, Toast, Typography, Checkbox, Spin, Banner, Row, Col, Switch, SideSheet, TextArea } from '@douyinfe/semi-ui';
 import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OAUTH2_SCOPES, OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS, OPEN_APP_REVIEW_STATUS_LABELS, OPEN_APP_REVIEW_STATUSES } from '@zenith/shared/open-platform';
 import type { OAuth2Client } from '@zenith/shared/open-platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -24,7 +24,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 const { Text, Paragraph } = Typography;
@@ -369,21 +369,18 @@ export default function OAuth2AppsPage() {
         )}
         filters={(
           <>
-            <Select
-              placeholder="环境"
+            <FilterSelect
+              placeholder="全部环境"
+              items={OPEN_APP_ENVIRONMENTS.map((value) => ({ value, label: OPEN_APP_ENVIRONMENT_LABELS[value] }))}
               value={draftParams.environment}
               onChange={(environment) => setDraftParams({ ...draftParams, environment: environment as SearchParams['environment'] })}
-              optionList={OPEN_APP_ENVIRONMENTS.map((value) => ({ value, label: OPEN_APP_ENVIRONMENT_LABELS[value] }))}
-              showClear
-              style={{ width: 120 }}
             />
-            <Select
-              placeholder="审核状态"
+            <FilterSelect
+              placeholder="全部审核状态"
+              items={OPEN_APP_REVIEW_STATUSES.map((value) => ({ value, label: OPEN_APP_REVIEW_STATUS_LABELS[value] }))}
               value={draftParams.reviewStatus}
               onChange={(reviewStatus) => setDraftParams({ ...draftParams, reviewStatus: reviewStatus as SearchParams['reviewStatus'] })}
-              optionList={OPEN_APP_REVIEW_STATUSES.map((value) => ({ value, label: OPEN_APP_REVIEW_STATUS_LABELS[value] }))}
-              showClear
-              style={{ width: 130 }}
+              width={140}
             />
           </>
         )}
@@ -398,21 +395,19 @@ export default function OAuth2AppsPage() {
         )}
         mobileFilters={(
           <>
-            <Select
-              placeholder="环境"
+            <FilterSelect
+              placeholder="全部环境"
+              items={OPEN_APP_ENVIRONMENTS.map((value) => ({ value, label: OPEN_APP_ENVIRONMENT_LABELS[value] }))}
               value={draftParams.environment}
               onChange={(environment) => setDraftParams({ ...draftParams, environment: environment as SearchParams['environment'] })}
-              optionList={OPEN_APP_ENVIRONMENTS.map((value) => ({ value, label: OPEN_APP_ENVIRONMENT_LABELS[value] }))}
-              showClear
-              style={{ width: '100%' }}
+              width="100%"
             />
-            <Select
-              placeholder="审核状态"
+            <FilterSelect
+              placeholder="全部审核状态"
+              items={OPEN_APP_REVIEW_STATUSES.map((value) => ({ value, label: OPEN_APP_REVIEW_STATUS_LABELS[value] }))}
               value={draftParams.reviewStatus}
               onChange={(reviewStatus) => setDraftParams({ ...draftParams, reviewStatus: reviewStatus as SearchParams['reviewStatus'] })}
-              optionList={OPEN_APP_REVIEW_STATUSES.map((value) => ({ value, label: OPEN_APP_REVIEW_STATUS_LABELS[value] }))}
-              showClear
-              style={{ width: '100%' }}
+              width="100%"
             />
           </>
         )}

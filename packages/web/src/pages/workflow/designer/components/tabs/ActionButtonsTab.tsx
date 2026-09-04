@@ -169,7 +169,7 @@ export default function ActionButtonsTab({
                           size="small"
                           placeholder="默认策略"
                           value={cfg.jumpToNodeKey}
-                          onChange={(v) => updateButton(meta.key, { jumpToNodeKey: (v as string) || undefined })}
+                          onChange={(v) => updateButton(meta.key, { jumpToNodeKey: v as string | undefined })}
                           optionList={jumpOptions}
                           showClear
                           disabled={disabled}

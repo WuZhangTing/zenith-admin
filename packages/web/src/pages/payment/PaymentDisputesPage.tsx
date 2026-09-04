@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { formatYuan } from '@/utils/payment';
-import { Banner, Button, Input, Modal, Select, SideSheet, Spin, Tag, TextArea, Timeline, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Input, Modal, SideSheet, Spin, Tag, TextArea, Timeline, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { FlaskConical } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -23,7 +23,7 @@ import {
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_DISPUTE_ROUTE_LABELS, PAYMENT_DISPUTE_ROUTE_OPTIONS, PAYMENT_DISPUTE_STATUS_LABELS, PAYMENT_DISPUTE_STATUS_OPTIONS, PAYMENT_DISPUTE_TYPE_LABELS, PAYMENT_DISPUTE_TYPE_OPTIONS, PAYMENT_ORDER_STATUS_LABELS, PAYMENT_CHANNEL_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentDispute, PaymentDisputeRoute, PaymentDisputeStatus, PaymentDisputeType } from '@zenith/shared/payment';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 
 const yuan = formatYuan;
@@ -32,8 +32,8 @@ const ROUTE_COLOR = { urgent: 'red', manual: 'grey', auto_refund_suggest: 'orang
 const channelOptions = PAYMENT_CHANNEL_OPTIONS;
 const REPLY_AUTHOR_LABELS = { merchant: '商户', user: '投诉人', system: '系统' } as const;
 
-interface SearchParams { keyword: string; status: string; type: string; channel: string; route: string }
-const defaultSearchParams: SearchParams = { keyword: '', status: '', type: '', channel: '', route: '' };
+interface SearchParams { keyword: string; status?: string; type?: string; channel?: string; route?: string }
+const defaultSearchParams: SearchParams = { keyword: '', status: undefined, type: undefined, channel: undefined, route: '' };
 
 export default function PaymentDisputesPage() {
   const { hasPermission } = usePermission();
@@ -172,13 +172,28 @@ export default function PaymentDisputesPage() {
     <StatusSelect items={PAYMENT_DISPUTE_STATUS_OPTIONS} value={draftParams.status} onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))} />
   );
   const renderTypeFilter = () => (
-    <Select placeholder="全部类型" value={draftParams.type || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, type: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={PAYMENT_DISPUTE_TYPE_OPTIONS} />
+    <FilterSelect
+      placeholder="全部类型"
+      items={PAYMENT_DISPUTE_TYPE_OPTIONS}
+      value={draftParams.type}
+      onChange={(v) => setDraftParams((p) => ({ ...p, type: v }))}
+    />
   );
   const renderChannelFilter = () => (
-    <Select placeholder="全部渠道" value={draftParams.channel || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, channel: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={channelOptions} />
+    <FilterSelect
+      placeholder="全部渠道"
+      items={channelOptions}
+      value={draftParams.channel}
+      onChange={(v) => setDraftParams((p) => ({ ...p, channel: v }))}
+    />
   );
   const renderRouteFilter = () => (
-    <Select placeholder="全部分流" value={draftParams.route || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, route: (v as string) ?? '' }))} showClear style={{ width: 130 }} optionList={PAYMENT_DISPUTE_ROUTE_OPTIONS} />
+    <FilterSelect
+      placeholder="全部分流"
+      items={PAYMENT_DISPUTE_ROUTE_OPTIONS}
+      value={draftParams.route}
+      onChange={(v) => setDraftParams((p) => ({ ...p, route: v }))}
+    />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;

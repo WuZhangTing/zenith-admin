@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Form, Select, Spin, Toast, Switch } from '@douyinfe/semi-ui';
+import { Button, Form, Spin, Toast, Switch } from '@douyinfe/semi-ui';
 import type { CascaderData } from '@douyinfe/semi-ui/lib/es/cascader';
 import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import type { Region } from '@zenith/shared/platform';
@@ -18,7 +18,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { useTreeExpansion } from '@/hooks/useTreeExpansion';
 import { REGION_LEVEL_LABELS } from '@zenith/shared/platform';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 
 const LEVEL_LABELS: Record<string, string> = REGION_LEVEL_LABELS;
@@ -27,11 +27,11 @@ const LEVEL_OPTIONS = (Object.keys(REGION_LEVEL_LABELS) as Array<keyof typeof RE
 
 interface SearchParams {
   keyword: string;
-  status: string;
-  level: string;
+  status?: string;
+  level?: string;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', status: '', level: '' };
+const defaultSearchParams: SearchParams = { keyword: '', status: undefined, level: '' };
 
 export default function RegionsPage() {
   const { hasPermission } = usePermission();
@@ -237,13 +237,11 @@ export default function RegionsPage() {
   );
 
   const renderLevelFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部级别"
-      value={draftParams.level || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, level: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 110, maxWidth: '100%' }}
-      optionList={LEVEL_OPTIONS}
+      items={LEVEL_OPTIONS}
+      value={draftParams.level}
+      onChange={(v) => setDraftParams((p) => ({ ...p, level: v }))}
     />
   );
 
@@ -252,7 +250,6 @@ export default function RegionsPage() {
       items={statusItems}
       value={draftParams.status}
       onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
-      width={110}
     />
   );
 

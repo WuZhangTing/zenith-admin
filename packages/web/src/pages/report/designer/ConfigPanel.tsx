@@ -3,6 +3,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { BASIC_COMPARISON_OPERATOR_SYMBOLS } from '@zenith/shared/core';
 import { REPORT_AGGREGATE_OPTIONS } from '@zenith/shared/report';
 import type { ReportWidget, ReportWidgetOptions, ReportFilter, ReportDatasetParam, ReportConditionalFormat, ReportMetricLookupOption } from '@zenith/shared/report';
+import { FilterSelect } from '@/components/search-filters';
 
 type FieldOption = { value: string; label: string };
 
@@ -131,9 +132,9 @@ export function ConfigPanel({ widget, datasets, metrics, dashboards, fieldOption
       )}
       {t === 'kpi' && (
         <>
-          <Field label="对比字段（环比/同比基准）"><Select style={full} value={o.compareField} placeholder="可选" showClear onChange={(v) => onOptions({ compareField: (v as string) || undefined })} optionList={fieldOptions} /></Field>
+          <Field label="对比字段（环比/同比基准）"><Select style={full} value={o.compareField} placeholder="可选" showClear onChange={(v) => onOptions({ compareField: v as string | undefined })} optionList={fieldOptions} /></Field>
           <Field label="目标值"><InputNumber style={full} value={o.targetValue} onChange={(v) => onOptions({ targetValue: typeof v === 'number' ? v : undefined })} /></Field>
-          <Field label="迷你趋势字段"><Select style={full} value={o.trendField} placeholder="可选" showClear onChange={(v) => onOptions({ trendField: (v as string) || undefined })} optionList={fieldOptions} /></Field>
+          <Field label="迷你趋势字段"><Select style={full} value={o.trendField} placeholder="可选" showClear onChange={(v) => onOptions({ trendField: v as string | undefined })} optionList={fieldOptions} /></Field>
         </>
       )}
       {t === 'flipper' && (
@@ -228,7 +229,7 @@ export function ConfigPanel({ widget, datasets, metrics, dashboards, fieldOption
       )}
       {(isCartesian || t === 'pie' || t === 'funnel') && (
         <Space style={{ width: '100%' }}>
-          <Field label="排序字段"><Select style={full} value={o.sortField} placeholder="不排序" showClear onChange={(v) => onOptions({ sortField: (v as string) || undefined })} optionList={fieldOptions} /></Field>
+          <Field label="排序字段"><Select style={full} value={o.sortField} placeholder="不排序" showClear onChange={(v) => onOptions({ sortField: v as string | undefined })} optionList={fieldOptions} /></Field>
           <Field label="TopN"><InputNumber style={full} min={0} value={o.topN} onChange={(v) => onOptions({ topN: typeof v === 'number' ? v : undefined })} /></Field>
         </Space>
       )}
@@ -279,9 +280,14 @@ export function ConfigPanel({ widget, datasets, metrics, dashboards, fieldOption
             {datasetParams.map((p) => (
               <Space key={p.name} style={{ width: '100%', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 12, color: 'var(--semi-color-text-1)' }}>{p.label || p.name}</span>
-                <Select size="small" style={{ width: 150 }} placeholder="选择筛选器" showClear
+                <FilterSelect
+                  placeholder="全部筛选器"
+                  items={filterOpts}
                   value={(widget.paramBindings ?? []).find((b) => b.param === p.name)?.filterId}
-                  onChange={(v) => setBinding(p.name, v as string | undefined)} optionList={filterOpts} />
+                  onChange={(v) => setBinding(p.name, v as string | undefined)}
+                  width={150}
+                  size="small"
+                />
               </Space>
             ))}
           </Space>

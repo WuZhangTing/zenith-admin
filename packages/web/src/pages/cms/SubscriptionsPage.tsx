@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Select, SideSheet, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
+import { SideSheet, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CMS_SUBSCRIPTION_SUBJECT_TYPE_LABELS, CMS_SUBSCRIPTION_SUBJECT_TYPE_OPTIONS } from '@zenith/shared/cms';
 import type { CmsMemberSubscription, CmsSubscriptionAggregate, CmsSubscriptionSubjectType } from '@zenith/shared/cms';
@@ -18,7 +18,7 @@ import {
 import { formatDateTimeRangeForApi } from '@/utils/date';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, KeywordInput } from '@/components/search-filters';
 import { dateTimeColumn } from '@/utils/table-columns';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
@@ -63,13 +63,12 @@ export default function SubscriptionsPage() {
 
   const filters = (
     <>
-      <Select
+      <FilterSelect
         placeholder="全部对象类型"
+        items={CMS_SUBSCRIPTION_SUBJECT_TYPE_OPTIONS}
         value={draft.subjectType}
-        showClear
-        style={{ width: 150 }}
-        optionList={CMS_SUBSCRIPTION_SUBJECT_TYPE_OPTIONS}
         onChange={(value) => setDraft((current) => ({ ...current, subjectType: value as CmsSubscriptionSubjectType | undefined }))}
+        width={150}
       />
       <DateRangeFilter value={draft.timeRange} onChange={(value) => setDraft((current) => ({ ...current, timeRange: value as [Date, Date] | undefined }))} width={330} />
     </>

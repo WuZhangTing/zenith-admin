@@ -5,14 +5,14 @@
  * Tab 2 投递日志：每次派发的「收件人 × 渠道」决策与归因，回答「为什么他没收到」。
  */
 import { useMemo } from 'react';
-import { Button, Modal, Select, Spin, Switch, Tabs, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Modal, Spin, Switch, Tabs, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Lock, RotateCcw, Unlock } from 'lucide-react';
 import { NOTIFICATION_CHANNEL_LABELS, NOTIFICATION_DECISION_LABELS, NOTIFICATION_DECISION_OPTIONS, NOTIFICATION_REASON_CODE_LABELS, NOTIFICATION_SEVERITY_LABELS, type NotificationChannel, type NotificationDecision, type NotificationPolicyEvent, type NotificationReasonCode, NOTIFICATION_CHANNEL_OPTIONS } from '@zenith/shared/messaging';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { DateRangeFilter } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect } from '@/components/search-filters';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { formatDateTimeRangeForApi } from '@/utils/date';
@@ -283,12 +283,26 @@ function DispatchLogTab() {
       <SearchToolbar
         primary={(
           <>
-            <Select placeholder="事件" value={draftParams.eventKey} optionList={eventOptions} showClear filter
-              onChange={(v) => setDraftParams({ ...draftParams, eventKey: v as string | undefined })} style={{ width: 240 }} />
-            <Select placeholder="渠道" value={draftParams.channel} optionList={CHANNEL_OPTIONS} showClear
-              onChange={(v) => setDraftParams({ ...draftParams, channel: v as NotificationChannel | undefined })} style={{ width: 110 }} />
-            <Select placeholder="结论" value={draftParams.decision} optionList={NOTIFICATION_DECISION_OPTIONS} showClear
-              onChange={(v) => setDraftParams({ ...draftParams, decision: v as NotificationDecision | undefined })} style={{ width: 130 }} />
+            <FilterSelect
+              placeholder="全部事件"
+              items={eventOptions}
+              value={draftParams.eventKey}
+              onChange={(v) => setDraftParams({ ...draftParams, eventKey: v as string | undefined })}
+              width={240}
+              filter
+            />
+            <FilterSelect
+              placeholder="全部渠道"
+              items={CHANNEL_OPTIONS}
+              value={draftParams.channel}
+              onChange={(v) => setDraftParams({ ...draftParams, channel: v as NotificationChannel | undefined })}
+            />
+            <FilterSelect
+              placeholder="全部结论"
+              items={NOTIFICATION_DECISION_OPTIONS}
+              value={draftParams.decision}
+              onChange={(v) => setDraftParams({ ...draftParams, decision: v as NotificationDecision | undefined })}
+            />
             <DateRangeFilter value={draftParams.timeRange} onChange={(v) => setDraftParams({ ...draftParams, timeRange: v })} />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />

@@ -28,11 +28,11 @@ const { Text } = Typography;
 
 interface SearchParams {
   keyword: string;
-  status: string;
+  status?: string;
   timeRange: [Date, Date] | null;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', status: '', timeRange: null };
+const defaultSearchParams: SearchParams = { keyword: '', status: undefined, timeRange: null };
 
 const STATUS_COLORS = {
   draft: 'grey',

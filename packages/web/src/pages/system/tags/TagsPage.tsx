@@ -1,15 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import {
-  Button,
-  Form,
-  Input,
-  Select,
-  Space,
-  Spin,
-  Toast,
-  Typography,
-  Switch,
-} from '@douyinfe/semi-ui';
+import { Button, Form, Input, Space, Spin, Toast, Typography, Switch } from '@douyinfe/semi-ui';
 import { Tags, Trash2 } from 'lucide-react';
 import type { Tag } from '@zenith/shared/platform';
 import { usePermission } from '@/hooks/usePermission';
@@ -31,7 +21,7 @@ import {
   useUpdateTagStatus,
 } from '@/hooks/queries/tags';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 
 const { Text } = Typography;
@@ -289,21 +279,17 @@ export default function TagsPage() {
         primary={(
           <>
             <KeywordInput placeholder="搜索标签名称或描述" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
-            <Select
-              placeholder="所属分组"
+            <FilterSelect
+              placeholder="全部所属分组"
+              items={groupOptions}
               value={draftParams.filterGroup}
               onChange={(v) => setDraftParams({ ...draftParams, filterGroup: v as string | undefined })}
-              optionList={groupOptions}
-              showClear
-              style={{ width: 160 }}
+              width={160}
             />
-            <Select
-              placeholder="状态"
+            <StatusSelect
+              items={statusItems}
               value={draftParams.filterStatus}
               onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as string | undefined })}
-              optionList={statusItems.map((i) => ({ label: i.label, value: i.value }))}
-              showClear
-              style={{ width: 100 }}
             />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
@@ -332,21 +318,17 @@ export default function TagsPage() {
         )}
         mobileFilters={(
           <>
-            <Select
-              placeholder="所属分组"
+            <FilterSelect
+              placeholder="全部所属分组"
+              items={groupOptions}
               value={draftParams.filterGroup}
               onChange={(v) => setDraftParams({ ...draftParams, filterGroup: v as string | undefined })}
-              optionList={groupOptions}
-              showClear
-              style={{ width: 160 }}
+              width={160}
             />
-            <Select
-              placeholder="状态"
+            <StatusSelect
+              items={statusItems}
               value={draftParams.filterStatus}
               onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as string | undefined })}
-              optionList={statusItems.map((i) => ({ label: i.label, value: i.value }))}
-              showClear
-              style={{ width: 100 }}
             />
           </>
         )}

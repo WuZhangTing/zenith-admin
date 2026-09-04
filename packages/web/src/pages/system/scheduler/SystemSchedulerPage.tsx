@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Col, Descriptions, Form, Input, Modal, Row, Select, Space, TabPane, Tabs, Tag, Toast, Typography, withField } from '@douyinfe/semi-ui';
+import { Button, Col, Descriptions, Form, Input, Modal, Row, Space, TabPane, Tabs, Tag, Toast, Typography, withField } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { AlertTriangle, CheckCircle2, RefreshCw, Trash2 } from 'lucide-react';
 import type { SystemSchedulerAlertChannel } from '@zenith/shared/chat';
@@ -28,25 +28,24 @@ import {
   useSystemSchedulerTasks,
 } from '@/hooks/queries/system-scheduler';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
-
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { confirmDanger } from '@/utils/confirm';
 type TabKey = 'tasks' | 'runs' | 'nodes';
 
 interface TaskSearchParams {
   keyword: string;
-  module: string;
-  taskType: string;
-  status: string;
+  module?: string;
+  taskType?: string;
+  status?: string;
 }
 
 interface RunSearchParams {
-  taskName: string;
-  taskType: string;
-  triggerType: string;
-  status: string;
-  alertStatus: string;
+  taskName?: string;
+  taskType?: string;
+  triggerType?: string;
+  status?: string;
+  alertStatus?: string;
   startTime: string;
   endTime: string;
 }
@@ -84,8 +83,8 @@ interface SaveTaskConfigPayload {
   };
 }
 
-const defaultTaskSearch: TaskSearchParams = { keyword: '', module: '', taskType: '', status: '' };
-const defaultRunSearch: RunSearchParams = { taskName: '', taskType: '', triggerType: '', status: '', alertStatus: '', startTime: '', endTime: '' };
+const defaultTaskSearch: TaskSearchParams = { keyword: '', module: undefined, taskType: undefined, status: undefined };
+const defaultRunSearch: RunSearchParams = { taskName: undefined, taskType: undefined, triggerType: undefined, status: undefined, alertStatus: undefined, startTime: '', endTime: '' };
 const FormUserSelect = withField(UserSelect);
 const EMPTY_TASKS: SystemSchedulerTask[] = [];
 const EMPTY_RUNS: SystemSchedulerRun[] = [];
@@ -224,11 +223,11 @@ export default function SystemSchedulerPage() {
 
   const moduleOptions = useMemo(() => {
     const modules = Array.from(new Set(tasks.map((item) => item.module))).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
-    return [{ value: '', label: '全部模块' }, ...modules.map((module) => ({ value: module, label: module }))];
+    return modules.map((module) => ({ value: module, label: module }));
   }, [tasks]);
 
   const taskOptions = useMemo(
-    () => [{ value: '', label: '全部任务' }, ...tasks.map((item) => ({ value: item.name, label: item.title }))],
+    () => tasks.map((item) => ({ value: item.name, label: item.title })),
     [tasks],
   );
 
@@ -535,32 +534,27 @@ export default function SystemSchedulerPage() {
         <TabPane tab="系统任务" itemKey="tasks">
           <SearchToolbar>
             <KeywordInput placeholder="搜索任务名称/标识/说明" value={taskSearch.keyword} onChange={(value) => setTaskSearch((prev) => ({ ...prev, keyword: value }))} width={240} />
-            <Select
+            <FilterSelect
+              placeholder="全部模块"
+              items={moduleOptions}
               value={taskSearch.module}
-              optionList={moduleOptions}
-              onChange={(value) => setTaskSearch((prev) => ({ ...prev, module: String(value ?? '') }))}
-              style={{ width: 140 }}
+              onChange={(value) => setTaskSearch((prev) => ({ ...prev, module: value }))}
+              width={140}
             />
-            <Select
+            <FilterSelect
+              placeholder="全部类型"
+              items={[{ value: 'recurring', label: '周期任务' },
+                { value: 'queue', label: '队列 Worker' },]}
               value={taskSearch.taskType}
-              optionList={[
-                { value: '', label: '全部类型' },
-                { value: 'recurring', label: '周期任务' },
-                { value: 'queue', label: '队列 Worker' },
-              ]}
-              onChange={(value) => setTaskSearch((prev) => ({ ...prev, taskType: String(value ?? '') }))}
-              style={{ width: 140 }}
+              onChange={(value) => setTaskSearch((prev) => ({ ...prev, taskType: value }))}
+              width={140}
             />
-            <Select
-              value={taskSearch.status}
-              optionList={[
-                { value: '', label: '全部状态' },
-                { value: 'running', label: '运行中' },
+            <StatusSelect
+              items={[{ value: 'running', label: '运行中' },
                 { value: 'success', label: '成功' },
-                { value: 'failed', label: '失败' },
-              ]}
-              onChange={(value) => setTaskSearch((prev) => ({ ...prev, status: String(value ?? '') }))}
-              style={{ width: 120 }}
+                { value: 'failed', label: '失败' },]}
+              value={taskSearch.status}
+              onChange={(value) => setTaskSearch((prev) => ({ ...prev, status: value }))}
             />
             <SearchButton onClick={() => void queryClient.invalidateQueries({ queryKey: systemSchedulerKeys.tasks })} />
             <ResetButton onClick={() => {
@@ -585,54 +579,44 @@ export default function SystemSchedulerPage() {
 
         <TabPane tab="运行日志" itemKey="runs">
           <SearchToolbar>
-            <Select
+            <FilterSelect
+              placeholder="全部任务"
+              items={taskOptions}
               value={draftRunSearch.taskName}
-              optionList={taskOptions}
+              onChange={(value) => setDraftRunSearch((prev) => ({ ...prev, taskName: value }))}
+              width={220}
               filter
-              onChange={(value) => setDraftRunSearch((prev) => ({ ...prev, taskName: String(value ?? '') }))}
-              style={{ width: 220 }}
             />
-            <Select
+            <FilterSelect
+              placeholder="全部类型"
+              items={[{ value: 'recurring', label: '周期任务' },
+                { value: 'queue', label: '队列 Worker' },]}
               value={draftRunSearch.taskType}
-              optionList={[
-                { value: '', label: '全部类型' },
-                { value: 'recurring', label: '周期任务' },
-                { value: 'queue', label: '队列 Worker' },
-              ]}
-              onChange={(value) => setDraftRunSearch((prev) => ({ ...prev, taskType: String(value ?? '') }))}
-              style={{ width: 140 }}
+              onChange={(value) => setDraftRunSearch((prev) => ({ ...prev, taskType: value }))}
             />
-            <Select
-              value={draftRunSearch.triggerType}
-              optionList={[
-                { value: '', label: '全部触发' },
-                { value: 'schedule', label: '自动调度' },
+            <FilterSelect
+              placeholder="全部触发方式"
+              items={[{ value: 'schedule', label: '自动调度' },
                 { value: 'manual', label: '手动执行' },
-                { value: 'queue', label: '队列触发' },
-              ]}
-              onChange={(value) => setDraftRunSearch((prev) => ({ ...prev, triggerType: String(value ?? '') }))}
-              style={{ width: 140 }}
+                { value: 'queue', label: '队列触发' },]}
+              value={draftRunSearch.triggerType}
+              onChange={(value) => setDraftRunSearch((prev) => ({ ...prev, triggerType: value }))}
+              width={140}
             />
-            <Select
-              value={draftRunSearch.status}
-              optionList={[
-                { value: '', label: '全部状态' },
-                { value: 'running', label: '运行中' },
+            <StatusSelect
+              items={[{ value: 'running', label: '运行中' },
                 { value: 'success', label: '成功' },
-                { value: 'failed', label: '失败' },
-              ]}
-              onChange={(value) => setDraftRunSearch((prev) => ({ ...prev, status: String(value ?? '') }))}
-              style={{ width: 120 }}
+                { value: 'failed', label: '失败' },]}
+              value={draftRunSearch.status}
+              onChange={(value) => setDraftRunSearch((prev) => ({ ...prev, status: value }))}
             />
-            <Select
+            <FilterSelect
+              placeholder="全部告警状态"
+              items={[{ value: 'alerted', label: '有告警' },
+                { value: 'unacked', label: '未确认' },]}
               value={draftRunSearch.alertStatus}
-              optionList={[
-                { value: '', label: '全部告警' },
-                { value: 'alerted', label: '有告警' },
-                { value: 'unacked', label: '未确认' },
-              ]}
-              onChange={(value) => setDraftRunSearch((prev) => ({ ...prev, alertStatus: String(value ?? '') }))}
-              style={{ width: 120 }}
+              onChange={(value) => setDraftRunSearch((prev) => ({ ...prev, alertStatus: value }))}
+              width={140}
             />
             <Input
               placeholder="开始时间"

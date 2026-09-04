@@ -36,7 +36,7 @@ import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { normalizeTemplateApplyValues, parseJsonObject } from './report-platform-utils';
 import { REPORT_RESOURCE_TYPE_OPTIONS } from './report-platform-options';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 import { JsonBlock } from '@/components/JsonBlock';
@@ -57,7 +57,7 @@ export default function AssetsPage() {
   const [activeTab, setActiveTab] = useUrlTabState(['catalog', 'templates', 'usage'] as const, 'catalog');
   const [catalogDraft, setCatalogDraft] = useState({
     keyword: '', types: [] as ReportResourceType[], ownerId: undefined as number | undefined,
-    folderId: undefined as number | undefined, lifecycle: '', timeRange: null as [Date, Date] | null,
+    folderId: undefined as number | undefined, lifecycle: undefined as string | undefined, timeRange: null as [Date, Date] | null,
   });
   const [catalogSearch, setCatalogSearch] = useState(catalogDraft);
   const [usageTarget, setUsageTarget] = useState<ReportAssetCatalogItem | null>(null);
@@ -108,7 +108,7 @@ export default function AssetsPage() {
     void qc.invalidateQueries({ queryKey: reportAssetKeys.lists });
   };
   const resetCatalog = () => {
-    const empty = { keyword: '', types: [] as ReportResourceType[], ownerId: undefined, folderId: undefined, lifecycle: '', timeRange: null as [Date, Date] | null };
+    const empty = { keyword: '', types: [] as ReportResourceType[], ownerId: undefined, folderId: undefined, lifecycle: undefined, timeRange: null as [Date, Date] | null };
     setPage(1);
     setCatalogDraft(empty);
     setCatalogSearch(empty);
@@ -313,9 +313,29 @@ export default function AssetsPage() {
             </>}
             filters={<>
               <Select multiple placeholder="资产类型" value={catalogDraft.types} optionList={resourceTypeOptions} style={{ width: 210 }} onChange={(value) => setCatalogDraft((p) => ({ ...p, types: value as ReportResourceType[] }))} />
-              <Select filter showClear placeholder="负责人" value={catalogDraft.ownerId} optionList={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))} style={{ width: 150 }} onChange={(value) => setCatalogDraft((p) => ({ ...p, ownerId: value as number | undefined }))} />
-              <Select filter showClear placeholder="目录" value={catalogDraft.folderId} optionList={folders.map((f) => ({ value: f.id, label: `[${f.resourceType}] ${f.name}` }))} style={{ width: 180 }} onChange={(value) => setCatalogDraft((p) => ({ ...p, folderId: value as number | undefined }))} />
-              <Select showClear placeholder="生命周期" value={catalogDraft.lifecycle || undefined} optionList={['draft', 'published', 'deprecated'].map((value) => ({ value, label: value === 'deprecated' ? '已弃用' : REPORT_DASHBOARD_LIFECYCLE_LABELS[value as keyof typeof REPORT_DASHBOARD_LIFECYCLE_LABELS] ?? value }))} style={{ width: 140 }} onChange={(value) => setCatalogDraft((p) => ({ ...p, lifecycle: (value as string) ?? '' }))} />
+              <FilterSelect
+                placeholder="全部负责人"
+                items={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))}
+                value={catalogDraft.ownerId}
+                onChange={(value) => setCatalogDraft((p) => ({ ...p, ownerId: value as number | undefined }))}
+                width={150}
+                filter
+              />
+              <FilterSelect
+                placeholder="全部目录"
+                items={folders.map((f) => ({ value: f.id, label: `[${f.resourceType}] ${f.name}` }))}
+                value={catalogDraft.folderId}
+                onChange={(value) => setCatalogDraft((p) => ({ ...p, folderId: value as number | undefined }))}
+                width={180}
+                filter
+              />
+              <FilterSelect
+                placeholder="全部生命周期"
+                items={['draft', 'published', 'deprecated'].map((value) => ({ value, label: value === 'deprecated' ? '已弃用' : REPORT_DASHBOARD_LIFECYCLE_LABELS[value as keyof typeof REPORT_DASHBOARD_LIFECYCLE_LABELS] ?? value }))}
+                value={catalogDraft.lifecycle}
+                onChange={(value) => setCatalogDraft((p) => ({ ...p, lifecycle: value }))}
+                width={140}
+              />
               <DateRangeFilter value={catalogDraft.timeRange ?? undefined} onChange={(value) => setCatalogDraft((p) => ({ ...p, timeRange: value ? value as [Date, Date] : null }))} width={340} />
             </>}
             actions={<ExportButton entity="report.assets" query={catalogQueryParams} />}
@@ -334,7 +354,13 @@ export default function AssetsPage() {
         <TabPane tab="可复用模板" itemKey="templates">
           <SearchToolbar>
             <KeywordInput placeholder="搜索模板名称/编码" value={templateKeyword} onChange={setTemplateKeyword} onSearch={searchTemplates} width={230} />
-            <Select placeholder="模板类型" showClear value={templateType} optionList={templateTypeOptions} style={{ width: 150 }} onChange={(v) => setTemplateType(v as ReportAssetTemplateType | undefined)} />
+            <FilterSelect
+              placeholder="全部模板类型"
+              items={templateTypeOptions}
+              value={templateType}
+              onChange={(v) => setTemplateType(v as ReportAssetTemplateType | undefined)}
+              width={150}
+            />
             <SearchButton onClick={searchTemplates} />
             <ResetButton onClick={resetTemplates} />
             {hasPermission('report:asset-template:create') ? <CreateButton onClick={() => openTemplate()} /> : null}

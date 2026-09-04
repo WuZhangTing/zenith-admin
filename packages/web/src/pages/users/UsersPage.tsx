@@ -46,7 +46,7 @@ import {
   userKeys,
 } from '@/hooks/queries/users';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDanger, confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -54,7 +54,7 @@ import { abortSubmit } from '@/lib/abort-submit';
 interface SearchParams {
   keyword: string;
   phone: string;
-  status: string;
+  status?: string;
   timeRange: [Date, Date] | null;
   departmentId: number | null;
 }
@@ -71,7 +71,7 @@ interface ResetPasswordFormValues {
   confirmPassword: string;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', phone: '', status: '', timeRange: null, departmentId: null };
+const defaultSearchParams: SearchParams = { keyword: '', phone: '', status: undefined, timeRange: null, departmentId: null };
 const EMPTY_USERS: User[] = [];
 const EMPTY_ROLES: Role[] = [];
 const EMPTY_DEPARTMENTS: Department[] = [];
@@ -621,15 +621,10 @@ export default function UsersPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="请选择状态"
-      value={draftParams.status || undefined}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as string) ?? '' }))}
-      style={{ width: 140, maxWidth: '100%' }}
-      optionList={[
-        { value: '', label: '全部状态' },
-        ...statusItems.map((item) => ({ value: item.value, label: item.label })),
-      ]}
+    <StatusSelect
+      items={statusItems}
+      value={draftParams.status}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: value }))}
     />
   );
 

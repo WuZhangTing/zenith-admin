@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Form, Select, SideSheet, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, SideSheet, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { FolderTree } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -18,7 +18,7 @@ import {
 import type { CmsFriendLink, CmsFriendLinkGroup } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 
@@ -116,17 +116,16 @@ export default function FriendLinksPage() {
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setPage(1); }} width={180} />
         <KeywordInput placeholder="搜索名称..." value={draftParams.keyword} onChange={(keyword) => setDraftParams((current) => ({ ...current, keyword }))} onSearch={handleSearch} width={200} />
-        <Select
+        <FilterSelect
           placeholder="全部分组"
-          showClear
-          disabled={!siteId}
-          style={{ width: 160 }}
-          value={draftParams.groupId}
-          onChange={(v) => setDraftParams((current) => ({ ...current, groupId: v == null ? undefined : Number(v) }))}
-          optionList={[
+          items={[
             { value: 0, label: '未分组' },
             ...groupOptions.map((g) => ({ value: g.id, label: g.name })),
           ]}
+          value={draftParams.groupId}
+          onChange={(v) => setDraftParams((current) => ({ ...current, groupId: v }))}
+          width={160}
+          disabled={!siteId}
         />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />

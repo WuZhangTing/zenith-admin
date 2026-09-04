@@ -138,7 +138,7 @@ export default function AiSettingsModal({ visible, initialTab = 'instructions', 
               ) : (
                 <TextArea
                   value={profileContent}
-                  onChange={(v) => setProfileDraft(v)}
+                  onChange={setProfileDraft}
                   rows={9}
                   maxLength={8000}
                   placeholder="AI 尚未记住任何内容；随着对话进行会自动更新，也可以直接在此编辑"

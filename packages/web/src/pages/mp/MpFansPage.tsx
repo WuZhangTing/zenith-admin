@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Avatar, Button, Form, Modal, Select, Space, Spin, Tag, Toast, Banner } from '@douyinfe/semi-ui';
+import { Avatar, Button, Form, Modal, Space, Spin, Tag, Toast, Banner } from '@douyinfe/semi-ui';
 import { RefreshCw, Ban } from 'lucide-react';
 import type { MpFan, MpFanSubscribe } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
@@ -23,7 +23,7 @@ import {
 import { useMpTagOptions } from '@/hooks/queries/mp-tags';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 
@@ -199,34 +199,31 @@ export default function MpFansPage() {
     <KeywordInput placeholder="搜索昵称/openid/备注" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
   );
   const renderSubscribeFilter = () => (
-    <Select
-      placeholder="关注状态"
+    <FilterSelect
+      placeholder="全部关注状态"
+      items={SUBSCRIBE_OPTIONS}
       value={draftParams.subscribe}
       onChange={(v) => setDraftParams({ ...draftParams, subscribe: v as MpFanSubscribe | undefined })}
-      optionList={SUBSCRIBE_OPTIONS}
-      showClear
-      style={{ width: 120 }}
+      width={140}
     />
   );
   const renderTagFilter = () => (
-    <Select
-      placeholder="标签"
+    <FilterSelect
+      placeholder="全部标签"
+      items={tags.map((t) => ({ label: t.name, value: t.id }))}
       value={draftParams.tagId}
       onChange={(v) => setDraftParams({ ...draftParams, tagId: v as number | undefined })}
-      optionList={tags.map((t) => ({ label: t.name, value: t.id }))}
-      showClear
+      width={150}
       filter
-      style={{ width: 150 }}
     />
   );
   const renderBlacklistFilter = () => (
-    <Select
-      placeholder="黑名单"
+    <FilterSelect
+      placeholder="全部黑名单"
+      items={[{ label: '黑名单', value: 'true' }, { label: '正常', value: 'false' }]}
       value={draftParams.blacklisted}
       onChange={(v) => setDraftParams({ ...draftParams, blacklisted: v as 'true' | 'false' | undefined })}
-      optionList={[{ label: '黑名单', value: 'true' }, { label: '正常', value: 'false' }]}
-      showClear
-      style={{ width: 110 }}
+      width={140}
     />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;

@@ -1,4 +1,4 @@
-import { Select, Tag } from '@douyinfe/semi-ui';
+import { Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { MemberRecharge } from '@zenith/shared/member';
 import type { PaymentChannel, PaymentOrderStatus } from '@zenith/shared/payment';
@@ -13,7 +13,7 @@ import { memberAdminKeys, useMemberRechargeList } from '@/hooks/queries/member-a
 import { useListSearch } from '@/hooks/useListSearch';
 import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 
 interface SearchParams {
   keyword?: string;
@@ -67,16 +67,14 @@ export default function MemberRechargesPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <KeywordInput placeholder="会员昵称/手机号/订单号" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value || undefined }))} onSearch={handleSearch} />
+    <KeywordInput placeholder="会员昵称/手机号/订单号" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} />
   );
 
   const renderChannelFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部渠道"
+      items={channelOptions}
       value={draftParams.channel}
-      style={{ width: 120 }}
-      showClear
-      optionList={channelOptions}
       onChange={(value) => setDraftParams((prev) => ({ ...prev, channel: value as PaymentChannel | undefined }))}
     />
   );
@@ -85,8 +83,7 @@ export default function MemberRechargesPage() {
     <StatusSelect
       items={statusOptions}
       value={draftParams.status}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as PaymentOrderStatus) || undefined }))}
-      width={130}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: value as PaymentOrderStatus | undefined }))}
     />
   );
 

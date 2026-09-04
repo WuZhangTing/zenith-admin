@@ -5,7 +5,7 @@ import { Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import UserSelect from '@/components/UserSelect';
 import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
@@ -55,11 +55,11 @@ function describeAction(a: IotAutomationAction): string {
 // ─── 联动规则 Tab ─────────────────────────────────────────────────────────────
 interface AutomationSearchParams {
   keyword: string;
-  triggerType: string;
-  status: string;
+  triggerType?: string;
+  status?: string;
 }
 
-const defaultSearch: AutomationSearchParams = { keyword: '', triggerType: '', status: '' };
+const defaultSearch: AutomationSearchParams = { keyword: '', triggerType: undefined, status: '' };
 
 /** 表单值中的动作行（JSON 字段以文本形态编辑，提交时解析） */
 interface ActionFormRow {
@@ -277,11 +277,12 @@ function AutomationRulesTab({ onShowRuns }: Readonly<{ onShowRuns: (automation: 
   );
 
   const renderTriggerFilter = () => (
-    <StatusSelect
+    <FilterSelect
       placeholder="全部触发器"
-      items={IOT_AUTOMATION_TRIGGER_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+      items={IOT_AUTOMATION_TRIGGER_OPTIONS}
       value={draftParams.triggerType}
       onChange={(v) => setDraftParams((p) => ({ ...p, triggerType: v }))}
+      width={140}
     />
   );
 
@@ -588,7 +589,7 @@ function AutomationRunsTab({ filterAutomation, onClearFilter }: Readonly<{
 }>) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [successFilter, setSuccessFilter] = useState('');
+  const [successFilter, setSuccessFilter] = useState<string | undefined>();
   const [detailRun, setDetailRun] = useState<IotAutomationRun | null>(null);
 
   const listQuery = useIotAutomationRunList({
@@ -645,7 +646,7 @@ function AutomationRunsTab({ filterAutomation, onClearFilter }: Readonly<{
               联动：{filterAutomation.name}
             </Tag>
           )}
-          <StatusSelect
+          <FilterSelect
             placeholder="全部结果"
             items={[{ value: 'true', label: '成功' }, { value: 'false', label: '失败' }]}
             value={successFilter}

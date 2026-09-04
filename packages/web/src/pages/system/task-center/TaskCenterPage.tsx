@@ -33,7 +33,7 @@ import {
   useUpdateAsyncTaskTypeConfig,
 } from '@/hooks/queries/async-tasks';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { JsonBlock } from '@/components/JsonBlock';
 import TaskStatsTab from './TaskStatsTab';
@@ -48,17 +48,16 @@ type TaskTypeRow = AsyncTaskTypeMeta & {
 };
 
 interface SearchParams {
-  taskType: string;
-  status: string;
+  taskType?: string;
+  status?: string;
   keyword: string;
   content: string;
   createdBy: string;
 }
 
-const defaultSearchParams: SearchParams = { taskType: '', status: '', keyword: '', content: '', createdBy: '' };
+const defaultSearchParams: SearchParams = { taskType: undefined, status: undefined, keyword: '', content: '', createdBy: '' };
 
-const statusOptions: Array<{ value: AsyncTaskStatus | ''; label: string }> = [
-  { value: '', label: '全部状态' },
+const statusOptions: Array<{ value: AsyncTaskStatus; label: string }> = [
   { value: 'pending', label: '排队中' },
   { value: 'running', label: '执行中' },
   { value: 'success', label: '已完成' },
@@ -66,8 +65,7 @@ const statusOptions: Array<{ value: AsyncTaskStatus | ''; label: string }> = [
   { value: 'cancelled', label: '已取消' },
 ];
 
-const itemStatusOptions: Array<{ value: AsyncTaskItemStatus | ''; label: string }> = [
-  { value: '', label: '全部状态' },
+const itemStatusOptions: Array<{ value: AsyncTaskItemStatus; label: string }> = [
   { value: 'success', label: '成功' },
   { value: 'failed', label: '失败' },
   { value: 'skipped', label: '跳过' },
@@ -111,7 +109,7 @@ export default function TaskCenterPage() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
 
   // 详情抽屉：任务项明细
-  const [itemStatusFilter, setItemStatusFilter] = useState('');
+  const [itemStatusFilter, setItemStatusFilter] = useState<string | undefined>();
   const { page: itemsPage, pageSize: itemsPageSize, setPage: setItemsPage, buildPagination: buildItemsPagination } = usePagination(10);
 
   // 类型策略弹窗
@@ -201,10 +199,7 @@ export default function TaskCenterPage() {
   };
 
   const typeOptions = useMemo(
-    () => [
-      { value: '', label: '全部类型' },
-      ...types.map((item) => ({ value: item.taskType, label: `${item.module} · ${item.title}` })),
-    ],
+    () => types.map((item) => ({ value: item.taskType, label: `${item.module} · ${item.title}` })),
     [types],
   );
 
@@ -530,19 +525,17 @@ export default function TaskCenterPage() {
       <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(key) => setActiveTab(key as TabKey)} lazyRender>
         <TabPane tab="任务列表" itemKey="tasks">
           <SearchToolbar>
-            <Select
-              placeholder="任务类型"
-              value={draftParams.taskType || undefined}
-              optionList={typeOptions}
-              onChange={(value) => setDraftParams((prev) => ({ ...prev, taskType: (value as string) ?? '' }))}
-              style={{ width: 210 }}
+            <FilterSelect
+              placeholder="全部任务类型"
+              items={typeOptions}
+              value={draftParams.taskType}
+              onChange={(value) => setDraftParams((prev) => ({ ...prev, taskType: value }))}
+              width={210}
             />
-            <Select
-              placeholder="状态"
-              value={draftParams.status || undefined}
-              optionList={statusOptions}
-              onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as string) ?? '' }))}
-              style={{ width: 120 }}
+            <StatusSelect
+              items={statusOptions}
+              value={draftParams.status}
+              onChange={(value) => setDraftParams((prev) => ({ ...prev, status: value }))}
             />
             <KeywordInput placeholder="搜索任务标题/类型" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} width={190} />
             <KeywordInput placeholder="任务内容包含…" value={draftParams.content} onChange={(value) => setDraftParams((prev) => ({ ...prev, content: value }))} onSearch={handleSearch} width={170} />
@@ -713,16 +706,14 @@ export default function TaskCenterPage() {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                 <Typography.Title heading={6} style={{ margin: 0 }}>任务项明细（{itemsTotal}）</Typography.Title>
-                <Select
-                  placeholder="状态"
-                  value={itemStatusFilter || undefined}
-                  optionList={itemStatusOptions}
+                <StatusSelect
+                  items={itemStatusOptions}
+                  value={itemStatusFilter}
                   onChange={(value) => {
-                    const next = (value as string) ?? '';
+                    const next = value;
                     setItemStatusFilter(next);
                     setItemsPage(1);
                   }}
-                  style={{ width: 120 }}
                   size="small"
                 />
               </div>

@@ -7,7 +7,7 @@ import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { FileUp } from 'lucide-react';import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import AppModal from '@/components/AppModal';
 import { EMPTY_PLACEHOLDER, copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
@@ -46,7 +46,7 @@ const DEVICE_STATUS_COLORS = {
 interface FirmwareSearchParams {
   keyword: string;
   productId: number | null;
-  status: string;
+  status?: string;
 }
 
 const defaultFirmwareSearch: FirmwareSearchParams = { keyword: '', productId: null, status: '' };
@@ -180,7 +180,7 @@ function FirmwaresTab({ onCreateTask }: Readonly<{ onCreateTask: (firmware: IotF
   );
 
   const renderProductFilter = () => (
-    <StatusSelect
+    <FilterSelect
       placeholder="全部产品"
       items={products.map((p) => ({ value: String(p.id), label: p.name }))}
       value={draftParams.productId === null ? '' : String(draftParams.productId)}
@@ -298,7 +298,7 @@ function FirmwaresTab({ onCreateTask }: Readonly<{ onCreateTask: (firmware: IotF
 // ─── 升级任务 Tab ─────────────────────────────────────────────────────────────
 interface TaskSearchParams {
   keyword: string;
-  status: string;
+  status?: string;
 }
 
 const defaultTaskSearch: TaskSearchParams = { keyword: '', status: '' };
@@ -416,8 +416,8 @@ function OtaTasksTab({ detailTask, onOpenDetail }: Readonly<{
 
   const renderStatusFilter = () => (
     <StatusSelect
-      placeholder="全部状态"
-      items={IOT_OTA_TASK_STATUS_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+     
+      items={IOT_OTA_TASK_STATUS_OPTIONS}
       value={draftParams.status}
       onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
     />
@@ -461,7 +461,7 @@ function OtaTasksTab({ detailTask, onOpenDetail }: Readonly<{
 /** 任务明细抽屉：设备状态机 + 进度轮询 */
 function OtaTaskDetailDrawer({ task, onClose }: Readonly<{ task: IotOtaTask | null; onClose: () => void }>) {
   const [page, setPage] = useState(1);
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState<string | undefined>();
   const devicesQuery = useIotOtaTaskDevices(
     task?.id ?? null,
     { page, pageSize: 10, status: status || undefined },
@@ -508,8 +508,8 @@ function OtaTaskDetailDrawer({ task, onClose }: Readonly<{ task: IotOtaTask | nu
         <>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
             <StatusSelect
-              placeholder="全部状态"
-              items={IOT_OTA_DEVICE_STATUS_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+             
+              items={IOT_OTA_DEVICE_STATUS_OPTIONS}
               value={status}
               onChange={(v) => { setStatus(v); setPage(1); }}
             />

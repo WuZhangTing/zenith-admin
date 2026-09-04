@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Col, Dropdown, SplitButtonGroup, Row, SideSheet, Form, Modal, Popover, Select, Space, Spin, Switch, Table, Tabs, Tag, Toast, Tooltip } from '@douyinfe/semi-ui';
+import { Button, Col, Dropdown, SplitButtonGroup, Row, SideSheet, Form, Modal, Popover, Space, Spin, Switch, Table, Tabs, Tag, Toast, Tooltip } from '@douyinfe/semi-ui';
 import { ScrollText, Trash2, ChevronDown, HelpCircle } from 'lucide-react';
 import type { CronJob } from '@zenith/shared/platform';
 import { CRON_RUN_STATUS_LABELS } from '@zenith/shared/platform';
@@ -34,14 +34,14 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { CLEAR_LOGS_LABELS } from '@/hooks/useClearLogs';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 interface SearchParams {
   keyword: string;
-  status: string;
+  status?: string;
 }
 
 const defaultSearchParams: SearchParams = { keyword: '', status: '' };
@@ -387,12 +387,10 @@ export default function CronJobsPage() {
             primary={(
               <>
                 <KeywordInput placeholder="搜索任务名称/处理器" value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} width={240} />
-                <Select
-                  placeholder="状态"
-                  value={draftParams.status || undefined}
-                  onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
-                  style={{ width: 140 }}
-                  optionList={[{ value: '', label: '全部' }, ...statusItems.map((i) => ({ value: i.value, label: i.label }))]}
+                <StatusSelect
+                  items={statusItems}
+                  value={draftParams.status}
+                  onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
                 />
                 <SearchButton onClick={handleSearch} />
                 <ResetButton onClick={handleReset} />
@@ -417,12 +415,10 @@ export default function CronJobsPage() {
               </>
             )}
             mobileFilters={(
-              <Select
-                placeholder="状态"
-                value={draftParams.status || undefined}
-                onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
-                style={{ width: 140 }}
-                optionList={[{ value: '', label: '全部' }, ...statusItems.map((i) => ({ value: i.value, label: i.label }))]}
+              <StatusSelect
+                items={statusItems}
+                value={draftParams.status}
+                onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
               />
             )}
             mobileActions={(
@@ -552,17 +548,16 @@ export default function CronJobsPage() {
         closeOnEsc
       >
         <div style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Select
-            placeholder="过滤任务"
+          <FilterSelect
+            placeholder="全部过滤任务"
+            items={data.map((job) => ({ value: job.id, label: job.name }))}
             value={allLogsJobFilter ?? undefined}
             onChange={(v) => {
-              const jobId = (v as number | undefined) ?? null;
+              const jobId = v ?? null;
               setAllLogsJobFilter(jobId);
               setAllLogsPage(1);
             }}
-            style={{ width: 220 }}
-            showClear
-            optionList={data.map((job) => ({ value: job.id, label: job.name }))}
+            width={220}
           />
           {hasPermission('system:cronjob:delete') && (
             <SplitButtonGroup>

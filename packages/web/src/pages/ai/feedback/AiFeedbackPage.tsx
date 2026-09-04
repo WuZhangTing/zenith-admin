@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Button, Form, Select, Tag, Typography, Toast } from '@douyinfe/semi-ui';
+import { Button, Form, Tag, Typography, Toast } from '@douyinfe/semi-ui';
 import { Download, ThumbsUp, ThumbsDown } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -15,20 +15,18 @@ import AppModal from '@/components/AppModal';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { aiFeedbackKeys, downloadAiFeedbackCsv, useAiFeedbackContext, useAiFeedbackList, useHandleAiFeedback } from '@/hooks/queries/ai-feedback';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
 import AiMessagesViewer from '../components/AiMessagesViewer';
 
 const { Text } = Typography;
 
 const FEEDBACK_OPTIONS = [
-  { value: '', label: '全部' },
   { value: '1', label: '👍 点赞' },
   { value: '-1', label: '👎 点踩' },
 ];
 
 const STATUS_FILTER_OPTIONS = [
-  { value: '', label: '全部' },
   { value: 'pending', label: '待处理' },
   { value: 'resolved', label: '已处理' },
   { value: 'ignored', label: '已忽略' },
@@ -67,8 +65,8 @@ function normalizeRemark(value: unknown) {
   return text ? text : null;
 }
 
-interface SearchParams { feedback: string; status: string; model: string; timeRange: [Date, Date] | null }
-const defaultSearchParams: SearchParams = { feedback: '', status: '', model: '', timeRange: null };
+interface SearchParams { feedback?: string; status?: string; model?: string; timeRange: [Date, Date] | null }
+const defaultSearchParams: SearchParams = { feedback: undefined, status: undefined, model: undefined, timeRange: null };
 
 export default function AiFeedbackPage() {
   const { hasPermission } = usePermission();
@@ -96,11 +94,8 @@ export default function AiFeedbackPage() {
   const contextQuery = useAiFeedbackContext(contextMsgId);
 
   // 模型筛选选项：从当前页数据聚合（含历史模型）
-  const modelOptions = [
-    { value: '', label: '全部模型' },
-    ...Array.from(new Set((data?.list ?? []).map((m) => m.model).filter((m): m is string => !!m)))
-      .map((m) => ({ value: m, label: m })),
-  ];
+  const modelOptions = Array.from(new Set((data?.list ?? []).map((m) => m.model).filter((m): m is string => !!m)))
+    .map((m) => ({ value: m, label: m }));
 
   const handleExport = () => {
     void downloadAiFeedbackCsv({
@@ -239,33 +234,32 @@ export default function AiFeedbackPage() {
   ];
 
   const renderFeedbackFilter = () => (
-    <Select
-    value={draftParams.feedback}
-    onChange={(v) => setDraftParams((prev) => ({ ...prev, feedback: String(v) }))}
-      optionList={FEEDBACK_OPTIONS}
-      style={{ width: 120 }}
-      placeholder="反馈类型"
+    <FilterSelect
+      placeholder="全部反馈类型"
+      items={FEEDBACK_OPTIONS}
+      value={draftParams.feedback}
+      onChange={(v) => setDraftParams((prev) => ({ ...prev, feedback: String(v) }))}
+      width={140}
     />
   );
 
   const renderStatusFilter = () => (
-    <Select
-    value={draftParams.status}
-    onChange={(v) => setDraftParams((prev) => ({ ...prev, status: String(v) }))}
-      optionList={STATUS_FILTER_OPTIONS}
-      style={{ width: 120 }}
-      placeholder="处理状态"
+    <FilterSelect
+      placeholder="全部处理状态"
+      items={STATUS_FILTER_OPTIONS}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((prev) => ({ ...prev, status: String(v) }))}
+      width={140}
     />
   );
 
   const renderModelFilter = () => (
-    <Select
+    <FilterSelect
+      placeholder="全部模型"
+      items={modelOptions}
       value={draftParams.model}
-      onChange={(v) => setDraftParams((prev) => ({ ...prev, model: String(v ?? '') }))}
-      optionList={modelOptions}
-      style={{ width: 160 }}
-      placeholder="模型"
-      showClear
+      onChange={(v) => setDraftParams((prev) => ({ ...prev, model: v }))}
+      width={160}
       filter
     />
   );

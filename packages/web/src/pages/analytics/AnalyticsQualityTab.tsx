@@ -21,7 +21,7 @@ import {
 import type { AnalyticsEventOverride, AnalyticsQualityDaily, AnalyticsQualityIssueType } from '@zenith/shared/analytics';
 import { ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS, ANALYTICS_QUALITY_ISSUE_TYPE_LABELS, ANALYTICS_QUALITY_ISSUE_TYPE_OPTIONS } from '@zenith/shared/analytics';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -42,15 +42,15 @@ const ISSUE_COLOR: Record<AnalyticsQualityIssueType, 'red' | 'orange' | 'amber' 
 interface QualityFilter {
   days: number;
   eventName: string;
-  issueType: AnalyticsQualityIssueType | '';
+  issueType?: AnalyticsQualityIssueType;
 }
-const defaultQualityFilter: QualityFilter = { days: 30, eventName: '', issueType: '' };
+const defaultQualityFilter: QualityFilter = { days: 30, eventName: '', issueType: undefined };
 
 interface OverrideFilter {
   eventName: string;
-  status: AnalyticsEventOverride['status'] | '';
+  status?: AnalyticsEventOverride['status'];
 }
-const defaultOverrideFilter: OverrideFilter = { eventName: '', status: '' };
+const defaultOverrideFilter: OverrideFilter = { eventName: '', status: undefined };
 
 type OverrideFormValues = { eventName: string; status: AnalyticsEventOverride['status']; reason: string | null };
 
@@ -202,13 +202,12 @@ export default function AnalyticsQualityTab() {
         <SearchToolbar>
           <Select value={filter.days} onChange={(value) => setFilter((prev) => ({ ...prev, days: Number(value) }))} optionList={DAY_OPTIONS} style={{ width: 110 }} />
           <KeywordInput placeholder="事件名" value={filter.eventName} onChange={(value) => setFilter((prev) => ({ ...prev, eventName: value }))} onSearch={handleSearch} width={160} />
-          <Select
-            placeholder="问题类型"
-            value={filter.issueType || undefined}
-            onChange={(value) => setFilter((prev) => ({ ...prev, issueType: (value as AnalyticsQualityIssueType) ?? '' }))}
-            optionList={ANALYTICS_QUALITY_ISSUE_TYPE_OPTIONS}
-            showClear
-            style={{ width: 160 }}
+          <FilterSelect
+            placeholder="全部问题类型"
+            items={ANALYTICS_QUALITY_ISSUE_TYPE_OPTIONS}
+            value={filter.issueType}
+            onChange={(value) => setFilter((prev) => ({ ...prev, issueType: value as AnalyticsQualityIssueType | undefined }))}
+            width={160}
           />
           <SearchButton onClick={handleSearch} />
           <ResetButton onClick={handleReset} />
@@ -243,13 +242,10 @@ export default function AnalyticsQualityTab() {
           <>
             <SearchToolbar>
               <KeywordInput placeholder="事件名" value={overrideFilter.eventName} onChange={(value) => setOverrideFilter((prev) => ({ ...prev, eventName: value }))} onSearch={handleOverrideSearch} width={160} />
-              <Select
-                placeholder="状态"
-                value={overrideFilter.status || undefined}
-                onChange={(value) => setOverrideFilter((prev) => ({ ...prev, status: (value as AnalyticsEventOverride['status']) ?? '' }))}
-                optionList={ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS}
-                showClear
-                style={{ width: 130 }}
+              <StatusSelect
+                items={ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS}
+                value={overrideFilter.status}
+                onChange={(value) => setOverrideFilter((prev) => ({ ...prev, status: value as AnalyticsEventOverride['status'] | undefined }))}
               />
               <SearchButton onClick={handleOverrideSearch} />
               <ResetButton onClick={handleOverrideReset} />

@@ -37,7 +37,7 @@ import SiteStaticSheet from './sites/SiteStaticSheet';
 
 interface SearchParams {
   keyword: string;
-  status: string;
+  status?: string;
 }
 
 const defaultSearchParams: SearchParams = { keyword: '', status: '' };

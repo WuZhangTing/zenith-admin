@@ -6,7 +6,7 @@
  * 履约（置 paid、发放权益）。「模拟支付成功」用于在未配置真实渠道时演示完整闭环。
  */
 import { useRef, useState, type CSSProperties } from 'react';
-import { Banner, Button, Collapse, Form, Modal, Select, Space, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Collapse, Form, Modal, Space, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Info } from 'lucide-react';
@@ -28,7 +28,7 @@ import {
   useSimulateBizPayDemoPaid,
 } from '@/hooks/queries/biz-pay-demo';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { useListSearch } from '@/hooks/useListSearch';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -100,12 +100,12 @@ const { payParams } = res.data;                 // { orderNo, codeUrl?, payUrl?,
 
 interface PayDemoSearchParams {
   keyword: string;
-  status: BizPayDemoStatus | '';
+  status?: BizPayDemoStatus;
 }
 
 const DEFAULT_PAY_DEMO_SEARCH_PARAMS: PayDemoSearchParams = {
   keyword: '',
-  status: '',
+  status: undefined,
 };
 
 interface CreatePayDemoFormValues {
@@ -271,13 +271,10 @@ export default function PayDemoPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="状态"
-      value={draftParams.status || undefined}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as PayDemoSearchParams['status']) ?? '' }))}
-      showClear
-      style={{ width: 140, maxWidth: '100%' }}
-      optionList={(Object.keys(STATUS_MAP) as BizPayDemoStatus[]).map((value) => ({ value, label: STATUS_MAP[value].text }))}
+    <StatusSelect
+      items={(Object.keys(STATUS_MAP) as BizPayDemoStatus[]).map((value) => ({ value, label: STATUS_MAP[value].text }))}
+      value={draftParams.status}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: value as PayDemoSearchParams['status'] | undefined }))}
     />
   );
 

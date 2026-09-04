@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Select, Form, Toast, Spin, Switch, SideSheet } from '@douyinfe/semi-ui';
+import { Button, Form, Toast, Spin, Switch, SideSheet } from '@douyinfe/semi-ui';
 import type { Role, Department } from '@zenith/shared/identity';
 import { UserTransferSelect } from '@/components/UserTransferSelect';
 import type { UserTransferUser } from '@/components/UserTransferSelect';
@@ -33,18 +33,18 @@ import {
   useUpdateRoleDataScope,
 } from '@/hooks/queries/roles';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 
 export default function RolesPage() {
   const { hasPermission } = usePermission();
   interface SearchParams {
     keyword: string;
-    status: string;
+    status?: string;
     timeRange: [Date, Date] | null;
   }
 
-  const defaultSearchParams: SearchParams = { keyword: '', status: '', timeRange: null };
+  const defaultSearchParams: SearchParams = { keyword: '', status: undefined, timeRange: null };
   const { items: statusItems } = useDictItems('common_status');
   const {
     page, pageSize, buildPagination,
@@ -281,15 +281,10 @@ export default function RolesPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="请选择状态"
-      value={draftParams.status || undefined}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as string) ?? '' }))}
-      style={{ width: 140, maxWidth: '100%' }}
-      optionList={[
-        { value: '', label: '全部状态' },
-        ...statusItems.map((item) => ({ value: item.value, label: item.label })),
-      ]}
+    <StatusSelect
+      items={statusItems}
+      value={draftParams.status}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: value }))}
     />
   );
 

@@ -4,7 +4,7 @@
  * 审批状态 / 审批建议 / 耗时 / 流程编号 / 任务编号；行操作：详情（实例详情抽屉）/ 催办。
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { DatePicker, Input, Modal, Select, Toast, Typography } from '@douyinfe/semi-ui';
+import { DatePicker, Input, Modal, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
 import type { WorkflowTaskMonitorItem } from '@zenith/shared/workflow';
@@ -25,6 +25,7 @@ import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 import { formatDateTimeRangeForApi } from '@/utils/date';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { FilterSelect } from '@/components/search-filters';
 
 const STUCK_OPTIONS = [
   { value: 30, label: '停留 > 30 分钟' },
@@ -35,14 +36,14 @@ const STUCK_OPTIONS = [
 interface SearchParams {
   keyword: string;
   assigneeKeyword: string;
-  status: string;
-  nodeType: string;
-  stuckMinutes: number | '';
-  createdRange: Date[] | undefined;
+  status?: string;
+  nodeType?: string;
+  stuckMinutes?: number;
+  createdRange?: Date[];
 }
 
 const defaultSearchParams: SearchParams = {
-  keyword: '', assigneeKeyword: '', status: '', nodeType: '', stuckMinutes: '', createdRange: undefined,
+  keyword: '', assigneeKeyword: '', status: undefined, nodeType: undefined, stuckMinutes: undefined, createdRange: undefined,
 };
 
 interface Props {
@@ -66,7 +67,7 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
     assigneeKeyword: submittedParams.assigneeKeyword || undefined,
     status: submittedParams.status || undefined,
     nodeType: submittedParams.nodeType || undefined,
-    stuckMinutes: submittedParams.stuckMinutes === '' ? undefined : submittedParams.stuckMinutes,
+    stuckMinutes: submittedParams.stuckMinutes,
     startTime,
     endTime,
   };
@@ -84,8 +85,8 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
     },
   });
 
-  const handleStatCardClick = (status: string) => {
-    applySearch({ ...draftParams, status: draftParams.status === status ? '' : status });
+  const handleStatCardClick = (status: string | undefined) => {
+    applySearch({ ...draftParams, status: draftParams.status === status ? undefined : status });
   };
 
   const columns: ColumnProps<WorkflowTaskMonitorItem>[] = [
@@ -141,7 +142,7 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
   return (
     <>
       <StatGrid minItemWidth={120} style={{ marginBottom: 16 }}>
-        <StatCard title="全部" value={statValue(stats.total ?? 0)} accent="var(--semi-color-text-0)" onClick={() => handleStatCardClick('')} active={draftParams.status === ''} />
+        <StatCard title="全部" value={statValue(stats.total ?? 0)} accent="var(--semi-color-text-0)" onClick={() => handleStatCardClick(undefined)} active={!draftParams.status} />
         <StatCard title="待处理" value={statValue(stats.pending ?? 0)} accent="var(--semi-color-primary)" onClick={() => handleStatCardClick('pending')} active={draftParams.status === 'pending'} />
         <StatCard title="等待中" value={statValue(stats.waiting ?? 0)} accent="var(--semi-color-warning)" onClick={() => handleStatCardClick('waiting')} active={draftParams.status === 'waiting'} />
         <StatCard title="已通过" value={statValue(stats.approved ?? 0)} accent="#0dc87c" onClick={() => handleStatCardClick('approved')} active={draftParams.status === 'approved'} />
@@ -167,21 +168,19 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
           style={{ width: 130 }}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
         />
-        <Select
-          placeholder="节点类型"
-          showClear
-          value={draftParams.nodeType || undefined}
-          onChange={(v) => setDraftParams((prev) => ({ ...prev, nodeType: (v as string) ?? '' }))}
-          style={{ width: 120 }}
-          optionList={WORKFLOW_TASK_NODE_TYPE_OPTIONS}
+        <FilterSelect
+          placeholder="全部节点类型"
+          items={WORKFLOW_TASK_NODE_TYPE_OPTIONS}
+          value={draftParams.nodeType}
+          onChange={(v) => setDraftParams((prev) => ({ ...prev, nodeType: v }))}
+          width={140}
         />
-        <Select
-          placeholder="停留时长"
-          showClear
-          value={draftParams.stuckMinutes === '' ? undefined : draftParams.stuckMinutes}
-          onChange={(v) => setDraftParams((prev) => ({ ...prev, stuckMinutes: (v as number) ?? '' }))}
-          style={{ width: 150 }}
-          optionList={STUCK_OPTIONS}
+        <FilterSelect
+          placeholder="全部停留时长"
+          items={STUCK_OPTIONS}
+          value={draftParams.stuckMinutes}
+          onChange={(v) => setDraftParams((prev) => ({ ...prev, stuckMinutes: v as number | undefined }))}
+          width={150}
         />
         <DatePicker
           type="dateTimeRange"

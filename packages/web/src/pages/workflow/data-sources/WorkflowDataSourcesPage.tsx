@@ -23,7 +23,7 @@ import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
 
-interface SearchParams { keyword: string; status: string }
+interface SearchParams { keyword: string; status?: string }
 const defaultSearchParams: SearchParams = { keyword: '', status: '' };
 
 interface DataSourceFormValues {

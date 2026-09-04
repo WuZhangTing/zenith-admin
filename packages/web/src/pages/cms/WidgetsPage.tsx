@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Modal, Select, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Modal, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CircleOff, Send, Trash2 } from 'lucide-react';
 import { CMS_WIDGET_STATUS_LABELS, CMS_WIDGET_TYPE_LABELS, CMS_WIDGET_STATUS_OPTIONS, CMS_WIDGET_TYPE_OPTIONS } from '@zenith/shared/cms';
@@ -25,16 +25,16 @@ import {
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete as confirmDeleteModal } from '@/utils/confirm';
 
 interface SearchState {
   keyword: string;
-  status: '' | CmsWidgetStatus;
-  type: '' | CmsWidgetType;
+  status?: CmsWidgetStatus;
+  type?: CmsWidgetType;
 }
 
-const DEFAULT_SEARCH: SearchState = { keyword: '', status: '', type: '' };
+const DEFAULT_SEARCH: SearchState = { keyword: '', status: undefined, type: undefined };
 
 const STATUS_COLOR: Record<CmsWidgetStatus, 'grey' | 'green' | 'orange'> = {
   draft: 'grey',
@@ -257,18 +257,16 @@ export default function WidgetsPage() {
     <StatusSelect
       items={CMS_WIDGET_STATUS_OPTIONS}
       value={draft.status}
-      onChange={(value) => { setDraft((current) => ({ ...current, status: value as CmsWidgetStatus | '' })); setSelectedIds([]); setSelectedRecords({}); }}
-      width={130}
+      onChange={(value) => { setDraft((current) => ({ ...current, status: value })); setSelectedIds([]); setSelectedRecords({}); }}
     />
   );
   const typeFilter = (
-    <Select
+    <FilterSelect
       placeholder="全部类型"
-      value={draft.type || undefined}
-      onChange={(value) => { setDraft((current) => ({ ...current, type: (value as CmsWidgetType) ?? '' })); setSelectedIds([]); setSelectedRecords({}); }}
-      showClear
-      style={{ width: 140 }}
-      optionList={CMS_WIDGET_TYPE_OPTIONS}
+      items={CMS_WIDGET_TYPE_OPTIONS}
+      value={draft.type}
+      onChange={(value) => { setDraft((current) => ({ ...current, type: value as CmsWidgetType | undefined })); setSelectedIds([]); setSelectedRecords({}); }}
+      width={140}
     />
   );
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Banner, Button, Col, Form, Row, Select, SideSheet, Spin, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Form, Row, SideSheet, Spin, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { MpAccount, MpAccountType } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -21,7 +21,7 @@ import {
   useTestMpAccount,
 } from '@/hooks/queries/mp-accounts';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const TYPE_OPTIONS = [
@@ -178,23 +178,18 @@ export default function MpAccountsPage() {
     <KeywordInput placeholder="搜索名称/微信号/AppID" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} />
   );
   const renderTypeFilter = () => (
-    <Select
-      placeholder="类型"
+    <FilterSelect
+      placeholder="全部类型"
+      items={TYPE_OPTIONS}
       value={draftParams.filterType}
       onChange={(v) => setDraftParams({ ...draftParams, filterType: v as MpAccountType | undefined })}
-      optionList={TYPE_OPTIONS}
-      showClear
-      style={{ width: 120 }}
     />
   );
   const renderStatusFilter = () => (
-    <Select
-      placeholder="状态"
+    <StatusSelect
+      items={statusItems}
       value={draftParams.filterStatus}
       onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as string | undefined })}
-      optionList={statusItems.map((i) => ({ label: i.label, value: i.value }))}
-      showClear
-      style={{ width: 110 }}
     />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;

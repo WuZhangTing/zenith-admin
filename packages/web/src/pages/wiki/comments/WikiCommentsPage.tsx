@@ -19,11 +19,11 @@ import {
 
 interface SearchParams {
   keyword: string;
-  status: string;
+  status?: string;
   timeRange: [Date, Date] | null;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', status: '', timeRange: null };
+const defaultSearchParams: SearchParams = { keyword: '', status: undefined, timeRange: null };
 
 export default function WikiCommentsPage() {
   const { hasPermission } = usePermission();
@@ -107,7 +107,7 @@ export default function WikiCommentsPage() {
   const renderStatusFilter = () => (
     <StatusSelect
       items={WIKI_COMMENT_STATUS_OPTIONS}
-      placeholder="全部状态"
+     
       value={draftParams.status}
       onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
     />

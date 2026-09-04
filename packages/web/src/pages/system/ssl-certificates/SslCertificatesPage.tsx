@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Descriptions, Form, Select, SideSheet, Space, Spin, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Descriptions, Form, SideSheet, Space, Spin, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Lock, Upload } from 'lucide-react';
 import AppModal from '@/components/AppModal';
@@ -22,12 +22,12 @@ import {
   type SslCertificateRecord,
 } from '@/hooks/queries/ssl-certificates';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
-  type: string;
+  type?: string;
 }
 
 const defaultSearchParams: SearchParams = { keyword: '', type: '' };
@@ -188,17 +188,14 @@ export default function SslCertificatesPage() {
         primary={(
           <>
             <KeywordInput placeholder="搜索名称或域名" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} width={240} />
-            <Select
-              placeholder="证书类型"
-              value={draftParams.type || undefined}
-              onChange={(value) => setDraftParams((prev) => ({ ...prev, type: (value as string) ?? '' }))}
-              optionList={[
-                { value: '', label: '全部类型' },
-                { value: 'self_signed', label: '自签名' },
+            <FilterSelect
+              placeholder="全部证书类型"
+              items={[{ value: 'self_signed', label: '自签名' },
                 { value: 'uploaded', label: '上传' },
-                { value: 'letsencrypt', label: 'Let\'s Encrypt' },
-              ]}
-              style={{ width: 160 }}
+                { value: 'letsencrypt', label: 'Let\'s Encrypt' },]}
+              value={draftParams.type}
+              onChange={(value) => setDraftParams((prev) => ({ ...prev, type: value }))}
+              width={160}
             />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
@@ -215,17 +212,14 @@ export default function SslCertificatesPage() {
           </>
         )}
         mobileFilters={(
-          <Select
-            placeholder="证书类型"
-            value={draftParams.type || undefined}
-            onChange={(value) => setDraftParams((prev) => ({ ...prev, type: (value as string) ?? '' }))}
-            optionList={[
-              { value: '', label: '全部类型' },
-              { value: 'self_signed', label: '自签名' },
+          <FilterSelect
+            placeholder="全部证书类型"
+            items={[{ value: 'self_signed', label: '自签名' },
               { value: 'uploaded', label: '上传' },
-              { value: 'letsencrypt', label: 'Let\'s Encrypt' },
-            ]}
-            style={{ width: 160 }}
+              { value: 'letsencrypt', label: 'Let\'s Encrypt' },]}
+            value={draftParams.type}
+            onChange={(value) => setDraftParams((prev) => ({ ...prev, type: value }))}
+            width={160}
           />
         )}
         filterTitle="证书筛选"

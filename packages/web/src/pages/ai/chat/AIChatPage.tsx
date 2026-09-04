@@ -68,7 +68,7 @@ function MessageEditWidget({ msgId, defaultText, onSubmit, onCancel }: MessageEd
       <TextArea
         autosize
         value={editText}
-        onChange={(v) => setEditText(v)}
+        onChange={setEditText}
         style={{ fontSize: 14 }}
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -1592,7 +1592,7 @@ export default function AIChatPage() {
     >
       <Input
         value={renameText}
-        onChange={(v) => setRenameText(v)}
+        onChange={setRenameText}
         placeholder="请输入新名称"
         maxLength={200}
         showClear

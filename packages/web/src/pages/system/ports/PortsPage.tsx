@@ -8,7 +8,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { useKillPortProcess, usePortList, type PortEntry } from '@/hooks/queries/ports';
 import { ResetButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 import { HostSelector } from '@/components/HostSelector';
 import { useOpsHostSelection } from '@/hooks/useOpsHostSelection';
@@ -31,7 +31,7 @@ export default function PortsPage() {
   const canKill = hasPermission('system:process:kill');
   const [hostId, setHostId] = useOpsHostSelection();
   const [keyword, setKeyword] = useState('');
-  const [protocol, setProtocol] = useState<string>('');
+  const [protocol, setProtocol] = useState<string | undefined>();
   const [refreshInterval, setRefreshInterval] = useState(0);
   const listQuery = usePortList(refreshInterval > 0 ? refreshInterval : false, hostId);
   const all = listQuery.data ?? [];
@@ -101,8 +101,12 @@ export default function PortsPage() {
           <>
             <HostSelector value={hostId} onChange={setHostId} />
             <KeywordInput placeholder="搜索端口/进程/服务/地址" value={keyword} onChange={setKeyword} width={240} />
-            <Select placeholder="全部协议" value={protocol || undefined} onChange={(v) => setProtocol((v as string) ?? '')} showClear style={{ width: 120 }}
-              optionList={[{ label: 'TCP', value: 'tcp' }, { label: 'UDP', value: 'udp' }]} />
+            <FilterSelect
+              placeholder="全部协议"
+              items={[{ label: 'TCP', value: 'tcp' }, { label: 'UDP', value: 'udp' }]}
+              value={protocol}
+              onChange={setProtocol}
+            />
             <Select value={refreshInterval} onChange={(v) => setRefreshInterval(v as number)} style={{ width: 180 }} optionList={REFRESH_OPTIONS} />
             <ResetButton onClick={handleReset} />
             <Space style={{ color: 'var(--semi-color-text-2)', fontSize: 12 }}>共 {data.length} 个监听端口</Space>
@@ -116,8 +120,12 @@ export default function PortsPage() {
         )}
         mobileFilters={(
           <>
-            <Select placeholder="全部协议" value={protocol || undefined} onChange={(v) => setProtocol((v as string) ?? '')} showClear style={{ width: 120 }}
-              optionList={[{ label: 'TCP', value: 'tcp' }, { label: 'UDP', value: 'udp' }]} />
+            <FilterSelect
+              placeholder="全部协议"
+              items={[{ label: 'TCP', value: 'tcp' }, { label: 'UDP', value: 'udp' }]}
+              value={protocol}
+              onChange={setProtocol}
+            />
             <Select value={refreshInterval} onChange={(v) => setRefreshInterval(v as number)} style={{ width: 180 }} optionList={REFRESH_OPTIONS} />
           </>
         )}

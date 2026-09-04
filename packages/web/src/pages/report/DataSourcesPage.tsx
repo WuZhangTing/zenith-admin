@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Col, Form, Row, Select, Switch, Toast, Modal, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row, Switch, Toast, Modal, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Activity } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -28,12 +28,12 @@ import { flattenReportFolders, useReportFolderTree } from '@/hooks/queries/repor
 import { useAllUsers } from '@/hooks/queries/users';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 
-interface SearchParams { keyword: string; type: string; status: string; ownerId?: number; folderId?: number }
-const defaultSearchParams: SearchParams = { keyword: '', type: '', status: '', ownerId: undefined, folderId: undefined };
+interface SearchParams { keyword: string; type?: string; status?: string; ownerId?: number; folderId?: number }
+const defaultSearchParams: SearchParams = { keyword: '', type: undefined, status: undefined, ownerId: undefined, folderId: undefined };
 
 function isExternalDbType(type: unknown): type is 'mysql' | 'postgresql' | 'sqlserver' {
   return type === 'mysql' || type === 'postgresql' || type === 'sqlserver';
@@ -302,8 +302,13 @@ export default function DataSourcesPage() {
     <KeywordInput placeholder="搜索名称/备注..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} />
   );
   const renderTypeFilter = () => (
-    <Select placeholder="全部类型" value={draftParams.type || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, type: (v as string) ?? '' }))}
-      showClear style={{ width: 140 }} optionList={REPORT_DATASOURCE_TYPE_OPTIONS} />
+    <FilterSelect
+      placeholder="全部类型"
+      items={REPORT_DATASOURCE_TYPE_OPTIONS}
+      value={draftParams.type}
+      onChange={(v) => setDraftParams((p) => ({ ...p, type: v }))}
+      width={140}
+    />
   );
   const renderStatusFilter = () => (
     <StatusSelect
@@ -313,14 +318,24 @@ export default function DataSourcesPage() {
     />
   );
   const renderOwnerFilter = () => (
-    <Select placeholder="全部负责人" value={draftParams.ownerId} showClear filter style={{ width: 140 }}
-      optionList={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))}
-      onChange={(v) => setDraftParams((p) => ({ ...p, ownerId: v as number | undefined }))} />
+    <FilterSelect
+      placeholder="全部负责人"
+      items={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))}
+      value={draftParams.ownerId}
+      onChange={(v) => setDraftParams((p) => ({ ...p, ownerId: v as number | undefined }))}
+      filter
+      width={140}
+    />
   );
   const renderFolderFilter = () => (
-    <Select placeholder="全部目录" value={draftParams.folderId} showClear filter style={{ width: 140 }}
-      optionList={folders.map((f) => ({ value: f.id, label: f.name }))}
-      onChange={(v) => setDraftParams((p) => ({ ...p, folderId: v as number | undefined }))} />
+    <FilterSelect
+      placeholder="全部目录"
+      items={folders.map((f) => ({ value: f.id, label: f.name }))}
+      value={draftParams.folderId}
+      onChange={(v) => setDraftParams((p) => ({ ...p, folderId: v as number | undefined }))}
+      width={140}
+      filter
+    />
   );
   const renderSearchBtn = () => <SearchButton onClick={handleSearch} />;
   const renderResetBtn = () => <ResetButton onClick={handleReset} />;

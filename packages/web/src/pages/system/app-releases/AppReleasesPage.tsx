@@ -64,7 +64,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import AppModal from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton, RefreshButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { SliderInput, FormSliderInput } from '@/components/SliderInput';
 import {
@@ -498,13 +498,13 @@ function RolloutModal({ release, onClose }: { release: AppRelease | null; onClos
 // ─── 版本管理 Tab ─────────────────────────────────────────────────────────────
 
 interface SearchParams {
-  appId: number | undefined;
-  channel: string;
-  status: string;
+  appId?: number;
+  channel?: string;
+  status?: string;
   keyword: string;
 }
 
-const defaultSearchParams: SearchParams = { appId: undefined, channel: '', status: '', keyword: '' };
+const defaultSearchParams: SearchParams = { appId: undefined, channel: undefined, status: undefined, keyword: '' };
 
 function ReleaseManageTab({ active }: { active: boolean }) {
   const { hasPermission } = usePermission();
@@ -644,18 +644,17 @@ function ReleaseManageTab({ active }: { active: boolean }) {
   ];
 
   const renderAppFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部应用"
+      items={appOptions}
       value={draftParams.appId}
       onChange={(v) => setDraftParams((p) => ({ ...p, appId: v as number | undefined }))}
-      optionList={appOptions}
-      showClear
-      style={{ width: 160, maxWidth: '100%' }}
+      width={160}
     />
   );
 
   const renderChannelFilter = () => (
-    <StatusSelect
+    <FilterSelect
       placeholder="全部渠道"
       items={APP_RELEASE_CHANNEL_OPTIONS}
       value={draftParams.channel}
@@ -928,15 +927,15 @@ const PUSH_BOUND_OPTIONS = [
 ];
 
 interface DeviceSearchParams {
-  appId: number | undefined;
-  platform: string;
-  subjectType: string;
-  pushBound: string;
+  appId?: number;
+  platform?: string;
+  subjectType?: string;
+  pushBound?: string;
   keyword: string;
 }
 
 const defaultDeviceSearchParams: DeviceSearchParams = {
-  appId: undefined, platform: '', subjectType: '', pushBound: '', keyword: '',
+  appId: undefined, platform: undefined, subjectType: undefined, pushBound: undefined, keyword: '',
 };
 
 function DevicesTab({ active }: { active: boolean }) {
@@ -1030,18 +1029,17 @@ function DevicesTab({ active }: { active: boolean }) {
   ];
 
   const renderAppFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部应用"
+      items={appOptions}
       value={draftParams.appId}
       onChange={(v) => setDraftParams((p) => ({ ...p, appId: v as number | undefined }))}
-      optionList={appOptions}
-      showClear
-      style={{ width: 160, maxWidth: '100%' }}
+      width={160}
     />
   );
 
   const renderPlatformFilter = () => (
-    <StatusSelect
+    <FilterSelect
       placeholder="全部平台"
       items={APP_PLATFORM_OPTIONS}
       value={draftParams.platform}
@@ -1050,18 +1048,18 @@ function DevicesTab({ active }: { active: boolean }) {
   );
 
   const renderSubjectFilter = () => (
-    <StatusSelect
-      placeholder="绑定人类型"
-      width={130}
+    <FilterSelect
+      placeholder="全部绑定人类型"
       items={SUBJECT_TYPE_OPTIONS}
       value={draftParams.subjectType}
       onChange={(v) => setDraftParams((p) => ({ ...p, subjectType: v }))}
+      width={140}
     />
   );
 
   const renderPushBoundFilter = () => (
-    <StatusSelect
-      placeholder="推送绑定"
+    <FilterSelect
+      placeholder="全部推送绑定"
       width={130}
       items={PUSH_BOUND_OPTIONS}
       value={draftParams.pushBound}

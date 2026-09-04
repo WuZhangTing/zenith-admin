@@ -33,7 +33,7 @@ import {
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CONTRACT_STATUS_LABELS, PAYMENT_DEDUCT_PERIOD_LABELS, PAYMENT_DEDUCT_PERIOD_OPTIONS, PAYMENT_CONTRACT_STATUS_OPTIONS, PAYMENT_CHANNEL_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentContract, PaymentContractStatus, PaymentDeductPeriod, PaymentDeductPlan } from '@zenith/shared/payment';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
@@ -54,8 +54,8 @@ function describePlanPeriod(p: Pick<PaymentDeductPlan, 'period' | 'customDays'>)
   return p.period === 'custom' ? `每 ${p.customDays ?? '-'} 天` : PAYMENT_DEDUCT_PERIOD_LABELS[p.period];
 }
 
-interface SearchParams { keyword: string; status: string; channel: string }
-const defaultSearchParams: SearchParams = { keyword: '', status: '', channel: '' };
+interface SearchParams { keyword: string; status?: string; channel?: string }
+const defaultSearchParams: SearchParams = { keyword: '', status: undefined, channel: '' };
 
 export default function PaymentContractsPage() {
   const { hasPermission } = usePermission();
@@ -346,7 +346,12 @@ export default function PaymentContractsPage() {
     <StatusSelect items={contractStatusOptions} value={draftParams.status} onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))} />
   );
   const renderChannelFilter = () => (
-    <Select placeholder="全部渠道" value={draftParams.channel || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, channel: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={channelOptions} />
+    <FilterSelect
+      placeholder="全部渠道"
+      items={channelOptions}
+      value={draftParams.channel}
+      onChange={(v) => setDraftParams((p) => ({ ...p, channel: v }))}
+    />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} disabled={effectiveContractAppId == null} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;

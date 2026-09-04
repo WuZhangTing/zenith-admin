@@ -49,11 +49,11 @@ const DELIVERY_COLORS: Record<PushDeliveryStatus, 'green' | 'blue'> = {
 
 interface SearchParams {
   keyword: string;
-  status: string;
+  status?: string;
   timeRange: [Date, Date] | null;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', status: '', timeRange: null };
+const defaultSearchParams: SearchParams = { keyword: '', status: undefined, timeRange: null };
 
 const STATS_DAYS_OPTIONS = [
   { value: 7, label: '近 7 天' },

@@ -103,11 +103,12 @@ import type { Xxx } from '@zenith/shared/{业务域}';
 
 interface SearchParams {
   keyword: string;
-  status: string;
+  /** 枚举筛选字段一律可选：undefined = 不过滤 */
+  status?: string;
   // timeRange: [Date, Date] | null;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', status: '' };
+const defaultSearchParams: SearchParams = { keyword: '', status: undefined };
 
 export default function XxxPage() {
   const { hasPermission } = usePermission();
@@ -360,11 +361,15 @@ onSelect={(deptId) => applySearch({ ...draftParams, departmentId: deptId })}
 | 组件 | 内置默认 | 覆盖方式 |
 | --- | --- | --- |
 | `KeywordInput` | 放大镜前缀、`showClear`、宽度 220 | `width` / `style` / 其余 props 原样穿透 |
-| `StatusSelect` | 占位「全部状态」、`showClear`、宽度 120 | `placeholder` / `width` |
+| `FilterSelect` | 单选枚举筛选：`showClear`、宽度 120、清空回调 `undefined` | `placeholder`（必填，写「全部 X」）/ `width` / `items` 或 `groups` / `filter` 等 Select props 穿透 |
+| `StatusSelect` | `FilterSelect` 的状态特化，占位固定「全部状态」 | `width` / `items` |
 | `DateRangeFilter` | `dateTimeRange`、占位「开始时间/结束时间」、宽度 360 | `type="dateRange"`（宽度自动 260）/ `placeholder` / `width` |
 
-- 三者只收敛**装饰性属性**，业务属性（`value` / `onChange` / `placeholder`）仍显式传入
-- `StatusSelect` 清空时回调空串而非 `undefined`，与 `draftParams` 里状态字段的类型对齐
+- 只收敛**装饰性属性**，业务属性（`value` / `onChange` / `items` / `placeholder`）仍显式传入
+- 列表页搜索栏（含 Tab / 抽屉 / 展开行内的子列表）里所有「全部 X」形态的单选枚举筛选都用 `FilterSelect`，状态用 `StatusSelect`；
+  `items` 取 shared 导出的 `XXX_OPTIONS` 或 `useDictItems(...).items`，动态数据自行映射为 `{ value, label }`，需分组时传 `groups`
+- 空值统一为 `undefined`（`SearchParams` 中声明为可选字段、`defaults` 写 `undefined`）；选项里不放「全部」哨兵项，占位不写「请选择 X」
+- 多选筛选、必选的上下文选择（视图切换、所属应用等没有「全部」语义的下拉）不属于枚举筛选，用原生 `Select`
 - `DateRangeFilter` 把 Semi 宽松的 `onChange` 收窄为 `[Date, Date] | null`，
   页面不必再写 `Array.isArray(v) && v.length >= 2` 之类的判断
 

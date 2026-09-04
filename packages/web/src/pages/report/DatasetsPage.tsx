@@ -35,7 +35,7 @@ import { useReportDqAnomalyList } from '@/hooks/queries/report-dq';
 import { useReportDeprecationList } from '@/hooks/queries/report-assets';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 
@@ -43,8 +43,8 @@ const DatasetRefsModal = lazy(() => import('./components/DatasetRefsModal').then
   default: module.DatasetRefsModal,
 })));
 
-interface SearchParams { keyword: string; status: string; ownerId?: number; folderId?: number }
-const defaultSearchParams: SearchParams = { keyword: '', status: '', ownerId: undefined, folderId: undefined };
+interface SearchParams { keyword: string; status?: string; ownerId?: number; folderId?: number }
+const defaultSearchParams: SearchParams = { keyword: '', status: undefined, ownerId: undefined, folderId: undefined };
 
 function isSqlAuthoringType(type: ReportDatasourceType | null) {
   return type === 'sql' || type === 'mysql' || type === 'postgresql' || type === 'sqlserver';
@@ -585,14 +585,24 @@ export default function DatasetsPage() {
     />
   );
   const renderOwnerFilter = () => (
-    <Select placeholder="全部负责人" value={draftParams.ownerId} showClear filter style={{ width: 140 }}
-      optionList={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))}
-      onChange={(v) => setDraftParams((p) => ({ ...p, ownerId: v as number | undefined }))} />
+    <FilterSelect
+      placeholder="全部负责人"
+      items={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))}
+      value={draftParams.ownerId}
+      onChange={(v) => setDraftParams((p) => ({ ...p, ownerId: v as number | undefined }))}
+      filter
+      width={140}
+    />
   );
   const renderFolderFilter = () => (
-    <Select placeholder="全部目录" value={draftParams.folderId} showClear filter style={{ width: 140 }}
-      optionList={folders.map((f) => ({ value: f.id, label: f.name }))}
-      onChange={(v) => setDraftParams((p) => ({ ...p, folderId: v as number | undefined }))} />
+    <FilterSelect
+      placeholder="全部目录"
+      items={folders.map((f) => ({ value: f.id, label: f.name }))}
+      value={draftParams.folderId}
+      onChange={(v) => setDraftParams((p) => ({ ...p, folderId: v as number | undefined }))}
+      width={140}
+      filter
+    />
   );
   const renderSearchBtn = () => <SearchButton onClick={handleSearch} />;
   const renderResetBtn = () => <ResetButton onClick={handleReset} />;

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Select, Form, Radio, Toast, TreeSelect, Row, Col, Spin, Switch, Tooltip, Banner } from '@douyinfe/semi-ui';
+import { Button, Form, Radio, Toast, TreeSelect, Row, Col, Spin, Switch, Tooltip, Banner } from '@douyinfe/semi-ui';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import type { Menu } from '@zenith/shared/identity';
@@ -19,7 +19,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import { menuKeys, useDeleteMenu, useMenuDetail, useMenuTree, useSaveMenu } from '@/hooks/queries/menus';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 
 export default function MenusPage() {
@@ -34,7 +34,7 @@ export default function MenusPage() {
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [pendingKeyword, setPendingKeyword] = useState('');
-  const [pendingStatus, setPendingStatus] = useState<string>('');
+  const [pendingStatus, setPendingStatus] = useState<string | undefined>();
   const [tableHeight, setTableHeight] = useState(500);
   const tableWrapperRef = useRef<HTMLDivElement>(null);
 
@@ -140,13 +140,13 @@ export default function MenusPage() {
 
   const handleSearch = () => {
     setKeyword(pendingKeyword);
-    setStatusFilter(pendingStatus);
+    setStatusFilter(pendingStatus ?? '');
     void queryClient.invalidateQueries({ queryKey: menuKeys.tree });
   };
 
   const handleReset = () => {
     setPendingKeyword('');
-    setPendingStatus('');
+    setPendingStatus(undefined);
     setKeyword('');
     setStatusFilter('');
     setExpandedRowKeys([]);
@@ -324,21 +324,11 @@ export default function MenusPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <KeywordInput placeholder="菜单名称" value={pendingKeyword} onChange={(val) => setPendingKeyword(val)} onSearch={handleSearch} width={200} />
+    <KeywordInput placeholder="菜单名称" value={pendingKeyword} onChange={setPendingKeyword} onSearch={handleSearch} width={200} />
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="状态"
-      showClear
-      value={pendingStatus || undefined}
-      onChange={(val) => setPendingStatus((val as string) ?? '')}
-      style={{ width: 120, maxWidth: '100%' }}
-    >
-      {statusItems.map((i) => (
-        <Select.Option key={i.value} value={i.value}>{i.label}</Select.Option>
-      ))}
-    </Select>
+    <StatusSelect items={statusItems} value={pendingStatus} onChange={setPendingStatus} />
   );
 
   const renderSearchButton = () => (

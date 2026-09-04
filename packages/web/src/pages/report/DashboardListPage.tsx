@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Form, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { FolderTree, Star } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -33,11 +33,11 @@ import { useAllUsers } from '@/hooks/queries/users';
 import { useReportDeprecationList } from '@/hooks/queries/report-assets';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
-interface SearchParams { keyword: string; status: string; lifecycleStatus: '' | ReportDashboard['lifecycleStatus']; categoryId?: number; favorited: boolean; ownerId?: number; folderId?: number }
-const defaultSearchParams: SearchParams = { keyword: '', status: '', lifecycleStatus: '', favorited: false, ownerId: undefined, folderId: undefined };
+interface SearchParams { keyword: string; status?: string; lifecycleStatus?: ReportDashboard['lifecycleStatus']; categoryId?: number; favorited: boolean; ownerId?: number; folderId?: number }
+const defaultSearchParams: SearchParams = { keyword: '', status: undefined, lifecycleStatus: undefined, favorited: false, ownerId: undefined, folderId: undefined };
 
 export default function DashboardListPage() {
   const { items: statusItems } = useDictItems('common_status');
@@ -239,28 +239,37 @@ export default function DashboardListPage() {
     />
   );
   const renderLifecycleFilter = () => (
-    <Select
-     placeholder="全部生命周期"
-     value={draftParams.lifecycleStatus || undefined}
-     onChange={(v) => setDraftParams((p) => ({ ...p, lifecycleStatus: (v as SearchParams['lifecycleStatus']) ?? '' }))}
-     showClear
-     style={{ width: 140 }}
-     optionList={[
+    <FilterSelect
+      placeholder="全部生命周期"
+      items={[
        { value: 'draft', label: '草稿' },
        { value: 'published', label: '已发布' },
        { value: 'offline', label: '已下线' },
      ]}
+      value={draftParams.lifecycleStatus}
+      onChange={(v) => setDraftParams((p) => ({ ...p, lifecycleStatus: v as SearchParams['lifecycleStatus'] | undefined }))}
+      width={140}
     />
   );
   const renderOwnerFilter = () => (
-    <Select placeholder="全部负责人" value={draftParams.ownerId} showClear filter style={{ width: 140 }}
-      optionList={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))}
-      onChange={(v) => setDraftParams((p) => ({ ...p, ownerId: v as number | undefined }))} />
+    <FilterSelect
+      placeholder="全部负责人"
+      items={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))}
+      value={draftParams.ownerId}
+      onChange={(v) => setDraftParams((p) => ({ ...p, ownerId: v as number | undefined }))}
+      width={140}
+      filter
+    />
   );
   const renderFolderFilter = () => (
-    <Select placeholder="全部目录" value={draftParams.folderId} showClear filter style={{ width: 140 }}
-      optionList={folders.map((f) => ({ value: f.id, label: f.name }))}
-      onChange={(v) => setDraftParams((p) => ({ ...p, folderId: v as number | undefined }))} />
+    <FilterSelect
+      placeholder="全部目录"
+      items={folders.map((f) => ({ value: f.id, label: f.name }))}
+      value={draftParams.folderId}
+      onChange={(v) => setDraftParams((p) => ({ ...p, folderId: v as number | undefined }))}
+      width={140}
+      filter
+    />
   );
   const renderSearchBtn = () => <SearchButton onClick={handleSearch} />;
   const renderResetBtn = () => <ResetButton onClick={handleReset} />;
@@ -269,8 +278,13 @@ export default function DashboardListPage() {
   const renderCategoryManageBtn = () => hasPermission('report:dashboard:update')
     ? <Button icon={<FolderTree size={14} />} onClick={() => setCategorySheetVisible(true)}>分类管理</Button> : null;
   const renderCategoryFilter = () => (
-    <Select placeholder="全部分类" value={draftParams.categoryId} onChange={(v) => setDraftParams((p) => ({ ...p, categoryId: v as number | undefined }))}
-      showClear style={{ width: 140 }} optionList={categories.map((c) => ({ value: c.id, label: c.name }))} />
+    <FilterSelect
+      placeholder="全部分类"
+      items={categories.map((c) => ({ value: c.id, label: c.name }))}
+      value={draftParams.categoryId}
+      onChange={(v) => setDraftParams((p) => ({ ...p, categoryId: v as number | undefined }))}
+      width={140}
+    />
   );
   const renderFavToggle = () => (
     <Button theme={draftParams.favorited ? 'solid' : 'light'} type={draftParams.favorited ? 'warning' : 'tertiary'} icon={<Star size={14} />}

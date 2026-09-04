@@ -16,6 +16,7 @@ import { dateTimeColumn } from '@/utils/table-columns';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 import { createLabelOptionsFromMap } from '@zenith/shared/core';
+import { FilterSelect } from '@/components/search-filters';
 
 const ISSUE_LABELS: Record<WorkflowHealthIssue['type'], string> = {
   external_dispatch_failed: '外部审批失败',
@@ -44,17 +45,12 @@ const THRESHOLD_OPTIONS = [
   { value: 1440, label: '超过 1 天' },
 ];
 
-const ISSUE_TYPE_OPTIONS = [
-  { value: '', label: '全部问题类型' },
-  ...ISSUE_OPTIONS,
-];
-
 export default function WorkflowHealthPage() {
   const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
   const [thresholdMinutes, setThresholdMinutes] = useState(30);
   const [submittedThresholdMinutes, setSubmittedThresholdMinutes] = useState(30);
-  const [issueType, setIssueType] = useState<WorkflowHealthIssue['type'] | ''>('');
+  const [issueType, setIssueType] = useState<WorkflowHealthIssue['type'] | undefined>();
   const [detailInstanceId, setDetailInstanceId] = useState<number | null>(null);
   const summaryQuery = useWorkflowHealthSummary({ thresholdMinutes: submittedThresholdMinutes });
   const data: WorkflowHealthSummary | null = summaryQuery.data ?? null;
@@ -77,7 +73,7 @@ export default function WorkflowHealthPage() {
   const handleReset = () => {
     setThresholdMinutes(30);
     setSubmittedThresholdMinutes(30);
-    setIssueType('');
+    setIssueType(undefined);
     void queryClient.invalidateQueries({ queryKey: workflowHealthKeys.all });
   };
 
@@ -162,22 +158,23 @@ export default function WorkflowHealthPage() {
   );
 
   const renderMobileThresholdFilter = () => (
-    <Select
+    <FilterSelect
+      placeholder="全部等待阈值"
+      items={THRESHOLD_OPTIONS}
       value={thresholdMinutes}
       onChange={(v) => setThresholdMinutes(Number(v) || 30)}
-      optionList={THRESHOLD_OPTIONS}
-      placeholder="等待阈值"
-      style={{ width: 180 }}
+      width={180}
     />
   );
 
   const renderIssueTypeFilter = () => (
-    <Select
+    <FilterSelect
+      placeholder="全部问题类型"
+      items={ISSUE_OPTIONS}
       value={issueType}
-      onChange={(v) => setIssueType(v as WorkflowHealthIssue['type'] | '')}
-      optionList={ISSUE_TYPE_OPTIONS}
+      onChange={setIssueType}
+      width={220}
       prefix="问题类型"
-      style={{ width: 220 }}
     />
   );
 

@@ -1,16 +1,5 @@
 import { useState } from 'react';
-import {
-  Banner,
-  Col,
-  Empty,
-  Form,
-  Modal,
-  Row,
-  Select,
-  Tag,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Banner, Col, Empty, Form, Modal, Row, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportSlaRule, ReportSlaType, ReportSlaViolation, ReportSlaViolationStatus } from '@zenith/shared/report';
 import { AppModal } from '@/components/AppModal';
@@ -35,6 +24,7 @@ import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
+import { FilterSelect } from '@/components/search-filters';
 
 const slaTypeOptions = [
   { value: 'freshness', label: '数据新鲜度' },
@@ -153,15 +143,34 @@ export default function GovernanceSlaTab() {
   return (
     <>
       <SearchToolbar>
-        <Select placeholder="数据集" filter showClear value={datasetId} optionList={datasetOptions} style={{ width: 180 }} onChange={(v) => { setPage(1); setDatasetId(v as number | undefined); }} />
-        <Select placeholder="SLA 类型" showClear value={type} optionList={slaTypeOptions} style={{ width: 160 }} onChange={(v) => { setPage(1); setType(v as ReportSlaType | undefined); }} />
+        <FilterSelect
+          placeholder="全部数据集"
+          items={datasetOptions}
+          value={datasetId}
+          onChange={(v) => { setPage(1); setDatasetId(v as number | undefined); }}
+          width={180}
+          filter
+        />
+        <FilterSelect
+          placeholder="全部SLA 类型"
+          items={slaTypeOptions}
+          value={type}
+          onChange={(v) => { setPage(1); setType(v as ReportSlaType | undefined); }}
+          width={160}
+        />
         {hasPermission('report:sla:create') ? <CreateButton onClick={() => openRule()}>新增规则</CreateButton> : null}
       </SearchToolbar>
       {rulesQuery.isError && <Banner type="danger" description="SLA 规则加载失败" />}
       <ConfigurableTable bordered rowKey="id" columns={ruleColumns} dataSource={rulesQuery.data?.list ?? []} loading={rulesQuery.isFetching} empty={<Empty title="暂无 SLA 规则" />} pagination={buildPagination(rulesQuery.data?.total ?? 0)} onRefresh={() => void rulesQuery.refetch()} refreshLoading={rulesQuery.isFetching} />
       <Typography.Title heading={5} style={{ marginTop: 20 }}>SLA 违规</Typography.Title>
       <SearchToolbar>
-        <Select placeholder="违规状态" showClear value={violationStatus} optionList={['open', 'acknowledged', 'resolved'].map((value) => ({ value, label: value }))} style={{ width: 150 }} onChange={(v) => setViolationStatus(v as ReportSlaViolationStatus | undefined)} />
+        <FilterSelect
+          placeholder="全部违规状态"
+          items={['open', 'acknowledged', 'resolved'].map((value) => ({ value, label: value }))}
+          value={violationStatus}
+          onChange={(v) => setViolationStatus(v as ReportSlaViolationStatus | undefined)}
+          width={150}
+        />
       </SearchToolbar>
       {violationsQuery.isError && <Banner type="danger" description="SLA 违规加载失败" />}
       <ConfigurableTable bordered rowKey="id" columns={violationColumns} dataSource={violationsQuery.data?.list ?? []} loading={violationsQuery.isFetching} empty={<Empty title="暂无 SLA 违规" />} pagination={buildPagination(violationsQuery.data?.total ?? 0)} onRefresh={() => void violationsQuery.refetch()} refreshLoading={violationsQuery.isFetching} />

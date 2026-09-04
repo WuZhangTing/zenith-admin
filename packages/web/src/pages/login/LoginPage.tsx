@@ -184,7 +184,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
           placeholder="留空则登录平台管理员"
           prefix={<Building2 />}
           size="large"
-          onChange={(value) => setTenantCode(value)}
+          onChange={setTenantCode}
         />
       )}
       <Form.Input

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Banner, Button, Checkbox, Col, Form, Modal, Row, Select, SideSheet, Spin, Tag, TagGroup, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Checkbox, Col, Form, Modal, Row, SideSheet, Spin, Tag, TagGroup, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Activity } from 'lucide-react';
 import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS, OPEN_APP_REVIEW_STATUS_LABELS, OPEN_APP_REVIEW_STATUSES } from '@zenith/shared/open-platform';
@@ -22,7 +22,7 @@ import {
 } from '@/hooks/queries/developer-apps';
 import { useQueryClient } from '@tanstack/react-query';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { MetricMeter, type MetricMeterTone } from '@/components/data-viz/MetricMeter';
@@ -246,8 +246,19 @@ export default function MyAppsPage() {
         )}
         filters={(
           <>
-            <Select placeholder="环境" value={draft.environment} onChange={(environment) => setDraft({ ...draft, environment: environment as OAuth2Client['environment'] })} optionList={OPEN_APP_ENVIRONMENTS.map((value) => ({ value, label: OPEN_APP_ENVIRONMENT_LABELS[value] }))} showClear style={{ width: 120 }} />
-            <Select placeholder="审核状态" value={draft.reviewStatus} onChange={(reviewStatus) => setDraft({ ...draft, reviewStatus: reviewStatus as OAuth2Client['reviewStatus'] })} optionList={OPEN_APP_REVIEW_STATUSES.map((value) => ({ value, label: OPEN_APP_REVIEW_STATUS_LABELS[value] }))} showClear style={{ width: 130 }} />
+            <FilterSelect
+              placeholder="全部环境"
+              items={OPEN_APP_ENVIRONMENTS.map((value) => ({ value, label: OPEN_APP_ENVIRONMENT_LABELS[value] }))}
+              value={draft.environment}
+              onChange={(environment) => setDraft({ ...draft, environment: environment as OAuth2Client['environment'] })}
+            />
+            <FilterSelect
+              placeholder="全部审核状态"
+              items={OPEN_APP_REVIEW_STATUSES.map((value) => ({ value, label: OPEN_APP_REVIEW_STATUS_LABELS[value] }))}
+              value={draft.reviewStatus}
+              onChange={(reviewStatus) => setDraft({ ...draft, reviewStatus: reviewStatus as OAuth2Client['reviewStatus'] })}
+              width={140}
+            />
           </>
         )}
         mobilePrimary={(
@@ -259,8 +270,20 @@ export default function MyAppsPage() {
         )}
         mobileFilters={(
           <>
-            <Select placeholder="环境" value={draft.environment} onChange={(environment) => setDraft({ ...draft, environment: environment as OAuth2Client['environment'] })} optionList={OPEN_APP_ENVIRONMENTS.map((value) => ({ value, label: OPEN_APP_ENVIRONMENT_LABELS[value] }))} showClear style={{ width: '100%' }} />
-            <Select placeholder="审核状态" value={draft.reviewStatus} onChange={(reviewStatus) => setDraft({ ...draft, reviewStatus: reviewStatus as OAuth2Client['reviewStatus'] })} optionList={OPEN_APP_REVIEW_STATUSES.map((value) => ({ value, label: OPEN_APP_REVIEW_STATUS_LABELS[value] }))} showClear style={{ width: '100%' }} />
+            <FilterSelect
+              placeholder="全部环境"
+              items={OPEN_APP_ENVIRONMENTS.map((value) => ({ value, label: OPEN_APP_ENVIRONMENT_LABELS[value] }))}
+              value={draft.environment}
+              onChange={(environment) => setDraft({ ...draft, environment: environment as OAuth2Client['environment'] })}
+              width="100%"
+            />
+            <FilterSelect
+              placeholder="全部审核状态"
+              items={OPEN_APP_REVIEW_STATUSES.map((value) => ({ value, label: OPEN_APP_REVIEW_STATUS_LABELS[value] }))}
+              value={draft.reviewStatus}
+              onChange={(reviewStatus) => setDraft({ ...draft, reviewStatus: reviewStatus as OAuth2Client['reviewStatus'] })}
+              width="100%"
+            />
           </>
         )}
         mobileActions={<Button theme="borderless" onClick={reset}>重置筛选</Button>}

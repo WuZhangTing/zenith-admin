@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Select, Space, Tag, Toast, Typography, SideSheet, Switch } from '@douyinfe/semi-ui';
+import { Space, Tag, Toast, Typography, SideSheet, Switch } from '@douyinfe/semi-ui';
 import { Monitor as MonitorIcon } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Terminal } from '@xterm/xterm';
@@ -25,7 +25,7 @@ import {
   type TerminalSessionItem,
 } from '@/hooks/queries/terminal';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 
 const KIND_META: Record<TerminalKind, { label: string; color: 'blue' | 'green' | 'cyan' | 'purple' }> = {
@@ -34,6 +34,7 @@ const KIND_META: Record<TerminalKind, { label: string; color: 'blue' | 'green' |
   docker: { label: 'Docker', color: 'cyan' },
   db: { label: '数据库', color: 'purple' },
 };
+const KIND_FILTER_OPTIONS = (Object.keys(KIND_META) as TerminalKind[]).map((value) => ({ value, label: KIND_META[value].label }));
 
 function buildMonitorWsUrl(sessionId: string, takeover: boolean): string {
   let wsBase = config.wsBaseUrl;
@@ -122,8 +123,8 @@ export default function TerminalSessionsPage() {
   const { hasPermission } = usePermission();
   const [autoRefresh, setAutoRefresh] = useState(false);
 
-  interface SearchParams { keyword: string; kind: TerminalKind | '' }
-  const defaultSearchParams: SearchParams = { keyword: '', kind: '' };
+  interface SearchParams { keyword: string; kind?: TerminalKind }
+  const defaultSearchParams: SearchParams = { keyword: '', kind: undefined };
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
@@ -213,22 +214,12 @@ export default function TerminalSessionsPage() {
         primary={(
           <>
             <KeywordInput placeholder="搜索用户/主机/IP" value={draftParams.keyword} onChange={(v) => setDraftParams((s) => ({ ...s, keyword: v }))} onSearch={handleSearch} />
-            <Select
-              placeholder="类型"
-              value={draftParams.kind || undefined}
-              onChange={(v) => {
-                const kind = (v as TerminalKind | undefined) ?? '';
-                const next: SearchParams = { ...draftParams, kind };
-                applySearch(next);
-              }}
-              style={{ width: 120 }}
-              showClear
-            >
-              <Select.Option value="local">本地</Select.Option>
-              <Select.Option value="ssh">SSH</Select.Option>
-              <Select.Option value="docker">Docker</Select.Option>
-              <Select.Option value="db">数据库</Select.Option>
-            </Select>
+            <FilterSelect
+              placeholder="全部类型"
+              items={KIND_FILTER_OPTIONS}
+              value={draftParams.kind}
+              onChange={(kind) => applySearch({ ...draftParams, kind })}
+            />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
             <Space spacing={4} style={{ marginLeft: 4 }}>
@@ -245,21 +236,12 @@ export default function TerminalSessionsPage() {
         )}
         mobileFilters={(
           <>
-            <Select
-              placeholder="类型"
-              value={draftParams.kind || undefined}
-              onChange={(v) => {
-                const kind = (v as TerminalKind | undefined) ?? '';
-                const next: SearchParams = { ...draftParams, kind };
-                applySearch(next);
-              }}
-              style={{ width: 120 }}
-              showClear
-            >
-              <Select.Option value="local">本地</Select.Option>
-              <Select.Option value="ssh">SSH</Select.Option>
-              <Select.Option value="docker">Docker</Select.Option>
-            </Select>
+            <FilterSelect
+              placeholder="全部类型"
+              items={KIND_FILTER_OPTIONS}
+              value={draftParams.kind}
+              onChange={(kind) => applySearch({ ...draftParams, kind })}
+            />
             <Space spacing={4}>
               <Switch size="small" checked={autoRefresh} onChange={setAutoRefresh} />
               <Typography.Text type="tertiary" size="small">自动刷新</Typography.Text>

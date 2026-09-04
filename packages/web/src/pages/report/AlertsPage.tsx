@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Button, Col, Form, Modal, Row, Select, SideSheet, Switch, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Modal, Row, SideSheet, Switch, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { CronBuilderPopover } from '@/components/CronBuilderPopover';
@@ -30,18 +30,18 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { switchAlertSource } from './report-platform-utils';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 
 interface SearchParams {
   keyword: string;
-  datasetId: string;
-  metricId: string;
-  enabled: string;
+  datasetId?: string;
+  metricId?: string;
+  enabled?: string;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', datasetId: '', metricId: '', enabled: '' };
+const defaultSearchParams: SearchParams = { keyword: '', datasetId: undefined, metricId: undefined, enabled: undefined };
 
 const aggregateOptions: Array<{ value: ReportAlertAggregate; label: string }> = [
   { value: 'sum', label: '求和 sum' },
@@ -351,12 +351,24 @@ export default function AlertsPage() {
     <KeywordInput placeholder="搜索名称/备注" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} width={200} />
   );
   const renderDatasetFilter = () => (
-    <Select placeholder="全部数据集" value={draftParams.datasetId || undefined} onChange={(value) => setDraftParams((prev) => ({ ...prev, datasetId: value ? String(value) : '', metricId: '' }))}
-      showClear filter style={{ width: 180 }} optionList={datasets.map((dataset) => ({ value: String(dataset.id), label: dataset.name }))} />
+    <FilterSelect
+      placeholder="全部数据集"
+      items={datasets.map((dataset) => ({ value: String(dataset.id), label: dataset.name }))}
+      value={draftParams.datasetId}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, datasetId: value, metricId: undefined }))}
+      width={180}
+      filter
+    />
   );
   const renderMetricFilter = () => (
-    <Select placeholder="全部指标" value={draftParams.metricId || undefined} onChange={(value) => setDraftParams((prev) => ({ ...prev, metricId: value ? String(value) : '', datasetId: '' }))}
-      showClear filter style={{ width: 180 }} optionList={metrics.map((metric) => ({ value: String(metric.id), label: metric.name }))} />
+    <FilterSelect
+      placeholder="全部指标"
+      items={metrics.map((metric) => ({ value: String(metric.id), label: metric.name }))}
+      value={draftParams.metricId}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, metricId: value, datasetId: undefined }))}
+      width={180}
+      filter
+    />
   );
   const renderStatusFilter = () => (
     <StatusSelect

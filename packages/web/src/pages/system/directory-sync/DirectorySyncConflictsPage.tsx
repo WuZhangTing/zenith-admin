@@ -5,7 +5,7 @@ import { ListChecks } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import AppModal from '@/components/AppModal';
 import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
@@ -25,12 +25,12 @@ import {
 
 interface SearchParams {
   keyword: string;
-  sourceId: string;
-  status: string;
+  sourceId?: string;
+  status?: string;
 }
 
 // 默认只看待裁决
-const defaultSearchParams: SearchParams = { keyword: '', sourceId: '', status: 'pending' };
+const defaultSearchParams: SearchParams = { keyword: '', sourceId: undefined, status: 'pending' };
 
 const CONFLICT_STATUS_TAG_COLOR: Record<string, 'orange' | 'green' | 'grey'> = {
   pending: 'orange',
@@ -195,7 +195,7 @@ export default function DirectorySyncConflictsPage() {
   );
 
   const renderSourceFilter = () => (
-    <StatusSelect
+    <FilterSelect
       placeholder="全部同步源"
       width={160}
       items={sourceItems}
@@ -206,7 +206,7 @@ export default function DirectorySyncConflictsPage() {
 
   const renderStatusFilter = () => (
     <StatusSelect
-      placeholder="全部状态"
+     
       items={DIRECTORY_SYNC_CONFLICT_STATUSES.map((s) => ({ value: s, label: DIRECTORY_SYNC_CONFLICT_STATUS_LABELS[s] }))}
       value={draftParams.status}
       onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
@@ -293,8 +293,8 @@ export default function DirectorySyncConflictsPage() {
               />
               {resolving.conflictType === 'multi_match' && resolution === 'source' && (
                 <Form.Slot label="绑定账号">
-                  <StatusSelect
-                    placeholder="选择本地账号"
+                  <FilterSelect
+                    placeholder="全部本地账号"
                     width={280}
                     items={candidateOptions.map((o) => ({ value: String(o.value), label: o.label }))}
                     value={targetUserId ? String(targetUserId) : ''}

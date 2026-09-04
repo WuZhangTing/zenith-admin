@@ -3,7 +3,7 @@
  *
  * 与 `toolbar-controls.tsx`（查询/重置/新增按钮）配套：那边收敛的是动作按钮，
  * 这边收敛的是筛选输入。二者都只把**装饰性 props**（图标、尺寸、showClear、
- * 默认宽度）收进默认值，业务 props（value/onChange/placeholder）仍由页面显式传入——
+ * 默认宽度）收进默认值，业务 props（value/onChange/items/placeholder）仍由页面显式传入——
  * 否则组件会退化成难以定制的黑盒。
  *
  * @example
@@ -14,12 +14,15 @@
  *         onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} />
  *       <StatusSelect items={statusItems} value={draftParams.status}
  *         onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))} />
+ *       <FilterSelect placeholder="全部渠道" items={PAYMENT_CHANNEL_OPTIONS} value={draftParams.channel}
+ *         onChange={(v) => setDraftParams((p) => ({ ...p, channel: v }))} />
  *       <SearchButton onClick={handleSearch} />
  *       <ResetButton onClick={handleReset} />
  *     </>
  *   )}
  * />
  */
+import type { ReactNode } from 'react';
 import { DatePicker, Input, Select } from '@douyinfe/semi-ui';
 import type { InputProps } from '@douyinfe/semi-ui/lib/es/input';
 import type { SelectProps } from '@douyinfe/semi-ui/lib/es/select';
@@ -53,39 +56,79 @@ export function KeywordInput({ value, onChange, onSearch, width = 220, style, ..
   );
 }
 
-interface StatusSelectProps extends Omit<SelectProps, 'onChange' | 'value' | 'optionList'> {
-  /** 字典项，通常来自 `useDictItems('common_status').items` */
-  readonly items: readonly { value: string; label: string }[];
-  readonly value: string | undefined;
-  readonly onChange: (value: string) => void;
-  /** 下拉宽度，默认 120 */
+export interface FilterOption<V extends string | number = string> {
+  readonly value: V;
+  readonly label: ReactNode;
+  readonly disabled?: boolean;
+}
+
+export interface FilterOptionGroup<V extends string | number = string> {
+  readonly label: string;
+  readonly items: readonly FilterOption<V>[];
+}
+
+/** 选项来源：平铺 `items`（枚举用 shared 导出的 `XXX_OPTIONS` 或 `useDictItems(...).items`），或按组展示的 `groups` */
+type FilterSelectSource<V extends string | number> =
+  | { readonly items: readonly FilterOption<V>[]; readonly groups?: never }
+  | { readonly groups: readonly FilterOptionGroup<V>[]; readonly items?: never };
+
+interface FilterSelectBaseProps<V extends string | number>
+  extends Omit<SelectProps, 'onChange' | 'value' | 'optionList' | 'placeholder' | 'showClear' | 'multiple' | 'children'> {
+  /** `undefined` = 不过滤 */
+  readonly value: V | undefined;
+  /** 清空时回调 `undefined` */
+  readonly onChange: (value: V | undefined) => void;
+  /** 占位即空值语义，写成「全部 X」（如「全部渠道」） */
+  readonly placeholder: string;
+  /** 下拉宽度，默认 120；仅在占位或选项文案放不下时加宽 */
   readonly width?: number | string;
 }
 
+export type FilterSelectProps<V extends string | number = string> = FilterSelectBaseProps<V> & FilterSelectSource<V>;
+
 /**
- * 状态筛选下拉：把字典项映射成 optionList 的样板收敛于此。
- * 清空时回调收到空串（而非 `undefined`），与 `draftParams` 里状态字段的类型对齐。
+ * 单选枚举筛选下拉：占位描述空值含义，清除按钮回到「不过滤」，宽度固定。
+ * 列表页搜索栏里所有「全部 X」形态的筛选都用它，不再逐页手写 `showClear` / `style={{ width }}` / 「全部」哨兵选项。
  */
-export function StatusSelect({
+export function FilterSelect<V extends string | number = string>({
   items,
+  groups,
   value,
   onChange,
+  placeholder,
   width = 120,
-  placeholder = '全部状态',
   style,
   ...rest
-}: StatusSelectProps) {
-  return (
-    <Select
-      placeholder={placeholder}
-      value={value || undefined}
-      onChange={(v) => onChange((v as string) ?? '')}
-      optionList={items.map((item) => ({ value: item.value, label: item.label }))}
-      showClear
-      style={{ width, maxWidth: '100%', ...style }}
-      {...rest}
-    />
-  );
+}: FilterSelectProps<V>) {
+  const shared = {
+    placeholder,
+    value,
+    onChange: (v: unknown) => onChange(v as V | undefined),
+    showClear: true,
+    style: { width, maxWidth: '100%', ...style },
+    ...rest,
+  };
+  if (groups) {
+    return (
+      <Select {...shared}>
+        {groups.map((group) => (
+          <Select.OptGroup key={group.label} label={group.label}>
+            {group.items.map((option) => (
+              <Select.Option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</Select.Option>
+            ))}
+          </Select.OptGroup>
+        ))}
+      </Select>
+    );
+  }
+  return <Select {...shared} optionList={[...items]} />;
+}
+
+export type StatusSelectProps<V extends string = string> = Omit<FilterSelectBaseProps<V>, 'placeholder'> & FilterSelectSource<V>;
+
+/** 状态筛选：`FilterSelect` 的特化，占位固定为「全部状态」 */
+export function StatusSelect<V extends string = string>(props: StatusSelectProps<V>) {
+  return <FilterSelect<V> {...props} placeholder="全部状态" />;
 }
 
 interface DateRangeFilterProps extends Omit<DatePickerProps, 'onChange' | 'value' | 'type'> {

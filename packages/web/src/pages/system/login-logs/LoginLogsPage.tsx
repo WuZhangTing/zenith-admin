@@ -1,4 +1,4 @@
-import { Select, Tabs, TabPane } from '@douyinfe/semi-ui';
+import { Tabs, TabPane } from '@douyinfe/semi-ui';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import { LoginLogsTable } from '@/components/logs/LoginLogsTable';
@@ -9,19 +9,22 @@ import LoginLogStatsPanel from './LoginLogStatsPanel';
 import { loginLogKeys, useCleanLoginLogs, useLoginLogList } from '@/hooks/queries/login-logs';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
+
+const STATUS_OPTIONS = [{ value: 'success', label: '成功' }, { value: 'fail', label: '失败' }];
+const EVENT_TYPE_OPTIONS = [{ value: 'login', label: '登录' }, { value: 'logout', label: '退出登录' }];
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 export default function LoginLogsPage() {
   const [activeTab, setActiveTab] = useUrlTabState(['list', 'stats'] as const, 'list');
   interface SearchParams {
     username: string;
-    eventType: string;
-    status: string;
+    eventType?: string;
+    status?: string;
     timeRange: [Date, Date] | null;
   }
 
-  const defaultParams: SearchParams = { username: '', eventType: '', status: '', timeRange: null };
+  const defaultParams: SearchParams = { username: '', eventType: undefined, status: undefined, timeRange: null };
 
   const {
     page, pageSize, setPage, buildPagination,
@@ -50,29 +53,20 @@ export default function LoginLogsPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="请选择状态"
-      value={draftParams.status || undefined}
-      onChange={(v) => setDraftParams({ ...draftParams, status: v as string })}
-      style={{ width: 150 }}
-    >
-      <Select.Option value="">全部</Select.Option>
-      <Select.Option value="success">成功</Select.Option>
-      <Select.Option value="fail">失败</Select.Option>
-    </Select>
+    <StatusSelect
+      items={STATUS_OPTIONS}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams({ ...draftParams, status: v })}
+    />
   );
 
   const renderEventTypeFilter = () => (
-    <Select
-      placeholder="请选择事件"
-      value={draftParams.eventType || undefined}
-      onChange={(v) => setDraftParams({ ...draftParams, eventType: v as string })}
-      style={{ width: 150 }}
-    >
-      <Select.Option value="">全部事件</Select.Option>
-      <Select.Option value="login">登录</Select.Option>
-      <Select.Option value="logout">退出登录</Select.Option>
-    </Select>
+    <FilterSelect
+      placeholder="全部事件"
+      items={EVENT_TYPE_OPTIONS}
+      value={draftParams.eventType}
+      onChange={(v) => setDraftParams({ ...draftParams, eventType: v })}
+    />
   );
 
   const renderTimeRangeFilter = () => (

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Input, Tag, Toast, Tooltip, Modal, Tabs, TabPane, Tree, TreeSelect, Typography, Dropdown, Form, Select, SplitButtonGroup } from '@douyinfe/semi-ui';
+import { Button, Input, Tag, Toast, Tooltip, Modal, Tabs, TabPane, Tree, TreeSelect, Typography, Dropdown, Form, SplitButtonGroup } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
@@ -25,7 +25,7 @@ import type { CmsChannel, CmsContent, CmsContentStatus, CmsContentType } from '@
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CmsWidgetSourceRefsSheet, type CmsWidgetSourceTarget } from './CmsWidgetSourceRefsSheet';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { DATE_TIME_COLUMN_WIDTH, dateTimeColumn } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -501,13 +501,12 @@ export default function ContentsPage() {
     <KeywordInput placeholder="搜索标题/作者..." value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} />
   );
   const renderTypeFilter = () => (
-    <Select
-      placeholder="内容形态"
+    <FilterSelect
+      placeholder="全部内容形态"
+      items={CMS_CONTENT_TYPE_OPTIONS}
       value={contentType}
       onChange={(v) => { setContentType(v as CmsContentType | undefined); setPage(1); setSelectedIds([]); }}
-      showClear
-      style={{ width: 130 }}
-      optionList={CMS_CONTENT_TYPE_OPTIONS}
+      width={140}
     />
   );
   const renderSearchButton = () => (

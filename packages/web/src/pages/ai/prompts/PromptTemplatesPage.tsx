@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Col, Form, Modal, Row, Select, SideSheet, Space, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Modal, Row, SideSheet, Space, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AiPromptTemplate, AiPromptScope, CreateAiPromptTemplateInput } from '@zenith/shared/ai';
@@ -19,13 +19,13 @@ import {
 import { useAiPromptVersions, useRestoreAiPromptVersion } from '@/hooks/queries/ai-extras';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 
 interface SearchParams {
   keyword: string;
-  scope: AiPromptScope | '';
+  scope?: AiPromptScope;
 }
 
 interface PromptTemplateFormValues {
@@ -38,14 +38,12 @@ interface PromptTemplateFormValues {
   isEnabled: boolean;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', scope: '' };
+const defaultSearchParams: SearchParams = { keyword: '', scope: undefined };
 
 const scopeFormOptions = [
   { value: 'system', label: '系统级' },
   { value: 'user', label: '用户私有' },
 ];
-
-const scopeSearchOptions = [{ value: '', label: '全部' }, ...scopeFormOptions];
 
 function scopeTag(scope: AiPromptScope) {
   return scope === 'system'
@@ -163,12 +161,12 @@ export default function PromptTemplatesPage() {
   );
 
   const renderScopeFilter = () => (
-    <Select
+    <FilterSelect
+      placeholder="全部作用域"
+      items={scopeFormOptions}
       value={draftParams.scope}
-      optionList={scopeSearchOptions}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, scope: (value as AiPromptScope | undefined) ?? '' }))}
-      showClear
-      style={{ width: 140 }}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, scope: value as AiPromptScope | undefined }))}
+      width={140}
     />
   );
 

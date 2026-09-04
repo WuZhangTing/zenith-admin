@@ -19,7 +19,7 @@ import {
   useOpenAppOptions,
 } from '@/hooks/queries/open-platform';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { dateTimeColumn } from '@/utils/table-columns';
 
 const { Text, Title } = Typography;
@@ -193,41 +193,36 @@ export default function OpenApiStatsPage() {
         filters={(
           <>
             <KeywordInput placeholder="路径 / 应用名称" value={draftParams.keyword} onChange={(keyword) => setDraftParams({ ...draftParams, keyword })} onSearch={handleApply} width={190} />
-            <Select
-              placeholder="应用"
+            <FilterSelect
+              placeholder="全部应用"
+              items={appOptions.map((app) => ({ value: app.clientId, label: app.name }))}
               value={draftParams.clientId}
               onChange={(clientId) => setDraftParams({ ...draftParams, clientId: clientId as string })}
-              optionList={appOptions.map((app) => ({ value: app.clientId, label: app.name }))}
-              showClear
+              width={170}
               filter
-              style={{ width: 170 }}
             />
-            <Select
-              placeholder="环境"
+            <FilterSelect
+              placeholder="全部环境"
+              items={OPEN_APP_ENVIRONMENTS.map((value) => ({ value, label: OPEN_APP_ENVIRONMENT_LABELS[value] }))}
               value={draftParams.environment}
               onChange={(environment) => setDraftParams({ ...draftParams, environment: environment as OpenApiCallLog['environment'] })}
-              optionList={OPEN_APP_ENVIRONMENTS.map((value) => ({ value, label: OPEN_APP_ENVIRONMENT_LABELS[value] }))}
-              showClear
-              style={{ width: 110 }}
             />
-            <Select
-              placeholder="请求方法"
+            <FilterSelect
+              placeholder="全部请求方法"
+              items={['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((value) => ({ value, label: value }))}
               value={draftParams.method}
               onChange={(method) => setDraftParams({ ...draftParams, method: method as string })}
-              optionList={['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((value) => ({ value, label: value }))}
-              showClear
-              style={{ width: 120 }}
+              width={140}
             />
-            <Select
-              placeholder="调用结果"
+            <FilterSelect
+              placeholder="全部调用结果"
+              items={[{ value: 'true', label: '成功' }, { value: 'false', label: '失败' }]}
               value={draftParams.success === undefined ? undefined : String(draftParams.success)}
               onChange={(success) => setDraftParams({
                 ...draftParams,
                 success: success === undefined ? undefined : success === 'true',
               })}
-              optionList={[{ value: 'true', label: '成功' }, { value: 'false', label: '失败' }]}
-              showClear
-              style={{ width: 110 }}
+              width={140}
             />
             <InputNumber
               placeholder="状态码"
@@ -258,22 +253,20 @@ export default function OpenApiStatsPage() {
               }}
               style={{ width: '100%' }}
             />
-            <Select
-              placeholder="应用"
+            <FilterSelect
+              placeholder="全部应用"
+              items={appOptions.map((app) => ({ value: app.clientId, label: app.name }))}
               value={draftParams.clientId}
               onChange={(clientId) => setDraftParams({ ...draftParams, clientId: clientId as string })}
-              optionList={appOptions.map((app) => ({ value: app.clientId, label: app.name }))}
-              showClear
+              width="100%"
               filter
-              style={{ width: '100%' }}
             />
-            <Select
-              placeholder="环境"
+            <FilterSelect
+              placeholder="全部环境"
+              items={OPEN_APP_ENVIRONMENTS.map((value) => ({ value, label: OPEN_APP_ENVIRONMENT_LABELS[value] }))}
               value={draftParams.environment}
               onChange={(environment) => setDraftParams({ ...draftParams, environment: environment as OpenApiCallLog['environment'] })}
-              optionList={OPEN_APP_ENVIRONMENTS.map((value) => ({ value, label: OPEN_APP_ENVIRONMENT_LABELS[value] }))}
-              showClear
-              style={{ width: '100%' }}
+              width="100%"
             />
           </>
         )}

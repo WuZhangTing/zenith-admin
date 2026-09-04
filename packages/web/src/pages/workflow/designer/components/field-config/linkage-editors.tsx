@@ -19,7 +19,7 @@ export function DateRangeLinkageEditor({
       <Typography.Text strong size="small">联动：自动计算天数</Typography.Text>
       <Select
         value={field.daysFromKey ?? ''}
-        onChange={(v) => onChange({ daysFromKey: (v as string) || undefined })}
+        onChange={(v) => onChange({ daysFromKey: v as string | undefined })}
         placeholder="选择日期范围字段（不联动则留空）"
         style={{ width: '100%' }}
         showClear
@@ -242,7 +242,7 @@ export function CascadeEditor({
       <Typography.Text strong size="small">级联：选项依赖父字段</Typography.Text>
       <Select
         value={current?.sourceKey ?? ''}
-        onChange={(v) => setParent((v as string) || undefined)}
+        onChange={(v) => setParent(v as string | undefined)}
         placeholder="选择父字段（不级联则留空）"
         style={{ width: '100%' }}
         showClear

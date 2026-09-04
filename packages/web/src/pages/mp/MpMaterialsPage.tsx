@@ -22,7 +22,7 @@ import {
   useUploadMpMaterial,
 } from '@/hooks/queries/mp-materials';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 import { formatBytes } from '@zenith/shared/core';
@@ -114,13 +114,11 @@ export default function MpMaterialsPage() {
     <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
   );
   const renderTypeFilter = () => (
-    <Select
-      placeholder="类型"
+    <FilterSelect
+      placeholder="全部类型"
+      items={MP_MATERIAL_TYPE_OPTIONS}
       value={draftParams.filterType}
       onChange={(v) => setDraftParams({ ...draftParams, filterType: v as MpMaterialType | undefined })}
-      optionList={MP_MATERIAL_TYPE_OPTIONS}
-      showClear
-      style={{ width: 120 }}
     />
   );
   const renderKeywordInput = () => (

@@ -35,12 +35,12 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
-  status: string;
+  status?: string;
 }
 
 type SimpleUser = UserTransferUser & {
@@ -314,12 +314,10 @@ export default function UserGroupsPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="请选择状态"
-      value={draftParams.status || undefined}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as string) ?? '' }))}
-      style={{ width: 140, maxWidth: '100%' }}
-      optionList={[{ value: '', label: '全部状态' }, ...statusItems.map((i) => ({ value: i.value, label: i.label }))]}
+    <StatusSelect
+      items={statusItems}
+      value={draftParams.status}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: value }))}
     />
   );
 

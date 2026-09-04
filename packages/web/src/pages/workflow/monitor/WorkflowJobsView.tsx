@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Col, Descriptions, Empty, Form, JsonViewer, Modal, Popconfirm, Radio, RadioGroup, Row, Select, SideSheet, Space, Table, Tabs, TabPane, Tag, Timeline, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Col, Descriptions, Empty, Form, JsonViewer, Modal, Popconfirm, Radio, RadioGroup, Row, SideSheet, Space, Table, Tabs, TabPane, Tag, Timeline, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ChevronsDownUp, ChevronsUpDown, Download } from 'lucide-react';
 import type { WorkflowJob, WorkflowJobExecution, WorkflowJobStatus, WorkflowJobSummaryItem, WorkflowJobType } from '@zenith/shared/workflow';
@@ -34,7 +34,7 @@ import {
   workflowMonitorKeys,
 } from '@/hooks/queries/workflow-monitor';
 import { ResetButton, RefreshButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 // 本页无图表，直接引具体文件，避免桶文件带入 vchart
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 
@@ -607,12 +607,9 @@ function JobTypePanel({ jobType, summary, onMutated, clustersSignal }: JobTypePa
         primary={(
           <>
             <KeywordInput placeholder="幂等键 / TraceId / 节点" value={keyword} onChange={setKeyword} onSearch={handleSearch} />
-            <Select
-              placeholder="状态"
+            <StatusSelect
+              items={JOB_STATUS_OPTIONS}
               value={status}
-              optionList={JOB_STATUS_OPTIONS}
-              showClear
-              style={{ width: 130 }}
               onChange={(v) => setStatus(v as WorkflowJobStatus | undefined)}
             />
             <SearchButton onClick={handleSearch} />
@@ -630,7 +627,12 @@ function JobTypePanel({ jobType, summary, onMutated, clustersSignal }: JobTypePa
           </>
         )}
         mobileFilters={(
-          <Select placeholder="状态" value={status} optionList={JOB_STATUS_OPTIONS} showClear style={{ width: '100%' }} onChange={(v) => setStatus(v as WorkflowJobStatus | undefined)} />
+          <StatusSelect
+            items={JOB_STATUS_OPTIONS}
+            value={status}
+            onChange={(v) => setStatus(v as WorkflowJobStatus | undefined)}
+            width="100%"
+          />
         )}
         filterTitle={`${JOB_TYPE_META[jobType].text}筛选`}
         onFilterApply={handleSearch}

@@ -152,7 +152,7 @@ export default function ArenaModal({ visible, onClose, models }: ArenaModalProps
         <div style={{ display: 'flex', gap: 8 }}>
           <TextArea
             value={question}
-            onChange={(v) => setQuestion(v)}
+            onChange={setQuestion}
             placeholder="输入同一个问题，同时发给两个模型对比效果"
             autosize={{ minRows: 2, maxRows: 4 }}
             style={{ flex: 1 }}

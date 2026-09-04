@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { Form, Select, Spin, Switch, Tag, Toast } from '@douyinfe/semi-ui';
+import { Form, Spin, Switch, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -21,14 +21,14 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
-import { StatusSelect } from '@/components/search-filters';
+import { FilterSelect, StatusSelect } from '@/components/search-filters';
 
 const yuan = formatYuan;
 const channelOptions = PAYMENT_CHANNEL_OPTIONS;
 const methodOptions = PAYMENT_METHOD_OPTIONS;
 
-interface SearchParams { channel: string; status: string; }
-const defaultSearch: SearchParams = { channel: '', status: '' };
+interface SearchParams { channel?: string; status?: string; }
+const defaultSearch: SearchParams = { channel: undefined, status: '' };
 
 interface FeeFormValues {
   name: string;
@@ -145,13 +145,11 @@ export default function PaymentFeeRulesPage() {
   ];
 
   const renderChannelFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部渠道"
-      value={draftParams.channel || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, channel: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 130 }}
-      optionList={channelOptions}
+      items={channelOptions}
+      value={draftParams.channel}
+      onChange={(v) => setDraftParams((p) => ({ ...p, channel: v }))}
     />
   );
 

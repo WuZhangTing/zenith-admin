@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Col, Form, Modal, Row, Select, SideSheet, Spin, Switch, Table, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Modal, Row, SideSheet, Spin, Switch, Table, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { IdentityProviderType, TenantIdentityProvider } from '@zenith/shared/identity';
 import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
@@ -25,20 +25,20 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
-  type: string;
-  status: string;
+  type?: string;
+  status?: string;
   tenantId: string;
 }
 
 const defaultSearchParams: SearchParams = {
   keyword: '',
-  type: '',
-  status: '',
+  type: undefined,
+  status: undefined,
   tenantId: '',
 };
 
@@ -335,22 +335,19 @@ export default function IdentityProvidersPage() {
   );
 
   const renderTypeFilter = () => (
-    <Select
-      placeholder="类型"
-      value={draftParams.type || undefined}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, type: (value as string) ?? '' }))}
-      style={{ width: 130, maxWidth: '100%' }}
-      optionList={[{ value: '', label: '全部类型' }, ...providerTypeOptions]}
+    <FilterSelect
+      placeholder="全部类型"
+      items={providerTypeOptions}
+      value={draftParams.type}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, type: value }))}
     />
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="状态"
-      value={draftParams.status || undefined}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as string) ?? '' }))}
-      style={{ width: 130, maxWidth: '100%' }}
-      optionList={[{ value: '', label: '全部状态' }, ...statusOptions]}
+    <StatusSelect
+      items={statusOptions}
+      value={draftParams.status}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: value }))}
     />
   );
 

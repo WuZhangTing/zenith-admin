@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Banner, Button, Col, Form, Modal, Row, Select, SideSheet, Space, Steps, TabPane, Tabs, Tag, Toast } from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Form, Modal, Row, SideSheet, Space, Steps, TabPane, Tabs, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Copy, Eye } from 'lucide-react';
 import { REPORT_FILL_TEMPLATE_STATUS_LABELS, REPORT_FILL_TEMPLATE_STATUS_OPTIONS } from '@zenith/shared/report';
@@ -31,7 +31,7 @@ import FormDesigner from '@/pages/workflow/designer/components/FormDesigner';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 import { isRevisionConflict, validateFillTemplateInput } from './report-p2-utils';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 
@@ -323,25 +323,23 @@ export default function FillTemplatesPage() {
       <StatusSelect
         items={REPORT_FILL_TEMPLATE_STATUS_OPTIONS}
         value={draft.status}
-        onChange={(value) => setDraft((current) => ({ ...current, status: (value as ReportFillTemplate['status']) || undefined }))}
+        onChange={(value) => setDraft((current) => ({ ...current, status: value as ReportFillTemplate['status'] | undefined }))}
       />
-      <Select
+      <FilterSelect
         placeholder="全部负责人"
+        items={users.map((user) => ({ value: user.id, label: user.nickname || user.username }))}
         value={draft.ownerId}
-        optionList={users.map((user) => ({ value: user.id, label: user.nickname || user.username }))}
-        onChange={(value) => setDraft((current) => ({ ...current, ownerId: value ? Number(value) : undefined }))}
+        onChange={(value) => setDraft((current) => ({ ...current, ownerId: value }))}
         filter
-        showClear
-        style={{ width: 140 }}
+        width={140}
       />
-      <Select
+      <FilterSelect
         placeholder="全部目录"
+        items={folders.map((folder) => ({ value: folder.id, label: folder.name }))}
         value={draft.folderId}
-        optionList={folders.map((folder) => ({ value: folder.id, label: folder.name }))}
-        onChange={(value) => setDraft((current) => ({ ...current, folderId: value ? Number(value) : undefined }))}
+        onChange={(value) => setDraft((current) => ({ ...current, folderId: value }))}
+        width={150}
         filter
-        showClear
-        style={{ width: 150 }}
       />
     </>
   );

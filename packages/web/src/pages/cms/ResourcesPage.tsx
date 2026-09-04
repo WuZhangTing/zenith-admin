@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Button, DatePicker, Dropdown, Form, Modal, Select, Space, Tag, Toast, Tooltip, Typography, Empty, Tree } from '@douyinfe/semi-ui';
+import { Button, DatePicker, Dropdown, Form, Modal, Space, Tag, Toast, Tooltip, Typography, Empty, Tree } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
 import { Upload, FileText, Film, Music, File as FileIcon, FolderPlus, FolderPen, FolderX, Move, ShieldCheck, MoreHorizontal } from 'lucide-react';
@@ -26,7 +26,7 @@ import type { CmsResource, CmsResourceFolder, CmsResourceReference, CmsResourceO
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { formatDateTimeForApi } from '@/utils/date';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -489,13 +489,12 @@ export default function ResourcesPage() {
         detail={(
           <MasterDetailLayout.Body padding="0 0 0 16px">
             <SearchToolbar>
-              <Select
-                placeholder="素材类型"
-                style={{ width: 130 }}
-                showClear
+              <FilterSelect
+                placeholder="全部素材类型"
+                items={CMS_RESOURCE_TYPES.map((t) => ({ label: CMS_RESOURCE_TYPE_LABELS[t], value: t }))}
                 value={type}
                 onChange={(v) => { setType(v as CmsResourceType | undefined); setPage(1); setSelectedIds([]); }}
-                optionList={CMS_RESOURCE_TYPES.map((t) => ({ label: CMS_RESOURCE_TYPE_LABELS[t], value: t }))}
+                width={140}
               />
               <KeywordInput placeholder="搜索素材名称" value={keywordDraft} onChange={setKeywordDraft} onSearch={handleSearch} width={200} />
               <SearchButton onClick={handleSearch} />

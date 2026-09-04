@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Form, Select, Space, Spin, Switch, Toast, SideSheet, Empty } from '@douyinfe/semi-ui';
+import { Button, Form, Space, Spin, Switch, Toast, SideSheet, Empty } from '@douyinfe/semi-ui';
 import { Trash2, Users } from 'lucide-react';
 import type { Position } from '@zenith/shared/identity';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -29,18 +29,18 @@ import { useAllUsers } from '@/hooks/queries/users';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
-  status: string;
+  status?: string;
   timeRange: [Date, Date] | null;
 }
 
 const defaultSearchParams: SearchParams = {
   keyword: '',
-  status: '',
+  status: undefined,
   timeRange: null,
 };
 
@@ -205,15 +205,10 @@ export default function PositionsPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="请选择状态"
-      value={draftParams.status || undefined}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as string) ?? '' }))}
-      style={{ width: 140 }}
-      optionList={[
-        { value: '', label: '全部状态' },
-        ...statusItems.map((item) => ({ value: item.value, label: item.label })),
-      ]}
+    <StatusSelect
+      items={statusItems}
+      value={draftParams.status}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: value }))}
     />
   );
 

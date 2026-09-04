@@ -1,16 +1,5 @@
 import { useState } from 'react';
-import {
-  Banner,
-  Button,
-  Col,
-  Empty,
-  Form,
-  Modal,
-  Row,
-  Select,
-  Tag,
-  Toast,
-} from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Empty, Form, Modal, Row, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportApprovalStatus, ReportPublishApproval, ReportResourceTransfer, ReportResourceType, ReportTransferStatus } from '@zenith/shared/report';
 import { Plus } from 'lucide-react';
@@ -37,6 +26,7 @@ import { approvalConflictMessage, parseJsonObject } from '../report-platform-uti
 import { REPORT_RESOURCE_TYPE_OPTIONS, reportResourceTypeLabel } from '../report-platform-options';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { confirmDanger } from '@/utils/confirm';
+import { FilterSelect } from '@/components/search-filters';
 
 const approvalStatuses = ['pending', 'approved', 'rejected', 'cancelled'] as const;
 const transferStatuses = ['pending', 'accepted', 'rejected', 'cancelled'] as const;
@@ -116,8 +106,20 @@ export function GovernanceApprovalTab() {
   return (
     <>
       <SearchToolbar>
-        <Select placeholder="审批状态" showClear value={status} optionList={approvalStatuses.map((value) => ({ value, label: value }))} style={{ width: 140 }} onChange={(v) => { setPage(1); setStatus(v as ReportApprovalStatus | undefined); }} />
-        <Select placeholder="资源类型" showClear value={resourceType} optionList={REPORT_RESOURCE_TYPE_OPTIONS} style={{ width: 150 }} onChange={(v) => { setPage(1); setResourceType(v as ReportResourceType | undefined); }} />
+        <FilterSelect
+          placeholder="全部审批状态"
+          items={approvalStatuses.map((value) => ({ value, label: value }))}
+          value={status}
+          onChange={(v) => { setPage(1); setStatus(v as ReportApprovalStatus | undefined); }}
+          width={140}
+        />
+        <FilterSelect
+          placeholder="全部资源类型"
+          items={REPORT_RESOURCE_TYPE_OPTIONS}
+          value={resourceType}
+          onChange={(v) => { setPage(1); setResourceType(v as ReportResourceType | undefined); }}
+          width={150}
+        />
         {hasPermission('report:approval:request') ? <Button type="primary" icon={<Plus size={14} />} onClick={approvalModal.openCreate}>申请发布</Button> : null}
       </SearchToolbar>
       {listQuery.isError && <Banner type="danger" description="发布审批加载失败" />}
@@ -201,8 +203,20 @@ export function GovernanceTransferTab() {
   return (
     <>
       <SearchToolbar>
-        <Select placeholder="转移状态" showClear value={status} optionList={transferStatuses.map((value) => ({ value, label: value }))} style={{ width: 140 }} onChange={(v) => { setPage(1); setStatus(v as ReportTransferStatus | undefined); }} />
-        <Select placeholder="资源类型" showClear value={resourceType} optionList={REPORT_RESOURCE_TYPE_OPTIONS} style={{ width: 150 }} onChange={(v) => { setPage(1); setResourceType(v as ReportResourceType | undefined); }} />
+        <FilterSelect
+          placeholder="全部转移状态"
+          items={transferStatuses.map((value) => ({ value, label: value }))}
+          value={status}
+          onChange={(v) => { setPage(1); setStatus(v as ReportTransferStatus | undefined); }}
+          width={140}
+        />
+        <FilterSelect
+          placeholder="全部资源类型"
+          items={REPORT_RESOURCE_TYPE_OPTIONS}
+          value={resourceType}
+          onChange={(v) => { setPage(1); setResourceType(v as ReportResourceType | undefined); }}
+          width={150}
+        />
         {hasPermission('report:resource:transfer') ? <Button type="primary" icon={<Plus size={14} />} onClick={transferModal.openCreate}>申请转移</Button> : null}
       </SearchToolbar>
       {listQuery.isError && <Banner type="danger" description="所有权转移列表加载失败" />}

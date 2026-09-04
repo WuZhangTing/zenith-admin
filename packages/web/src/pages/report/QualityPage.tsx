@@ -1,22 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  Banner,
-  Col,
-  Empty,
-  Form,
-  Modal,
-  Row,
-  Select,
-  SideSheet,
-  Space,
-  Switch,
-  TabPane,
-  Tabs,
-  Tag,
-  Toast,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Banner, Col, Empty, Form, Modal, Row, SideSheet, Space, Switch, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportDqAnomaly, ReportDqAnomalyStatus, ReportDqRule, ReportDqRuleType, ReportDqRun, ReportDqRunStatus, ReportDqScore } from '@zenith/shared/report';
 import { MetricMeter } from '@/components/data-viz/MetricMeter';
@@ -57,6 +41,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { confirmDelete } from '@/utils/confirm';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { FilterSelect } from '@/components/search-filters';
 const ruleTypeOptions = [
   { value: 'not_null', label: '非空' },
   { value: 'uniqueness', label: '唯一性' },
@@ -273,7 +258,10 @@ export default function QualityPage() {
   ];
 
   const datasetFilter = (
-    <Select placeholder="选择数据集" filter showClear value={datasetId} optionList={datasetOptions} style={{ width: 190 }}
+    <FilterSelect
+      placeholder="全部数据集"
+      items={datasetOptions}
+      value={datasetId}
       onChange={(v) => {
         const next = v as number | undefined;
         setDatasetId(next);
@@ -282,7 +270,10 @@ export default function QualityPage() {
           setPage(1);
           setSubmitted((prev) => ({ ...prev, datasetId: next }));
         }
-      }} />
+      }}
+      width={190}
+      filter
+    />
   );
   const searchButtons = <><SearchButton onClick={applySearch} /><ResetButton onClick={resetSearch} /></>;
   const commonToolbar = (extraFilters?: React.ReactNode, actions?: React.ReactNode) => (
@@ -302,8 +293,20 @@ export default function QualityPage() {
         <TabPane tab="质量规则" itemKey="rules">
           {commonToolbar(
             <>
-              <Select placeholder="规则类型" showClear value={ruleType} optionList={ruleTypeOptions} style={{ width: 140 }} onChange={(v) => setRuleType(v as ReportDqRuleType | undefined)} />
-              <Select placeholder="启用状态" showClear value={enabled === undefined ? undefined : String(enabled)} optionList={[{ value: 'true', label: '启用' }, { value: 'false', label: '停用' }]} style={{ width: 120 }} onChange={(v) => setEnabled(v == null ? undefined : v === 'true')} />
+              <FilterSelect
+                placeholder="全部规则类型"
+                items={ruleTypeOptions}
+                value={ruleType}
+                onChange={(v) => setRuleType(v as ReportDqRuleType | undefined)}
+                width={140}
+              />
+              <FilterSelect
+                placeholder="全部启用状态"
+                items={[{ value: 'true', label: '启用' }, { value: 'false', label: '停用' }]}
+                value={enabled === undefined ? undefined : String(enabled)}
+                onChange={(v) => setEnabled(v == null ? undefined : v === 'true')}
+                width={140}
+              />
             </>,
             hasPermission('report:dq:create') ? <CreateButton onClick={openCreate} /> : null,
           )}
@@ -324,13 +327,25 @@ export default function QualityPage() {
           <ConfigurableTable bordered rowKey="id" columns={scoreColumns} dataSource={scoresQuery.data?.list ?? []} loading={scoresQuery.isFetching} empty={<Empty title="暂无评分历史" />} pagination={buildPagination(scoresQuery.data?.total ?? 0)} onRefresh={() => void scoresQuery.refetch()} refreshLoading={scoresQuery.isFetching} />
         </TabPane>
         <TabPane tab="质量异常" itemKey="anomalies">
-          {commonToolbar(<Select placeholder="异常状态" showClear value={anomalyStatus} optionList={REPORT_DQ_ANOMALY_STATUS_OPTIONS} style={{ width: 150 }} onChange={(v) => setAnomalyStatus(v as ReportDqAnomalyStatus | undefined)} />)}
+          {commonToolbar(<FilterSelect
+            placeholder="全部异常状态"
+            items={REPORT_DQ_ANOMALY_STATUS_OPTIONS}
+            value={anomalyStatus}
+            onChange={(v) => setAnomalyStatus(v as ReportDqAnomalyStatus | undefined)}
+            width={150}
+          />)}
           {anomaliesQuery.isError && <Banner type="danger" description="质量异常加载失败" />}
           <ConfigurableTable bordered rowKey="id" columns={anomalyColumns} dataSource={anomaliesQuery.data?.list ?? []} loading={anomaliesQuery.isFetching} empty={<Empty title="暂无质量异常" />} pagination={buildPagination(anomaliesQuery.data?.total ?? 0)} onRefresh={() => void anomaliesQuery.refetch()} refreshLoading={anomaliesQuery.isFetching} />
         </TabPane>
         <TabPane tab="运行历史" itemKey="runs">
           {commonToolbar(
-            <Select placeholder="运行状态" showClear value={runStatus} optionList={['pending', 'running', 'succeeded', 'failed', 'cancelled'].map((v) => ({ value: v, label: dqRunStatusLabel(v as ReportDqRunStatus) }))} style={{ width: 140 }} onChange={(v) => setRunStatus(v as ReportDqRunStatus | undefined)} />,
+            <FilterSelect
+              placeholder="全部运行状态"
+              items={['pending', 'running', 'succeeded', 'failed', 'cancelled'].map((v) => ({ value: v, label: dqRunStatusLabel(v as ReportDqRunStatus) }))}
+              value={runStatus}
+              onChange={(v) => setRunStatus(v as ReportDqRunStatus | undefined)}
+              width={140}
+            />,
             <ExportButton entity="report.dq-runs" query={{ datasetId: submitted.datasetId, status: submitted.runStatus }} />,
           )}
           {runsQuery.isError && <Banner type="danger" description="运行历史加载失败" />}

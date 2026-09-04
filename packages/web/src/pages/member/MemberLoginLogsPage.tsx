@@ -59,15 +59,14 @@ export default function MemberLoginLogsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <KeywordInput placeholder="会员昵称/手机号/用户名" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value || undefined }))} onSearch={handleSearch} />
+    <KeywordInput placeholder="会员昵称/手机号/用户名" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} />
   );
 
   const renderStatusFilter = () => (
     <StatusSelect
       items={statusOptions}
       value={draftParams.status}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as 'success' | 'fail') || undefined }))}
-      width={130}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: value as 'success' | 'fail' | undefined }))}
     />
   );
 

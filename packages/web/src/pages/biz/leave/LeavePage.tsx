@@ -5,7 +5,7 @@
  * 通过 workflow-biz-bridge 发起并关联工作流；列表展示业务状态，详情跳转到流程实例整页。
  */
 import { useNavigate } from 'react-router-dom';
-import { Button, Form, Modal, Select, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Modal, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Send } from 'lucide-react';
 import dayjs from 'dayjs';
@@ -27,7 +27,7 @@ import {
   useSubmitBizLeave,
 } from '@/hooks/queries/biz-leave';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -44,12 +44,12 @@ const STATUS_MAP: Record<string, { text: string; color: TagColor }> = {
 
 interface LeaveSearchParams {
   keyword: string;
-  status: BizLeave['status'] | '';
+  status?: BizLeave['status'];
 }
 
 const DEFAULT_LEAVE_SEARCH_PARAMS: LeaveSearchParams = {
   keyword: '',
-  status: '',
+  status: undefined,
 };
 
 export default function LeavePage() {
@@ -235,13 +235,10 @@ export default function LeavePage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="状态"
-      value={draftParams.status || undefined}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as LeaveSearchParams['status']) ?? '' }))}
-      showClear
-      style={{ width: 140, maxWidth: '100%' }}
-      optionList={Object.entries(STATUS_MAP).map(([value, s]) => ({ value, label: s.text }))}
+    <StatusSelect
+      items={Object.entries(STATUS_MAP).map(([value, s]) => ({ value, label: s.text }))}
+      value={draftParams.status}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: value as LeaveSearchParams['status'] | undefined }))}
     />
   );
 

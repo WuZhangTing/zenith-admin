@@ -1,7 +1,7 @@
 /**
  * search-filters 契约测试。
  *
- * 这三个控件的价值在于把「装饰性 props」（放大镜前缀、showClear、默认宽度、
+ * 这些控件的价值在于把「装饰性 props」（放大镜前缀、showClear、默认宽度、
  * 占位文案）收进默认值，同时保证业务 props 与自定义样式仍能穿透——
  * 一旦不能穿透，页面就会绕开组件退回手写，收敛白做。
  */
@@ -10,22 +10,24 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import type { CSSProperties, ReactNode } from 'react';
 import { Input } from '@douyinfe/semi-ui';
 import { Search } from 'lucide-react';
-import { DateRangeFilter, KeywordInput, StatusSelect } from './search-filters';
+import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from './search-filters';
 
 interface SelectStubProps {
-  readonly optionList?: readonly { value: string; label: ReactNode }[];
-  readonly onChange?: (value: string) => void;
+  readonly optionList?: readonly { value: string | number; label: ReactNode }[];
+  readonly onChange?: (value: string | number | undefined) => void;
   readonly placeholder?: ReactNode;
-  readonly value?: string;
+  readonly value?: string | number;
   readonly style?: CSSProperties;
+  readonly showClear?: boolean;
 }
 
 vi.mock('@douyinfe/semi-ui', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@douyinfe/semi-ui')>();
   return {
     ...actual,
-    Select: ({ optionList = [], onChange, placeholder, value, style }: SelectStubProps) => (
-      <select value={value ?? ''} onChange={(event) => onChange?.(event.target.value)} style={style}>
+    // 空串选项模拟 Semi 的清除按钮：回调 undefined
+    Select: ({ optionList = [], onChange, placeholder, value, style, showClear }: SelectStubProps) => (
+      <select value={value ?? ''} onChange={(event) => onChange?.(event.target.value === '' ? undefined : event.target.value)} style={style} data-show-clear={showClear ? 'true' : undefined}>
         <option value="">{placeholder}</option>
         {optionList.map((option) => (
           <option key={option.value} value={option.value}>{option.label}</option>
@@ -76,32 +78,59 @@ describe('KeywordInput', () => {
   });
 });
 
+describe('FilterSelect', () => {
+  const CHANNEL_ITEMS = [
+    { value: 'wechat', label: '微信支付' },
+    { value: 'alipay', label: '支付宝' },
+  ];
+
+  it('渲染选项、占位文案与清除按钮，默认宽度 120', async () => {
+    const { container } = render(<FilterSelect placeholder="全部渠道" items={CHANNEL_ITEMS} value={undefined} onChange={vi.fn()} />);
+    expect(screen.getByText('全部渠道')).toBeInTheDocument();
+    expect(await screen.findByText('微信支付')).toBeInTheDocument();
+    expect(screen.getByText('支付宝')).toBeInTheDocument();
+    const select = container.querySelector('select')!;
+    expect(select.dataset.showClear).toBe('true');
+    expect(select.style.width).toBe('120px');
+    expect(select.style.maxWidth).toBe('100%');
+  });
+
+  it('width 可覆盖', () => {
+    const { container } = render(<FilterSelect placeholder="全部处理状态" items={CHANNEL_ITEMS} value={undefined} onChange={vi.fn()} width={140} />);
+    expect(container.querySelector('select')!.style.width).toBe('140px');
+  });
+
+  it('选中项回调原值；清空回调 undefined', () => {
+    const onChange = vi.fn();
+    render(<FilterSelect placeholder="全部渠道" items={CHANNEL_ITEMS} value="wechat" onChange={onChange} />);
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'alipay' } });
+    expect(onChange).toHaveBeenLastCalledWith('alipay');
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: '' } });
+    expect(onChange).toHaveBeenLastCalledWith(undefined);
+  });
+
+  it('支持数值型选项', () => {
+    const onChange = vi.fn();
+    render(<FilterSelect<number> placeholder="全部产品" items={[{ value: 1, label: '网关' }, { value: 2, label: '传感器' }]} value={undefined} onChange={onChange} />);
+    expect(screen.getByText('传感器')).toBeInTheDocument();
+  });
+});
+
 describe('StatusSelect', () => {
-  it('把字典项映射成下拉选项', async () => {
-    render(<StatusSelect items={STATUS_ITEMS} value="" onChange={vi.fn()} />);
-    fireEvent.click(screen.getByRole('combobox'));
+  it('是占位固定为「全部状态」的 FilterSelect', async () => {
+    render(<StatusSelect items={STATUS_ITEMS} value={undefined} onChange={vi.fn()} />);
+    expect(screen.getByText('全部状态')).toBeInTheDocument();
     expect(await screen.findByText('启用')).toBeInTheDocument();
     expect(screen.getByText('停用')).toBeInTheDocument();
   });
 
-  it('默认占位文案为「全部状态」，可覆盖', () => {
-    const { rerender } = render(<StatusSelect items={STATUS_ITEMS} value="" onChange={vi.fn()} />);
-    expect(screen.getByText('全部状态')).toBeInTheDocument();
-    rerender(<StatusSelect items={STATUS_ITEMS} value="" onChange={vi.fn()} placeholder="全部类型" />);
-    expect(screen.getByText('全部类型')).toBeInTheDocument();
-  });
-
-  it('选中项回调原值', () => {
+  it('选中项回调原值；清空回调 undefined', () => {
     const onChange = vi.fn();
-    render(<StatusSelect items={STATUS_ITEMS} value="" onChange={onChange} />);
+    render(<StatusSelect items={STATUS_ITEMS} value="enabled" onChange={onChange} />);
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'disabled' } });
-    expect(onChange).toHaveBeenCalledWith('disabled');
-  });
-
-  it('空串视为未选中，不显示成选项值', () => {
-    // draftParams 里状态字段常用 '' 表示未筛选，直接传给 Semi 会显示空白选中态
-    render(<StatusSelect items={STATUS_ITEMS} value="" onChange={vi.fn()} />);
-    expect(screen.getByText('全部状态')).toBeInTheDocument();
+    expect(onChange).toHaveBeenLastCalledWith('disabled');
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: '' } });
+    expect(onChange).toHaveBeenLastCalledWith(undefined);
   });
 });
 

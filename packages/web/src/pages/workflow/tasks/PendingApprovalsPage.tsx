@@ -31,7 +31,7 @@ import {
 } from '@/hooks/queries/workflow-tasks';
 import { usePublishedWorkflowDefinitions } from '@/hooks/queries/workflow-definitions';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 
 interface SearchParams {
   keyword: string;
@@ -238,17 +238,13 @@ export default function PendingApprovalsPage() {
   );
 
   const renderDefinitionFilter = () => (
-    <Select
-      placeholder="流程类型"
+    <FilterSelect
+      placeholder="全部流程类型"
+      items={definitions.map((d) => ({ value: d.id, label: d.name }))}
       value={draftParams.definitionId ?? undefined}
-      onChange={(v) => setDraftParams((prev) => ({ ...prev, definitionId: typeof v === 'number' ? v : null }))}
-      style={{ width: 180 }}
-      showClear
-    >
-      {definitions.map((d) => (
-        <Select.Option key={d.id} value={d.id}>{d.name}</Select.Option>
-      ))}
-    </Select>
+      onChange={(v) => setDraftParams((prev) => ({ ...prev, definitionId: v ?? null }))}
+      width={180}
+    />
   );
 
   const renderSearchButton = () => (

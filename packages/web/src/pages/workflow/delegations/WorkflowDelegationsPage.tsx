@@ -185,16 +185,13 @@ export default function WorkflowDelegationsPage() {
 
   const renderScopeFilter = () => (
     <Select
-      placeholder="数据范围"
       value={draftParams.scope}
-      onChange={(v) =>
-      setDraftParams((prev) => ({ ...prev, scope: (v as Scope) ?? 'mine' }))
-      }
-      style={{ width: 140 }}
+      onChange={(v) => setDraftParams((prev) => ({ ...prev, scope: v as Scope }))}
       optionList={[
         { value: 'mine', label: '我的' },
         { value: 'all', label: '全部' },
       ]}
+      style={{ width: 140 }}
     />
   );
 

@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Banner, Button, Descriptions, Form, Modal, Select, SideSheet, Space, Spin, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Descriptions, Form, Modal, SideSheet, Space, Spin, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ClipboardPlus, ExternalLink } from 'lucide-react';
@@ -32,7 +32,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { formatDateTime } from '@/utils/date';
 import { canRunFillRecordAction, isRevisionConflict, shouldShowFillReviewTab } from './report-p2-utils';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 
@@ -283,22 +283,20 @@ export default function FillRecordsPage() {
       }} />
   );
   const templateFilter = (value: number | undefined, onChange: (value?: number) => void) => canCreate ? (
-    <Select
+    <FilterSelect
       placeholder="全部模板"
+      items={templates.map((template) => ({ value: template.id, label: template.name }))}
       value={value}
-      optionList={templates.map((template) => ({ value: template.id, label: template.name }))}
-      onChange={(next) => onChange(next ? Number(next) : undefined)}
-      showClear
+      onChange={(next) => onChange(next)}
+      width={160}
       filter
-      style={{ width: 160 }}
     />
   ) : null;
   const statusFilter = (value: ReportFillRecordStatus | undefined, onChange: (value?: ReportFillRecordStatus) => void) => (
     <StatusSelect
       items={REPORT_FILL_RECORD_STATUS_OPTIONS}
       value={value}
-      onChange={(next) => onChange((next as ReportFillRecordStatus) || undefined)}
-      width={130}
+      onChange={(next) => onChange(next as ReportFillRecordStatus | undefined)}
     />
   );
 
@@ -388,14 +386,13 @@ export default function FillRecordsPage() {
               filters={(
                 <>
                   {templateFilter(adminDraft.templateId, (templateId) => setAdminDraft((current) => ({ ...current, templateId })))}
-                  <Select
+                  <FilterSelect
                     placeholder="全部提交人"
+                    items={users.map((user) => ({ value: user.id, label: user.nickname || user.username }))}
                     value={adminDraft.submitterId}
-                    optionList={users.map((user) => ({ value: user.id, label: user.nickname || user.username }))}
-                    onChange={(value) => setAdminDraft((current) => ({ ...current, submitterId: value ? Number(value) : undefined }))}
+                    onChange={(value) => setAdminDraft((current) => ({ ...current, submitterId: value }))}
+                    width={150}
                     filter
-                    showClear
-                    style={{ width: 150 }}
                   />
                 </>
               )}

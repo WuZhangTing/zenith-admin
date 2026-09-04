@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Banner, Button, Descriptions, Form, Rating, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Descriptions, Form, Rating, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Trash2 } from 'lucide-react';
 import type { UserFeedback, UserFeedbackCategory, UserFeedbackStatus } from '@zenith/shared/identity';
@@ -18,7 +18,7 @@ import { useDeleteFeedbacks, useHandleFeedback, useUserFeedbackList, userFeedbac
 import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 // 文案统一来自 @zenith/shared；Tag 色为本页特化
@@ -192,13 +192,11 @@ export default function FeedbacksPage() {
   );
 
   const renderCategoryFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部分类"
+      items={CATEGORY_OPTIONS}
       value={draftParams.category}
       onChange={(v) => setDraftParams((p) => ({ ...p, category: v as UserFeedbackCategory | undefined }))}
-      showClear
-      style={{ width: 130 }}
-      optionList={CATEGORY_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
     />
   );
 
@@ -206,7 +204,7 @@ export default function FeedbacksPage() {
     <StatusSelect
       items={STATUS_OPTIONS}
       value={draftParams.status}
-      onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as UserFeedbackStatus) || undefined }))}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v as UserFeedbackStatus | undefined }))}
     />
   );
 

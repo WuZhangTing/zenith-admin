@@ -254,7 +254,7 @@ export function GroupMembersPanel({
               rows={3}
               maxCount={500}
               value={editAnnouncement}
-              onChange={(v) => setEditAnnouncement(v)}
+              onChange={setEditAnnouncement}
               autosize
             />
             <Text type="tertiary" size="small" style={{ fontSize: 11 }}>保存后，原公告将归入「群公告历史」记录</Text>

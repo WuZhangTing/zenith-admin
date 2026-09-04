@@ -10,6 +10,7 @@ import { streamText } from '@/utils/streaming';
 import { logViewerKeys, useLogViewerContent, useLogViewerRoots } from '@/hooks/queries/log-viewer';
 import { HostSelector } from '@/components/HostSelector';
 import { useOpsHostSelection } from '@/hooks/useOpsHostSelection';
+import { FilterSelect } from '@/components/search-filters';
 
 // ─── ANSI 颜色解析器 ────────────────────────────────────────────────────────
 const ANSI_FG = ['#3c3c3c','#c0392b','#27ae60','#d4ac0d','#2980b9','#8e44ad','#17a589','#bdc3c7'];
@@ -136,7 +137,7 @@ export default function LogViewerPage() {
   }, [searchParams, setSearchParams, hostId]);
   const [keyword, setKeyword] = useState('');
   const [filterOnly, setFilterOnly] = useState(false);
-  const [levelFilter, setLevelFilter] = useState<string>('');
+  const [levelFilter, setLevelFilter] = useState<string | undefined>();
   const [content, setContent] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [following, setFollowing] = useState(false);
@@ -292,13 +293,18 @@ export default function LogViewerPage() {
           <Typography.Text size="small" type="secondary">仅显示匹配行</Typography.Text>
           <Switch size="small" checked={filterOnly} onChange={setFilterOnly} />
         </div>
-        <Select placeholder="全部级别" value={levelFilter || undefined} onChange={(v) => setLevelFilter((v as string) ?? '')} showClear size="small" style={{ width: 120 }}
-          optionList={[
+        <FilterSelect
+          placeholder="全部级别"
+          items={[
             { label: 'ERROR', value: 'error' },
             { label: 'WARN', value: 'warn' },
             { label: 'INFO', value: 'info' },
             { label: 'DEBUG', value: 'debug' },
-          ]} />
+          ]}
+          value={levelFilter}
+          onChange={setLevelFilter}
+          size="small"
+        />
         {following && <Tag color="green" size="small">● 实时追踪中</Tag>}
         {content && (
           <Typography.Text size="small" type="tertiary">

@@ -35,7 +35,7 @@ import {
   useSetMemberTags,
 } from '@/hooks/queries/member-admin';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -44,8 +44,8 @@ const STATUS_COLORS: Record<string, 'green' | 'grey' | 'red'> = { active: 'green
 const statusOptions = (['active', 'inactive', 'banned'] as const).map((v) => ({ value: v, label: MEMBER_STATUS_LABELS[v] }));
 const TAG_FALLBACK_COLOR = 'blue';
 
-interface SearchParams { keyword: string; status: string; levelId?: number; tagId?: number }
-const defaultSearch: SearchParams = { keyword: '', status: '', levelId: undefined, tagId: undefined };
+interface SearchParams { keyword: string; status?: string; levelId?: number; tagId?: number }
+const defaultSearch: SearchParams = { keyword: '', status: undefined, levelId: undefined, tagId: undefined };
 
 export default function MembersPage() {
   const { hasPermission } = usePermission();
@@ -269,29 +269,26 @@ export default function MembersPage() {
       items={statusOptions}
       value={draftParams.status}
       onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
-      width={130}
     />
   );
 
   const renderLevelFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部等级"
+      items={levels.map((l) => ({ value: l.id, label: l.name }))}
       value={draftParams.levelId}
-      style={{ width: 140 }}
-      showClear
       onChange={(v) => setDraftParams((p) => ({ ...p, levelId: v as number | undefined }))}
-      optionList={levels.map((l) => ({ value: l.id, label: l.name }))}
+      width={140}
     />
   );
 
   const renderTagFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部标签"
+      items={memberTags.map((t: MemberTag) => ({ value: t.id, label: t.name }))}
       value={draftParams.tagId}
-      style={{ width: 140 }}
-      showClear
       onChange={(v) => setDraftParams((p) => ({ ...p, tagId: v as number | undefined }))}
-      optionList={memberTags.map((t: MemberTag) => ({ value: t.id, label: t.name }))}
+      width={140}
     />
   );
 

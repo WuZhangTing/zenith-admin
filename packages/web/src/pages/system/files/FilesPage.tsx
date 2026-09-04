@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppModal } from '@/components/AppModal';
-import { Button, Checkbox, DatePicker, Descriptions, Input, List, Pagination, Progress, Select, Space, Spin, Tabs, TabPane, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Checkbox, DatePicker, Descriptions, Input, List, Pagination, Progress, Space, Spin, Tabs, TabPane, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { Plus, Search, Trash2, FolderDown, LayoutGrid, List as ListIcon, CheckCircle2, XCircle, X } from 'lucide-react';
 import type { ManagedFile } from '@zenith/shared/platform';
 import { FILE_STORAGE_PROVIDER_OPTIONS } from '@zenith/shared/platform';
@@ -34,6 +34,7 @@ import './FilesPage.css';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { request } from '@/utils/request';
 import { formatBytes } from '@zenith/shared/core';
+import { FilterSelect } from '@/components/search-filters';
 const { Text } = Typography;
 
 interface UploadItem { uid: string; name: string; size: number; progress: number; status: 'pending' | 'uploading' | 'success' | 'error'; errorMsg?: string }
@@ -104,12 +105,12 @@ export default function FilesPage() {
   const { preferences, setPreferences } = usePreferences();
   interface SearchParams {
     keyword: string;
-    provider: string;
-    fileType: string;
+    provider?: string;
+    fileType?: string;
     timeRange: [Date, Date] | null;
   }
 
-  const defaultSearchParams: SearchParams = { keyword: '', provider: '', fileType: '', timeRange: null };
+  const defaultSearchParams: SearchParams = { keyword: '', provider: undefined, fileType: undefined, timeRange: null };
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   /** 区分"页面内点击切换"与"偏好面板外部修改"，防止双重请求 */
   const isInternalToggleRef = useRef(false);
@@ -339,31 +340,25 @@ export default function FilesPage() {
   );
 
   const renderProviderFilter = () => (
-    <Select
-      placeholder="存储类型"
-      value={draftParams.provider || undefined}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, provider: (value as string) ?? '' }))}
-      style={{ width: 140 }}
-      optionList={[
-        { value: '', label: '全部类型' },
-        ...FILE_STORAGE_PROVIDER_OPTIONS,
-      ]}
+    <FilterSelect
+      placeholder="全部存储类型"
+      items={FILE_STORAGE_PROVIDER_OPTIONS}
+      value={draftParams.provider}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, provider: value }))}
+      width={140}
     />
   );
 
   const renderFileTypeFilter = () => (
-    <Select
-      placeholder="文件类型"
-      value={draftParams.fileType || undefined}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, fileType: (value as string) ?? '' }))}
-      style={{ width: 120 }}
-      optionList={[
-        { value: '', label: '全部' },
-        { value: 'image', label: '图片' },
+    <FilterSelect
+      placeholder="全部文件类型"
+      items={[{ value: 'image', label: '图片' },
         { value: 'video', label: '视频' },
         { value: 'audio', label: '音频' },
-        { value: 'document', label: '文档' },
-      ]}
+        { value: 'document', label: '文档' },]}
+      value={draftParams.fileType}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, fileType: value }))}
+      width={140}
     />
   );
 

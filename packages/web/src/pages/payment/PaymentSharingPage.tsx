@@ -57,12 +57,12 @@ export default function PaymentSharingPage() {
   // ── 分账单 ──
   const { page: oPage, pageSize: oPageSize, setPage: setOPage, buildPagination: buildOPagination } = usePagination();
   const [orderKeyword, setOrderKeyword] = useState('');
-  const [orderStatus, setOrderStatus] = useState('');
-  const [submittedOrderParams, setSubmittedOrderParams] = useState({ keyword: '', status: '' });
+  const [orderStatus, setOrderStatus] = useState<string | undefined>();
+  const [submittedOrderParams, setSubmittedOrderParams] = useState<{ keyword: string; status?: string }>({ keyword: '' });
   // ── 冲正记录 ──
   const { page: vPage, pageSize: vPageSize, setPage: setVPage, buildPagination: buildVPagination } = usePagination();
-  const [reversalStatus, setReversalStatus] = useState('');
-  const [submittedReversalStatus, setSubmittedReversalStatus] = useState('');
+  const [reversalStatus, setReversalStatus] = useState<string | undefined>();
+  const [submittedReversalStatus, setSubmittedReversalStatus] = useState<string | undefined>();
   const [reverseTarget, setReverseTarget] = useState<PaymentSharingOrder | null>(null);
   const [reverseReason, setReverseReason] = useState('');
   const [reverseIdempotencyKey, setReverseIdempotencyKey] = useState('');
@@ -305,9 +305,9 @@ export default function PaymentSharingPage() {
   };
   const handleOrderReset = () => {
     setOrderKeyword('');
-    setOrderStatus('');
+    setOrderStatus(undefined);
     setOPage(1);
-    setSubmittedOrderParams({ keyword: '', status: '' });
+    setSubmittedOrderParams({ keyword: '' });
     void queryClient.invalidateQueries({ queryKey: paymentSharingKeys.orderLists });
   };
   const handleReversalSearch = () => {
@@ -316,9 +316,9 @@ export default function PaymentSharingPage() {
     void queryClient.invalidateQueries({ queryKey: paymentSharingKeys.reversalLists });
   };
   const handleReversalReset = () => {
-    setReversalStatus('');
+    setReversalStatus(undefined);
     setVPage(1);
-    setSubmittedReversalStatus('');
+    setSubmittedReversalStatus(undefined);
     void queryClient.invalidateQueries({ queryKey: paymentSharingKeys.reversalLists });
   };
 
@@ -351,7 +351,6 @@ export default function PaymentSharingPage() {
       items={PAYMENT_SHARING_REVERSAL_STATUS_OPTIONS}
       value={reversalStatus}
       onChange={setReversalStatus}
-      width={140}
     />
   );
 

@@ -1,5 +1,5 @@
 
-import { Tag, Select, Toast, Form } from '@douyinfe/semi-ui';
+import { Tag, Toast, Form } from '@douyinfe/semi-ui';
 import type { DbBackup, BackupType, BackupStatus } from '@zenith/shared/platform';
 import { AppModal } from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
@@ -18,6 +18,7 @@ import {
 import { request } from '@/utils/request';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
+import { FilterSelect, StatusSelect } from '@/components/search-filters';
 
 export default function DbBackupsPage() {
   const {
@@ -134,31 +135,21 @@ export default function DbBackupsPage() {
       <SearchToolbar
         primary={(
           <>
-            <Select
-              placeholder="备份类型"
+            <FilterSelect
+              placeholder="全部备份类型"
+              items={[{ label: 'pg_dump', value: 'pg_dump' },
+                { label: 'Drizzle 导出', value: 'drizzle_export' },]}
               value={draftParams.type}
               onChange={(v) => setDraftParams((prev) => ({ ...prev, type: v as string }))}
-              optionList={[
-                { label: '全部类型', value: '' },
-                { label: 'pg_dump', value: 'pg_dump' },
-                { label: 'Drizzle 导出', value: 'drizzle_export' },
-              ]}
-              style={{ width: 150 }}
-              showClear
+              width={150}
             />
-            <Select
-              placeholder="状态"
-              value={draftParams.status}
-              onChange={(v) => setDraftParams((prev) => ({ ...prev, status: v as string }))}
-              optionList={[
-                { label: '全部状态', value: '' },
-                { label: '等待中', value: 'pending' },
+            <StatusSelect
+              items={[{ label: '等待中', value: 'pending' },
                 { label: '执行中', value: 'running' },
                 { label: '成功', value: 'success' },
-                { label: '失败', value: 'failed' },
-              ]}
-              style={{ width: 130 }}
-              showClear
+                { label: '失败', value: 'failed' },]}
+              value={draftParams.status}
+              onChange={(v) => setDraftParams((prev) => ({ ...prev, status: v as string }))}
             />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
@@ -169,17 +160,13 @@ export default function DbBackupsPage() {
         )}
         mobilePrimary={(
           <>
-            <Select
-              placeholder="备份类型"
+            <FilterSelect
+              placeholder="全部备份类型"
+              items={[{ label: 'pg_dump', value: 'pg_dump' },
+                { label: 'Drizzle 导出', value: 'drizzle_export' },]}
               value={draftParams.type}
               onChange={(v) => setDraftParams((prev) => ({ ...prev, type: v as string }))}
-              optionList={[
-                { label: '全部类型', value: '' },
-                { label: 'pg_dump', value: 'pg_dump' },
-                { label: 'Drizzle 导出', value: 'drizzle_export' },
-              ]}
-              style={{ width: 150 }}
-              showClear
+              width={150}
             />
             <SearchButton onClick={handleSearch} />
             {hasPermission('system:db-backup:create') && (
@@ -188,19 +175,13 @@ export default function DbBackupsPage() {
           </>
         )}
         mobileFilters={(
-          <Select
-            placeholder="状态"
-            value={draftParams.status}
-            onChange={(v) => setDraftParams((prev) => ({ ...prev, status: v as string }))}
-            optionList={[
-              { label: '全部状态', value: '' },
-              { label: '等待中', value: 'pending' },
+          <StatusSelect
+            items={[{ label: '等待中', value: 'pending' },
               { label: '执行中', value: 'running' },
               { label: '成功', value: 'success' },
-              { label: '失败', value: 'failed' },
-            ]}
-            style={{ width: 130 }}
-            showClear
+              { label: '失败', value: 'failed' },]}
+            value={draftParams.status}
+            onChange={(v) => setDraftParams((prev) => ({ ...prev, status: v as string }))}
           />
         )}
         filterTitle="备份筛选"

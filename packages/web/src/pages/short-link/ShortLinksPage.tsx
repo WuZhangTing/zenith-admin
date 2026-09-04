@@ -7,7 +7,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -31,12 +31,12 @@ const { Text } = Typography;
 
 interface SearchParams {
   keyword: string;
-  status: string;
-  bizType: string;
+  status?: string;
+  bizType?: string;
   timeRange: [Date, Date] | null;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', status: '', bizType: '', timeRange: null };
+const defaultSearchParams: SearchParams = { keyword: '', status: undefined, bizType: undefined, timeRange: null };
 
 /** 表单值 → 提交载荷：空串统一转 null，DatePicker 值转 API 字符串 */
 function normalizePayload(values: Record<string, unknown>, isEdit: boolean): Partial<ShortLink> {
@@ -261,7 +261,7 @@ export default function ShortLinksPage() {
   );
 
   const renderBizTypeFilter = () => (
-    <StatusSelect
+    <FilterSelect
       items={SHORT_LINK_BIZ_TYPE_OPTIONS}
       placeholder="全部来源"
       value={draftParams.bizType}

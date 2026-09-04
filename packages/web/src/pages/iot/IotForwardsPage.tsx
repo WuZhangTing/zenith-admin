@@ -4,7 +4,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import AppModal from '@/components/AppModal';
 import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
@@ -30,11 +30,11 @@ const { Text } = Typography;
 // ─── 流转规则 Tab ─────────────────────────────────────────────────────────────
 interface ForwardSearchParams {
   keyword: string;
-  source: string;
-  status: string;
+  source?: string;
+  status?: string;
 }
 
-const defaultSearch: ForwardSearchParams = { keyword: '', source: '', status: '' };
+const defaultSearch: ForwardSearchParams = { keyword: '', source: undefined, status: '' };
 
 function ForwardRulesTab({ onShowLogs }: Readonly<{ onShowLogs: (rule: IotForwardRule) => void }>) {
   const { hasPermission } = usePermission();
@@ -181,11 +181,12 @@ function ForwardRulesTab({ onShowLogs }: Readonly<{ onShowLogs: (rule: IotForwar
   );
 
   const renderSourceFilter = () => (
-    <StatusSelect
+    <FilterSelect
       placeholder="全部数据源"
-      items={IOT_FORWARD_SOURCE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+      items={IOT_FORWARD_SOURCE_OPTIONS}
       value={draftParams.source}
       onChange={(v) => setDraftParams((p) => ({ ...p, source: v }))}
+      width={140}
     />
   );
 
@@ -296,7 +297,7 @@ function ForwardLogsTab({ filterRule, onClearFilter }: Readonly<{
 }>) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [detailLog, setDetailLog] = useState<IotForwardLog | null>(null);
 
   const listQuery = useIotForwardLogList({
@@ -353,7 +354,7 @@ function ForwardLogsTab({ filterRule, onClearFilter }: Readonly<{
               规则：{filterRule.name}
             </Tag>
           )}
-          <StatusSelect
+          <FilterSelect
             placeholder="全部结果"
             items={[{ value: 'succeeded', label: '成功' }, { value: 'failed', label: '失败' }]}
             value={statusFilter}

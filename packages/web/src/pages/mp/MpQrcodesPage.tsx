@@ -13,7 +13,7 @@ import { MpAccountSwitcher } from './MpAccountSwitcher';
 import { mpQrcodeKeys, useCreateMpQrcode, useDeleteMpQrcode, useMpQrcodeList } from '@/hooks/queries/mp-qrcodes';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -119,13 +119,11 @@ export default function MpQrcodesPage() {
     <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
   );
   const renderTypeFilter = () => (
-    <Select
-      placeholder="类型"
+    <FilterSelect
+      placeholder="全部类型"
+      items={TYPE_OPTIONS}
       value={draftParams.filterType}
       onChange={(v) => setDraftParams({ ...draftParams, filterType: v as MpQrcodeType | undefined })}
-      optionList={TYPE_OPTIONS}
-      showClear
-      style={{ width: 130 }}
     />
   );
   const renderKeywordInput = () => (

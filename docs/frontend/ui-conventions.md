@@ -33,7 +33,7 @@
 
 ## 列表页视觉约定
 
-标准列表页由 `SearchToolbar`、`KeywordInput` / `StatusSelect` / `DateRangeFilter`、`SearchButton` / `ResetButton` / `CreateButton`、`ConfigurableTable` 和 `createOperationColumn` 组合。
+标准列表页由 `SearchToolbar`、`KeywordInput` / `FilterSelect` / `StatusSelect` / `DateRangeFilter`、`SearchButton` / `ResetButton` / `CreateButton`、`ConfigurableTable` 和 `createOperationColumn` 组合。
 
 - 搜索条件较多时使用 `SearchToolbar` 的结构化 props：`primary`、`filters`、`actions`，并按需覆盖 `mobilePrimary`、`mobileFilters`、`mobileActions`
 - 关键词、状态、时间范围筛选使用 `components/search-filters.tsx`；面板或弹窗内需要自适应宽度的搜索框可直接用 Semi `Input`

@@ -1,5 +1,5 @@
 
-import { Button, Col, Form, Modal, Row, Select, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Modal, Row, Tag, Toast } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
 import { CheckCheck, Plus } from 'lucide-react';
 import type { InAppMessage, InAppMessageType } from '@zenith/shared/messaging';
@@ -22,7 +22,7 @@ import {
 } from '@/hooks/queries/in-app-messages';
 import { IN_APP_MESSAGE_TYPE_OPTIONS_WITH_COLOR as TYPE_OPTIONS } from '../in-app-message-constants';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 
@@ -169,10 +169,19 @@ export default function InAppMessagesPage() {
         primary={(
           <>
             <KeywordInput placeholder="标题/内容关键词" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
-            <Select placeholder="类型" value={draftParams.filterType} onChange={(v) => setDraftParams({ ...draftParams, filterType: v as InAppMessageType | undefined })}
-              optionList={TYPE_OPTIONS} showClear style={{ width: 110 }} />
-            <Select placeholder="阅读状态" value={draftParams.filterRead} onChange={(v) => setDraftParams({ ...draftParams, filterRead: v as string | undefined })}
-              optionList={READ_OPTIONS} showClear style={{ width: 120 }} />
+            <FilterSelect
+              placeholder="全部类型"
+              items={TYPE_OPTIONS}
+              value={draftParams.filterType}
+              onChange={(v) => setDraftParams({ ...draftParams, filterType: v as InAppMessageType | undefined })}
+            />
+            <FilterSelect
+              placeholder="全部阅读状态"
+              items={READ_OPTIONS}
+              value={draftParams.filterRead}
+              onChange={(v) => setDraftParams({ ...draftParams, filterRead: v as string | undefined })}
+              width={140}
+            />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
             {can('system:in-app-message:update') && (
@@ -194,10 +203,19 @@ export default function InAppMessagesPage() {
         )}
         mobileFilters={(
           <>
-            <Select placeholder="类型" value={draftParams.filterType} onChange={(v) => setDraftParams({ ...draftParams, filterType: v as InAppMessageType | undefined })}
-              optionList={TYPE_OPTIONS} showClear style={{ width: 110 }} />
-            <Select placeholder="阅读状态" value={draftParams.filterRead} onChange={(v) => setDraftParams({ ...draftParams, filterRead: v as string | undefined })}
-              optionList={READ_OPTIONS} showClear style={{ width: 120 }} />
+            <FilterSelect
+              placeholder="全部类型"
+              items={TYPE_OPTIONS}
+              value={draftParams.filterType}
+              onChange={(v) => setDraftParams({ ...draftParams, filterType: v as InAppMessageType | undefined })}
+            />
+            <FilterSelect
+              placeholder="全部阅读状态"
+              items={READ_OPTIONS}
+              value={draftParams.filterRead}
+              onChange={(v) => setDraftParams({ ...draftParams, filterRead: v as string | undefined })}
+              width={140}
+            />
           </>
         )}
         mobileActions={can('system:in-app-message:update') ? (

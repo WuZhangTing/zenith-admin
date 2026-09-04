@@ -36,7 +36,7 @@ import AnalyticsDebugTab from './AnalyticsDebugTab';
 import AnalyticsSegmentsTab from './AnalyticsSegmentsTab';
 import AnalyticsSitesTab from './AnalyticsSitesTab';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -114,11 +114,11 @@ const CLEAN_DAY_OPTIONS = [
 ];
 
 interface EventSearchParams {
-  eventType: string;
+  eventType?: string;
   eventName: string;
   username: string;
   pagePath: string;
-  deviceType: string;
+  deviceType?: string;
   startTime: string;
   endTime: string;
   timeRange: [Date, Date] | null;
@@ -126,7 +126,7 @@ interface EventSearchParams {
 
 interface MetaSearchParams {
   keyword: string;
-  status: AnalyticsEventMeta['status'] | '';
+  status?: AnalyticsEventMeta['status'];
   category: string;
 }
 
@@ -147,16 +147,16 @@ type EventMetaFormValues = Omit<EventMetaPayload, 'propertySchema'> & { property
 type SettingsPayload = Omit<AnalyticsSettings, 'id' | 'createdAt' | 'updatedAt'>;
 
 const defaultEventSearch: EventSearchParams = {
-  eventType: '',
+  eventType: undefined,
   eventName: '',
   username: '',
   pagePath: '',
-  deviceType: '',
+  deviceType: undefined,
   startTime: '',
   endTime: '',
   timeRange: null,
 };
-const defaultMetaSearch: MetaSearchParams = { keyword: '', status: '', category: '' };
+const defaultMetaSearch: MetaSearchParams = { keyword: '', status: undefined, category: '' };
 
 function nullableText(value: string | number | null | undefined) {
   return value == null || value === '' ? '–' : String(value);
@@ -830,13 +830,12 @@ export default function AnalyticsDataPage() {
   };
 
   const renderEventTypeFilter = () => (
-    <Select
-      placeholder="事件类型"
-      value={eventSearch.eventType || undefined}
-      onChange={(value) => setEventSearch((prev) => ({ ...prev, eventType: (value as string) ?? '' }))}
-      optionList={EVENT_TYPE_OPTIONS}
-      showClear
-      style={{ width: 150 }}
+    <FilterSelect
+      placeholder="全部事件类型"
+      items={EVENT_TYPE_OPTIONS}
+      value={eventSearch.eventType}
+      onChange={(value) => setEventSearch((prev) => ({ ...prev, eventType: value }))}
+      width={150}
     />
   );
   const renderEventNameSearch = () => (
@@ -849,13 +848,11 @@ export default function AnalyticsDataPage() {
     <KeywordInput placeholder="页面路径" value={eventSearch.pagePath} onChange={(value) => setEventSearch((prev) => ({ ...prev, pagePath: value }))} onSearch={handleEventSearch} width={180} />
   );
   const renderEventDeviceFilter = () => (
-    <Select
-      placeholder="设备"
-      value={eventSearch.deviceType || undefined}
-      onChange={(value) => setEventSearch((prev) => ({ ...prev, deviceType: (value as string) ?? '' }))}
-      optionList={DEVICE_OPTIONS}
-      showClear
-      style={{ width: 130 }}
+    <FilterSelect
+      placeholder="全部设备"
+      items={DEVICE_OPTIONS}
+      value={eventSearch.deviceType}
+      onChange={(value) => setEventSearch((prev) => ({ ...prev, deviceType: value }))}
     />
   );
   const renderEventTimeRangeFilter = () => (
@@ -915,13 +912,10 @@ export default function AnalyticsDataPage() {
     <KeywordInput placeholder="分类" value={metaSearch.category} onChange={(value) => setMetaSearch((prev) => ({ ...prev, category: value }))} onSearch={handleMetaSearch} width={140} />
   );
   const renderMetaStatusFilter = () => (
-    <Select
-      placeholder="状态"
-      value={metaSearch.status || undefined}
-      onChange={(value) => setMetaSearch((prev) => ({ ...prev, status: (value as AnalyticsEventMeta['status']) ?? '' }))}
-      optionList={META_STATUS_OPTIONS}
-      showClear
-      style={{ width: 130 }}
+    <StatusSelect
+      items={META_STATUS_OPTIONS}
+      value={metaSearch.status}
+      onChange={(value) => setMetaSearch((prev) => ({ ...prev, status: value as AnalyticsEventMeta['status'] | undefined }))}
     />
   );
   const renderMetaSearchButton = () => <SearchButton onClick={handleMetaSearch} />;

@@ -43,7 +43,7 @@ import {
 } from '@/hooks/queries/rules';
 import { PUBLISHABLE_STATUS_META as STATUS } from '@/lib/publishable-status';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { JsonBlock } from '@/components/JsonBlock';
@@ -804,7 +804,11 @@ export default function RuleTablesPage() {
         primary={(
           <>
             <KeywordInput placeholder="搜索名称" value={draftKeyword} onChange={setDraftKeyword} onSearch={() => { setPage(1); setSubmittedKeyword(draftKeyword); setSubmittedStatus(draftStatus); void queryClient.invalidateQueries({ queryKey: ruleKeys.decisionTables.lists }); }} />
-            <Select placeholder="状态" value={draftStatus} onChange={(v) => setDraftStatus(v as string | undefined)} optionList={[{ value: 'draft', label: '草稿' }, { value: 'published', label: '已发布' }, { value: 'disabled', label: '已禁用' }]} showClear style={{ width: 130 }} />
+            <StatusSelect
+              items={[{ value: 'draft', label: '草稿' }, { value: 'published', label: '已发布' }, { value: 'disabled', label: '已禁用' }]}
+              value={draftStatus}
+              onChange={(v) => setDraftStatus(v as string | undefined)}
+            />
             <SearchButton onClick={() => { setPage(1); setSubmittedKeyword(draftKeyword); setSubmittedStatus(draftStatus); void queryClient.invalidateQueries({ queryKey: ruleKeys.decisionTables.lists }); }} />
             <ResetButton onClick={() => { setDraftKeyword(''); setSubmittedKeyword(''); setDraftStatus(undefined); setSubmittedStatus(undefined); setPage(1); void queryClient.invalidateQueries({ queryKey: ruleKeys.decisionTables.lists }); }} />
             {canCreate && <Button icon={<Upload size={14} />} onClick={importTable}>导入</Button>}

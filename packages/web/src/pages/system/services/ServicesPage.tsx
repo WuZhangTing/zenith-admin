@@ -24,7 +24,7 @@ export default function ServicesPage() {
   const canManage = hasPermission('system:service:manage');
   const [hostId, setHostId] = useOpsHostSelection();
   const [keyword, setKeyword] = useState('');
-  const [stateFilter, setStateFilter] = useState<string>('');
+  const [stateFilter, setStateFilter] = useState<string | undefined>();
   const [logsService, setLogsService] = useState<ServiceInfo | null>(null);
   const [logs, setLogs] = useState('');
   const [logsFollowing, setLogsFollowing] = useState(false);
@@ -216,7 +216,6 @@ export default function ServicesPage() {
               ]}
               value={stateFilter}
               onChange={setStateFilter}
-              width={130}
             />
             {failedCount > 0 && (
               <Button size="default" type={stateFilter === 'failed' ? 'primary' : 'tertiary'} theme={stateFilter === 'failed' ? 'solid' : 'light'} onClick={() => setStateFilter(stateFilter === 'failed' ? '' : 'failed')}>
@@ -244,7 +243,6 @@ export default function ServicesPage() {
               ]}
               value={stateFilter}
               onChange={setStateFilter}
-              width={130}
             />
             {failedCount > 0 && (
               <Button size="default" type={stateFilter === 'failed' ? 'primary' : 'tertiary'} theme={stateFilter === 'failed' ? 'solid' : 'light'} onClick={() => setStateFilter(stateFilter === 'failed' ? '' : 'failed')}>

@@ -54,7 +54,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { WORKFLOW_TASK_STATUS_LABELS } from '@zenith/shared/workflow';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
-import { StatusSelect } from '@/components/search-filters';
+import { FilterSelect, StatusSelect } from '@/components/search-filters';
 
 const TASK_STATUS_TEXT: Record<string, string> = WORKFLOW_TASK_STATUS_LABELS;
 
@@ -370,7 +370,7 @@ export default function MyApplicationsPage() {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, applySearch, handleReset,
-  } = useListSearch<{ status: string; priority: string }>({ defaults: { status: '', priority: '' }, listKey: workflowInstanceKeys.lists });
+  } = useListSearch<{ status?: string; priority?: string }>({ defaults: { status: undefined, priority: undefined }, listKey: workflowInstanceKeys.lists });
   const [detailVisible, setDetailVisible] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [applyVisible, setApplyVisible] = useState(false);
@@ -735,18 +735,16 @@ export default function MyApplicationsPage() {
       items={Object.entries(INSTANCE_STATUS_MAP).map(([value, s]) => ({ value, label: s.text }))}
       value={draftParams.status}
       onChange={(v) => setDraftParams((prev) => ({ ...prev, status: v }))}
-      width={140}
     />
   );
 
   const renderPriorityFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部优先级"
-      value={draftParams.priority || undefined}
-      onChange={v => setDraftParams((prev) => ({ ...prev, priority: typeof v === 'string' ? v : '' }))}
-      showClear
-      style={{ width: 130 }}
-      optionList={WORKFLOW_PRIORITY_OPTIONS}
+      items={WORKFLOW_PRIORITY_OPTIONS}
+      value={draftParams.priority}
+      onChange={v => setDraftParams((prev) => ({ ...prev, priority: v }))}
+      width={140}
     />
   );
 
@@ -859,15 +857,12 @@ export default function MyApplicationsPage() {
         >
           <div style={{ width: 220 }}>
             <div style={{ fontSize: 13, color: 'var(--semi-color-text-1)', marginBottom: 4 }}>流程分类</div>
-            <Select
+            <FilterSelect
               placeholder="全部分类"
+              items={categories.map(c => ({ value: c.id, label: c.name }))}
               value={applyCategoryId ?? undefined}
-              showClear
-              disabled={editingDraft !== null}
-              style={{ width: '100%' }}
-              optionList={categories.map(c => ({ value: c.id, label: c.name }))}
-              onChange={v => {
-                const next = typeof v === 'number' ? v : null;
+              onChange={(v) => {
+                const next = v ?? null;
                 setApplyCategoryId(next);
                 if (!editingDraft) {
                   setSelectedDef(null);
@@ -875,6 +870,8 @@ export default function MyApplicationsPage() {
                   setFormKey(k => k + 1);
                 }
               }}
+              width="100%"
+              disabled={editingDraft !== null}
             />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>

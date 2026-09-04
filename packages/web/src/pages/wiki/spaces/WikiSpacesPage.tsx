@@ -7,7 +7,7 @@ import { WIKI_SPACE_MEMBER_ROLE_LABELS, WIKI_SPACE_MEMBER_ROLE_OPTIONS, WIKI_SPA
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import AppModal from '@/components/AppModal';
 import { UserTransferSelect } from '@/components/UserTransferSelect';
@@ -27,11 +27,11 @@ const { Text } = Typography;
 
 interface SearchParams {
   keyword: string;
-  visibility: string;
-  status: string;
+  visibility?: string;
+  status?: string;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', visibility: '', status: '' };
+const defaultSearchParams: SearchParams = { keyword: '', visibility: undefined, status: '' };
 
 export default function WikiSpacesPage() {
   const { hasPermission } = usePermission();
@@ -195,13 +195,12 @@ export default function WikiSpacesPage() {
   );
 
   const renderVisibilityFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部可见性"
-      style={{ width: 130 }}
-      showClear
-      value={draftParams.visibility || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, visibility: (v as string) ?? '' }))}
-      optionList={WIKI_SPACE_VISIBILITY_OPTIONS}
+      items={WIKI_SPACE_VISIBILITY_OPTIONS}
+      value={draftParams.visibility}
+      onChange={(v) => setDraftParams((p) => ({ ...p, visibility: v }))}
+      width={140}
     />
   );
 

@@ -18,6 +18,7 @@ import {
 import { Database } from 'lucide-react';
 import type { DataMaskConfig, MaskType, SensitiveField } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
+import { createLabelOptionsFromMap } from '@zenith/shared/core';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -36,7 +37,7 @@ import {
   useScanDataMaskFields,
 } from '@/hooks/queries/data-mask';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
@@ -63,6 +64,8 @@ const MASK_TYPE_OPTIONS = Object.entries(MASK_TYPE_LABELS).map(([v, l]) => ({
   value: v as MaskType,
   label: `${l}（${MASK_TYPE_PREVIEWS[v as MaskType]}）`,
 }));
+const MASK_TYPE_FILTER_OPTIONS = createLabelOptionsFromMap(MASK_TYPE_LABELS);
+const ENABLED_FILTER_OPTIONS = [{ value: 'true', label: '启用' }, { value: 'false', label: '停用' }];
 
 type FormValues = {
   entity: string;
@@ -94,11 +97,11 @@ function buildDataMaskPayload(values: FormValues) {
 
 interface SearchParams {
   keyword: string;
-  maskType: string;
-  enabled: string;
+  maskType?: string;
+  enabled?: string;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', maskType: '', enabled: '' };
+const defaultSearchParams: SearchParams = { keyword: '', maskType: undefined, enabled: undefined };
 
 export default function DataMaskPage() {
   const { hasPermission } = usePermission();
@@ -313,27 +316,20 @@ export default function DataMaskPage() {
         primary={(
           <>
             <KeywordInput placeholder="搜索实体 / 字段" value={draftParams.keyword} onChange={(v) => setDraftParams((prev) => ({ ...prev, keyword: v }))} onSearch={handleSearch} width={200} />
-            <Select
-              placeholder="脱敏类型"
-              value={draftParams.maskType || undefined}
-              onChange={(v) => setDraftParams((prev) => ({ ...prev, maskType: typeof v === 'string' ? v : '' }))}
-              showClear
-              style={{ width: 160 }}
-            >
-              {MASK_TYPE_OPTIONS.map((o) => (
-                <Select.Option key={o.value} value={o.value}>{MASK_TYPE_LABELS[o.value]}</Select.Option>
-              ))}
-            </Select>
-            <Select
-              placeholder="启用状态"
-              value={draftParams.enabled || undefined}
-              onChange={(v) => setDraftParams((prev) => ({ ...prev, enabled: typeof v === 'string' ? v : '' }))}
-              showClear
-              style={{ width: 120 }}
-            >
-              <Select.Option value="true">启用</Select.Option>
-              <Select.Option value="false">停用</Select.Option>
-            </Select>
+            <FilterSelect
+              placeholder="全部脱敏类型"
+              items={MASK_TYPE_FILTER_OPTIONS}
+              value={draftParams.maskType}
+              onChange={(v) => setDraftParams((prev) => ({ ...prev, maskType: v }))}
+              width={160}
+            />
+            <FilterSelect
+              placeholder="全部启用状态"
+              items={ENABLED_FILTER_OPTIONS}
+              value={draftParams.enabled}
+              onChange={(v) => setDraftParams((prev) => ({ ...prev, enabled: v }))}
+              width={140}
+            />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
           </>
@@ -359,27 +355,20 @@ export default function DataMaskPage() {
         )}
         mobileFilters={(
           <>
-            <Select
-              placeholder="脱敏类型"
-              value={draftParams.maskType || undefined}
-              onChange={(v) => setDraftParams((prev) => ({ ...prev, maskType: typeof v === 'string' ? v : '' }))}
-              showClear
-              style={{ width: 160 }}
-            >
-              {MASK_TYPE_OPTIONS.map((o) => (
-                <Select.Option key={o.value} value={o.value}>{MASK_TYPE_LABELS[o.value]}</Select.Option>
-              ))}
-            </Select>
-            <Select
-              placeholder="启用状态"
-              value={draftParams.enabled || undefined}
-              onChange={(v) => setDraftParams((prev) => ({ ...prev, enabled: typeof v === 'string' ? v : '' }))}
-              showClear
-              style={{ width: 120 }}
-            >
-              <Select.Option value="true">启用</Select.Option>
-              <Select.Option value="false">停用</Select.Option>
-            </Select>
+            <FilterSelect
+              placeholder="全部脱敏类型"
+              items={MASK_TYPE_FILTER_OPTIONS}
+              value={draftParams.maskType}
+              onChange={(v) => setDraftParams((prev) => ({ ...prev, maskType: v }))}
+              width={160}
+            />
+            <FilterSelect
+              placeholder="全部启用状态"
+              items={ENABLED_FILTER_OPTIONS}
+              value={draftParams.enabled}
+              onChange={(v) => setDraftParams((prev) => ({ ...prev, enabled: v }))}
+              width={140}
+            />
           </>
         )}
         mobileActions={hasPermission('system:data-mask:list') ? (

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Descriptions, Modal, Select, SideSheet, Space, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Descriptions, Modal, SideSheet, Space, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, RefreshCw, Trash2 } from 'lucide-react';
@@ -23,30 +23,29 @@ import {
   useRetryExportJob,
 } from '@/hooks/queries/export-jobs';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { useListSearch } from '@/hooks/useListSearch';
 import { confirmDelete } from '@/utils/confirm';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { formatBytes } from '@zenith/shared/core';
 
 interface SearchParams {
-  entity: string;
-  status: string;
-  format: string;
+  entity?: string;
+  status?: string;
+  format?: string;
   keyword: string;
 }
 
 const defaultSearchParams: SearchParams = {
-  entity: '',
-  status: '',
-  format: '',
+  entity: undefined,
+  status: undefined,
+  format: undefined,
   keyword: '',
 };
 const EMPTY_ENTITIES: ExportEntityMeta[] = [];
 const EMPTY_EXPORT_JOBS: ExportJob[] = [];
 
-const statusOptions: Array<{ value: ExportJobStatus | ''; label: string }> = [
-  { value: '', label: '全部状态' },
+const statusOptions: Array<{ value: ExportJobStatus; label: string }> = [
   { value: 'pending', label: '等待中' },
   { value: 'running', label: '执行中' },
   { value: 'success', label: '已完成' },
@@ -55,8 +54,7 @@ const statusOptions: Array<{ value: ExportJobStatus | ''; label: string }> = [
   { value: 'expired', label: '已过期' },
 ];
 
-const formatOptions: Array<{ value: ExportJobFormat | ''; label: string }> = [
-  { value: '', label: '全部格式' },
+const formatOptions: Array<{ value: ExportJobFormat; label: string }> = [
   { value: 'xlsx', label: 'Excel' },
   { value: 'csv', label: 'CSV' },
 ];
@@ -119,10 +117,7 @@ export default function ExportJobsPage() {
   const batchDeleting = batchDeleteMutation.isPending;
 
   const entityOptions = useMemo(
-    () => [
-      { value: '', label: '全部模块' },
-      ...entities.map((item) => ({ value: item.entity, label: item.moduleName })),
-    ],
+    () => entities.map((item) => ({ value: item.entity, label: item.moduleName })),
     [entities],
   );
   const entityMap = useMemo(() => new Map(entities.map((item) => [item.entity, item])), [entities]);
@@ -332,26 +327,23 @@ export default function ExportJobsPage() {
   return (
     <div className="page-container">
       <SearchToolbar>
-        <Select
-          placeholder="模块"
-          value={draftParams.entity || undefined}
-          optionList={entityOptions}
-          onChange={(value) => setDraftParams((prev) => ({ ...prev, entity: (value as string) ?? '' }))}
-          style={{ width: 160 }}
+        <FilterSelect
+          placeholder="全部模块"
+          items={entityOptions}
+          value={draftParams.entity}
+          onChange={(value) => setDraftParams((prev) => ({ ...prev, entity: value }))}
+          width={160}
         />
-        <Select
-          placeholder="状态"
-          value={draftParams.status || undefined}
-          optionList={statusOptions}
-          onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as string) ?? '' }))}
-          style={{ width: 140 }}
+        <StatusSelect
+          items={statusOptions}
+          value={draftParams.status}
+          onChange={(value) => setDraftParams((prev) => ({ ...prev, status: value }))}
         />
-        <Select
-          placeholder="格式"
-          value={draftParams.format || undefined}
-          optionList={formatOptions}
-          onChange={(value) => setDraftParams((prev) => ({ ...prev, format: (value as string) ?? '' }))}
-          style={{ width: 120 }}
+        <FilterSelect
+          placeholder="全部格式"
+          items={formatOptions}
+          value={draftParams.format}
+          onChange={(value) => setDraftParams((prev) => ({ ...prev, format: value }))}
         />
         <KeywordInput placeholder="搜索文件名/模块" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} width={240} />
         <SearchButton onClick={handleSearch} />

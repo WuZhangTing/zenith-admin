@@ -205,7 +205,7 @@ export function ComposerExtras({
             rows={4}
             maxCount={4096}
             value={scheduleContent}
-            onChange={(v) => setScheduleContent(v)}
+            onChange={setScheduleContent}
           />
           <DatePicker
             type="dateTime"

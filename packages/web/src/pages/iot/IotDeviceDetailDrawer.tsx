@@ -29,6 +29,7 @@ import {
 import { useIotThingModel } from '@/hooks/queries/iot-products';
 import { useWebSocket, useWsConnected } from '@/hooks/useWebSocket';
 import IotTopologyView from './IotTopologyView';
+import { FilterSelect } from '@/components/search-filters';
 
 const { Text } = Typography;
 
@@ -348,8 +349,8 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
 
   // ─── 事件 ────────────────────────────────────────────────────────────────────
   const [eventPage, setEventPage] = useState(1);
-  const [eventKind, setEventKind] = useState<string>('');
-  const [eventLevel, setEventLevel] = useState<string>('');
+  const [eventKind, setEventKind] = useState<string | undefined>();
+  const [eventLevel, setEventLevel] = useState<string | undefined>();
   const eventsQuery = useIotDeviceEvents(deviceId, {
     page: eventPage,
     pageSize: 10,
@@ -387,7 +388,7 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
 
   // ─── 设备日志（五期）─────────────────────────────────────────────────────────
   const [logPage, setLogPage] = useState(1);
-  const [logLevel, setLogLevel] = useState<string>('');
+  const [logLevel, setLogLevel] = useState<string | undefined>();
   const logsQuery = useIotDeviceLogs(deviceId, {
     page: logPage,
     pageSize: 10,
@@ -601,17 +602,19 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
 
             <TabPane tab="事件" itemKey="events">
               <div style={{ display: 'flex', gap: 8, margin: '8px 0' }}>
-                <Select
-                  placeholder="全部类型" showClear style={{ width: 140 }}
-                  value={eventKind || undefined}
-                  onChange={(v) => { setEventKind((v as string) ?? ''); setEventPage(1); }}
-                  optionList={IOT_DEVICE_EVENT_KIND_OPTIONS}
+                <FilterSelect
+                  placeholder="全部类型"
+                  items={IOT_DEVICE_EVENT_KIND_OPTIONS}
+                  value={eventKind}
+                  onChange={(v) => { setEventKind(v); setEventPage(1); }}
+                  width={140}
                 />
-                <Select
-                  placeholder="全部级别" showClear style={{ width: 140 }}
-                  value={eventLevel || undefined}
-                  onChange={(v) => { setEventLevel((v as string) ?? ''); setEventPage(1); }}
-                  optionList={IOT_EVENT_LEVEL_OPTIONS}
+                <FilterSelect
+                  placeholder="全部级别"
+                  items={IOT_EVENT_LEVEL_OPTIONS}
+                  value={eventLevel}
+                  onChange={(v) => { setEventLevel(v); setEventPage(1); }}
+                  width={140}
                 />
               </div>
               <Table
@@ -632,11 +635,12 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
 
             <TabPane tab="设备日志" itemKey="logs">
               <div style={{ display: 'flex', gap: 8, margin: '8px 0' }}>
-                <Select
-                  placeholder="全部级别" showClear style={{ width: 140 }}
-                  value={logLevel || undefined}
-                  onChange={(v) => { setLogLevel((v as string) ?? ''); setLogPage(1); }}
-                  optionList={IOT_LOG_LEVEL_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                <FilterSelect
+                  placeholder="全部级别"
+                  items={IOT_LOG_LEVEL_OPTIONS}
+                  value={logLevel}
+                  onChange={(v) => { setLogLevel(v); setLogPage(1); }}
+                  width={140}
                 />
               </div>
               <Table

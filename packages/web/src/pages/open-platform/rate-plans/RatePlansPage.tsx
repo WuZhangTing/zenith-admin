@@ -1,4 +1,4 @@
-import { Tag, Form, Toast, Typography, Select, Row, Col, Space } from '@douyinfe/semi-ui';
+import { Tag, Form, Toast, Typography, Row, Col, Space } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { RatePlan } from '@zenith/shared/open-platform';
 import { copyableNoColumn, createdAtColumn } from '@/utils/table-columns';
@@ -12,7 +12,7 @@ import { openPlatformKeys, useDeleteRatePlan, useRatePlanList, useSaveRatePlan }
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
@@ -127,13 +127,10 @@ export default function RatePlansPage() {
         primary={(
           <>
             <KeywordInput placeholder="搜索套餐编码 / 名称" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} />
-            <Select
-              placeholder="状态"
+            <StatusSelect
+              items={STATUS_OPTIONS}
               value={draftParams.status}
               onChange={(v) => setDraftParams({ ...draftParams, status: v as 'enabled' | 'disabled' })}
-              optionList={STATUS_OPTIONS}
-              showClear
-              style={{ width: 110 }}
             />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Tag, Toast, Tabs, TabPane, Typography, Select } from '@douyinfe/semi-ui';
+import { Button, Tag, Toast, Tabs, TabPane, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -14,6 +14,7 @@ import { CmsSiteSelect } from './CmsSiteSelect';
 import { dateTimeColumn } from '@/utils/table-columns';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { FilterSelect } from '@/components/search-filters';
 const STATUS_COLORS: Record<CmsCommentStatus, 'orange' | 'green' | 'red'> = {
   pending: 'orange',
   approved: 'green',
@@ -126,13 +127,12 @@ export default function CommentsPage() {
     <>
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setPage(1); setSelectedIds([]); }} width={200} />
-        <Select
-          placeholder="评论来源"
-          style={{ width: 140 }}
-          showClear
+        <FilterSelect
+          placeholder="全部评论来源"
+          items={[{ label: '会员评论', value: 'member' }, { label: '游客评论', value: 'guest' }]}
           value={source}
           onChange={(v) => { setSource(v as 'member' | 'guest' | undefined); setPage(1); setSelectedIds([]); }}
-          optionList={[{ label: '会员评论', value: 'member' }, { label: '游客评论', value: 'guest' }]}
+          width={140}
         />
         {batchBar}
       </SearchToolbar>

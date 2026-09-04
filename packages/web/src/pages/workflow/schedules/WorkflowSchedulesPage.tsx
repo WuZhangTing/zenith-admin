@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Form, Select, Space, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Form, Space, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { WorkflowSchedule } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
@@ -27,12 +27,13 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
 import { dateTimeColumn } from '@/utils/table-columns';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
+import { FilterSelect, StatusSelect } from '@/components/search-filters';
 
 type ScheduleStatus = WorkflowSchedule['status'];
 
 interface SearchParams {
-  definitionId: number | '';
-  status: ScheduleStatus | '';
+  definitionId?: number;
+  status?: ScheduleStatus;
 }
 
 interface FormValues extends Record<string, unknown> {
@@ -46,7 +47,7 @@ interface FormValues extends Record<string, unknown> {
   status?: ScheduleStatus;
 }
 
-const defaultSearchParams: SearchParams = { definitionId: '', status: '' };
+const defaultSearchParams: SearchParams = { definitionId: undefined, status: undefined };
 
 // CronBuilderPopover 内部使用 6 段（含秒）cron；定时发起存标准 5 段，故在边界转换
 const toSixField = (expr: string) => {
@@ -88,7 +89,7 @@ export default function WorkflowSchedulesPage() {
   const listQuery = useWorkflowScheduleList({
     page,
     pageSize,
-    definitionId: submittedParams.definitionId === '' ? undefined : submittedParams.definitionId,
+    definitionId: submittedParams.definitionId,
     status: submittedParams.status || undefined,
   });
   const list = listQuery.data?.list ?? [];
@@ -259,29 +260,23 @@ export default function WorkflowSchedulesPage() {
   ];
 
   const renderDefinitionFilter = () => (
-    <Select
-      placeholder="流程"
-      value={draftParams.definitionId === '' ? undefined : draftParams.definitionId}
+    <FilterSelect
+      placeholder="全部流程"
+      items={definitionOptions}
+      value={draftParams.definitionId}
       onChange={(value) =>
-        setDraftParams((prev) => ({ ...prev, definitionId: (value as number) ?? '' }))
-      }
-      optionList={definitionOptions}
+        setDraftParams((prev) => ({ ...prev, definitionId: value as number | undefined }))}
+      width={220}
       filter
-      showClear
-      style={{ width: 220 }}
     />
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="状态"
-      value={draftParams.status || undefined}
+    <StatusSelect
+      items={STATUS_OPTIONS}
+      value={draftParams.status}
       onChange={(value) =>
-        setDraftParams((prev) => ({ ...prev, status: (value as ScheduleStatus) ?? '' }))
-      }
-      optionList={STATUS_OPTIONS}
-      showClear
-      style={{ width: 120 }}
+        setDraftParams((prev) => ({ ...prev, status: value as ScheduleStatus | undefined }))}
     />
   );
 

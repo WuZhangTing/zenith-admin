@@ -39,7 +39,7 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { CreateButton, RefreshButton } from '@/components/toolbar-controls';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { LineChart, chartOptions, makeLineSpec, useChartPalette } from '@/components/charts';
@@ -151,8 +151,8 @@ export default function RateLimitPage() {
   const [banDuration, setBanDuration] = useState<number>(3600);
 
   // 拦截记录 Tab 的客户端筛选（数据已随统计全量加载，无需回源）
-  const [blockRuleFilter, setBlockRuleFilter] = useState<string>('all');
-  const [blockTypeFilter, setBlockTypeFilter] = useState<string>('all');
+  const [blockRuleFilter, setBlockRuleFilter] = useState<string | undefined>();
+  const [blockTypeFilter, setBlockTypeFilter] = useState<string | undefined>();
   const [blockKeyword, setBlockKeyword] = useState('');
 
   const editModal = useEditModal<RateLimitRule, RuleFormValues, Partial<RateLimitRule>>({
@@ -286,7 +286,7 @@ export default function RateLimitPage() {
   const filteredBlockRows = useMemo(() => {
     const kw = blockKeyword.trim().toLowerCase();
     return blockRows.filter((row) => {
-      if (blockRuleFilter !== 'all' && row.rule !== blockRuleFilter) return false;
+      if (blockRuleFilter && row.rule !== blockRuleFilter) return false;
       if (blockTypeFilter === 'enforce' && (row.monitored || row.banned)) return false;
       if (blockTypeFilter === 'monitor' && !row.monitored) return false;
       if (blockTypeFilter === 'banned' && !row.banned) return false;
@@ -501,23 +501,21 @@ export default function RateLimitPage() {
           <SearchToolbar
             primary={(
               <>
-                <Select
+                <FilterSelect
+                  placeholder="全部规则"
+                  items={rules.map((r) => ({ value: r.name, label: r.name }))}
                   value={blockRuleFilter}
-                  onChange={(v) => setBlockRuleFilter(v as string)}
-                  optionList={[{ value: 'all', label: '全部规则' }, ...rules.map((r) => ({ value: r.name, label: r.name }))]}
-                  style={{ width: 200 }}
+                  onChange={setBlockRuleFilter}
+                  width={200}
                   aria-label="按规则筛选"
                 />
-                <Select
-                  value={blockTypeFilter}
-                  onChange={(v) => setBlockTypeFilter(v as string)}
-                  optionList={[
-                    { value: 'all', label: '全部类型' },
-                    { value: 'enforce', label: RATE_LIMIT_MODE_LABELS.enforce },
+                <FilterSelect
+                  placeholder="全部类型"
+                  items={[{ value: 'enforce', label: RATE_LIMIT_MODE_LABELS.enforce },
                     { value: 'monitor', label: RATE_LIMIT_MODE_LABELS.monitor },
-                    { value: 'banned', label: '封禁' },
-                  ]}
-                  style={{ width: 130 }}
+                    { value: 'banned', label: '封禁' },]}
+                  value={blockTypeFilter}
+                  onChange={setBlockTypeFilter}
                   aria-label="按类型筛选"
                 />
                 <KeywordInput value={blockKeyword} onChange={setBlockKeyword} placeholder="搜索 Key / 路径" />

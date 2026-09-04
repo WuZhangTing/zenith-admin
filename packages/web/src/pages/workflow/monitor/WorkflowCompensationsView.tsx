@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Descriptions, Divider, Empty, Modal, Select, SideSheet, Space, Tag, Timeline, Toast, TextArea, Typography, Upload } from '@douyinfe/semi-ui';
+import { Button, Descriptions, Divider, Empty, Modal, SideSheet, Space, Tag, Timeline, Toast, TextArea, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Paperclip } from 'lucide-react';
 import type { WorkflowCompensation } from '@zenith/shared/workflow';
@@ -19,6 +19,7 @@ import {
 } from '@/hooks/queries/workflow-monitor';
 import { RefreshButton } from '@/components/toolbar-controls';
 import { confirmDanger } from '@/utils/confirm';
+import { StatusSelect } from '@/components/search-filters';
 
 const STATUS: Record<string, { text: string; color: string }> = {
   pending: { text: '待修复', color: 'amber' },
@@ -119,8 +120,11 @@ export default function WorkflowCompensationsView() {
     <div>
       <SearchToolbar primary={(
         <Space>
-          <Select value={status} onChange={(v) => setStatus(v as string)} placeholder="状态" style={{ width: 130 }} showClear
-            optionList={[{ value: 'pending', label: '待修复' }, { value: 'resolved', label: '已放行' }, { value: 'terminated', label: '已终止' }]} />
+          <StatusSelect
+            items={[{ value: 'pending', label: '待修复' }, { value: 'resolved', label: '已放行' }, { value: 'terminated', label: '已终止' }]}
+            value={status}
+            onChange={(v) => setStatus(v as string)}
+          />
           <RefreshButton onClick={() => void listQuery.refetch()} />
           <Typography.Text type="tertiary" size="small">异常捕获 / 补偿产生的修复工单</Typography.Text>
         </Space>

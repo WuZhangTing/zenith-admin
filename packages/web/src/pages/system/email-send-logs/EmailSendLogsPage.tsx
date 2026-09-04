@@ -1,4 +1,4 @@
-import { Button, Form, Input, Select, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Tag, Toast } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
 import { Plus } from 'lucide-react';
 import type { EmailSendLog, SendStatus } from '@zenith/shared/messaging';
@@ -19,7 +19,7 @@ import {
 } from '@/hooks/queries/email-send-logs';
 import { SEND_LOG_STATUS_OPTIONS as STATUS_OPTIONS, SEND_SOURCE_OPTIONS as SOURCE_OPTIONS } from '../send-log-constants';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 function StatusTag({ value }: Readonly<{ value: SendStatus }>) {
@@ -116,10 +116,17 @@ export default function EmailSendLogsPage() {
             <KeywordInput placeholder="主题/内容关键词" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
             <Input placeholder="收件人邮箱" value={draftParams.toEmail} onChange={(v) => setDraftParams({ ...draftParams, toEmail: v })}
               onEnterPress={handleSearch} showClear style={{ width: 200 }} />
-            <Select placeholder="状态" value={draftParams.filterStatus} onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as SendStatus | undefined })}
-              optionList={STATUS_OPTIONS} showClear style={{ width: 110 }} />
-            <Select placeholder="来源" value={draftParams.filterSource} onChange={(v) => setDraftParams({ ...draftParams, filterSource: v as string | undefined })}
-              optionList={SOURCE_OPTIONS} showClear style={{ width: 110 }} />
+            <StatusSelect
+              items={STATUS_OPTIONS}
+              value={draftParams.filterStatus}
+              onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as SendStatus | undefined })}
+            />
+            <FilterSelect
+              placeholder="全部来源"
+              items={SOURCE_OPTIONS}
+              value={draftParams.filterSource}
+              onChange={(v) => setDraftParams({ ...draftParams, filterSource: v as string | undefined })}
+            />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
           </>
@@ -147,10 +154,17 @@ export default function EmailSendLogsPage() {
           <>
             <Input placeholder="收件人邮箱" value={draftParams.toEmail} onChange={(v) => setDraftParams({ ...draftParams, toEmail: v })}
               onEnterPress={handleSearch} showClear style={{ width: 200 }} />
-            <Select placeholder="状态" value={draftParams.filterStatus} onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as SendStatus | undefined })}
-              optionList={STATUS_OPTIONS} showClear style={{ width: 110 }} />
-            <Select placeholder="来源" value={draftParams.filterSource} onChange={(v) => setDraftParams({ ...draftParams, filterSource: v as string | undefined })}
-              optionList={SOURCE_OPTIONS} showClear style={{ width: 110 }} />
+            <StatusSelect
+              items={STATUS_OPTIONS}
+              value={draftParams.filterStatus}
+              onChange={(v) => setDraftParams({ ...draftParams, filterStatus: v as SendStatus | undefined })}
+            />
+            <FilterSelect
+              placeholder="全部来源"
+              items={SOURCE_OPTIONS}
+              value={draftParams.filterSource}
+              onChange={(v) => setDraftParams({ ...draftParams, filterSource: v as string | undefined })}
+            />
           </>
         )}
         mobileActions={can('system:email-send-log:export') ? (

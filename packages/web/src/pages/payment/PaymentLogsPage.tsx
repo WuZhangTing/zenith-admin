@@ -1,5 +1,5 @@
 import { PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { Select, Tag, Typography } from '@douyinfe/semi-ui';
+import { Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -9,13 +9,13 @@ import type { PaymentChannel, PaymentNotifyLog } from '@zenith/shared/payment';
 import { paymentLogKeys, usePaymentLogList } from '@/hooks/queries/payment-logs';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, KeywordInput } from '@/components/search-filters';
 import { compactQuery } from '@/lib/query';
 import { copyableNoColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { JsonBlock } from '@/components/JsonBlock';
 
-interface SearchParams { keyword: string; channel: string; scene: string; signatureValid: string; timeRange: [Date, Date] | null; }
-const defaultSearch: SearchParams = { keyword: '', channel: '', scene: '', signatureValid: '', timeRange: null };
+interface SearchParams { keyword: string; channel?: string; scene?: string; signatureValid?: string; timeRange: [Date, Date] | null; }
+const defaultSearch: SearchParams = { keyword: '', channel: undefined, scene: undefined, signatureValid: undefined, timeRange: null };
 
 function formatRaw(raw: string | null | undefined): string {
   if (!raw) return '';
@@ -76,35 +76,30 @@ export default function PaymentLogsPage() {  const {
   );
 
   const renderChannelFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部渠道"
-      value={draftParams.channel || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, channel: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 120 }}
-      optionList={PAYMENT_CHANNEL_OPTIONS}
+      items={PAYMENT_CHANNEL_OPTIONS}
+      value={draftParams.channel}
+      onChange={(v) => setDraftParams((p) => ({ ...p, channel: v }))}
     />
   );
 
   const renderSceneFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部场景"
-      value={draftParams.scene || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, scene: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 120 }}
-      optionList={[{ value: 'payment', label: '支付回调' }, { value: 'refund', label: '退款回调' }]}
+      items={[{ value: 'payment', label: '支付回调' }, { value: 'refund', label: '退款回调' }]}
+      value={draftParams.scene}
+      onChange={(v) => setDraftParams((p) => ({ ...p, scene: v }))}
     />
   );
 
   const renderSignatureFilter = () => (
-    <Select
-      placeholder="验签结果"
-      value={draftParams.signatureValid || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, signatureValid: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 120 }}
-      optionList={[{ value: 'true', label: '验签通过' }, { value: 'false', label: '验签失败' }]}
+    <FilterSelect
+      placeholder="全部验签结果"
+      items={[{ value: 'true', label: '验签通过' }, { value: 'false', label: '验签失败' }]}
+      value={draftParams.signatureValid}
+      onChange={(v) => setDraftParams((p) => ({ ...p, signatureValid: v }))}
+      width={140}
     />
   );
 

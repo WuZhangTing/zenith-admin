@@ -218,7 +218,7 @@ export default function RuleScorecardsPage() {
         primary={(
           <>
             <KeywordInput placeholder="搜索名称" value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} width={200} />
-            <StatusSelect placeholder="全部状态" value={draftStatus} onChange={(v) => setDraftStatus(v || undefined)} items={STATUS_OPTIONS} />
+            <StatusSelect value={draftStatus} onChange={(v) => setDraftStatus(v || undefined)} items={STATUS_OPTIONS} />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
           </>

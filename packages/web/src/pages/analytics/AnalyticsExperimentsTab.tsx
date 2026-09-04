@@ -1,7 +1,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banner, Button, Col, Form, Input, InputNumber, Modal, Row, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Form, Input, InputNumber, Modal, Row, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, Trash2 } from 'lucide-react';
 import type { AnalyticsExperiment, AnalyticsExperimentReportVariant, AnalyticsExperimentVariant } from '@zenith/shared/analytics';
@@ -13,7 +13,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { analyticsKeys, useAnalyticsEventMeta, useCreateExperiment, useDeleteExperiment, useExperimentAction, useExperimentReport, useExperiments, useUpdateExperiment } from '@/hooks/queries/analytics';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { FormSliderInput } from '@/components/SliderInput';
 import { dateTimeColumn } from '@/utils/table-columns';
@@ -21,7 +21,7 @@ import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 
 const PAGE_SIZE = 20;
-const defaultSearch = { name: '', status: '' as '' | AnalyticsExperiment['status'] };
+const defaultSearch = { name: '', status: undefined as AnalyticsExperiment['status'] | undefined };
 const defaultVariants: AnalyticsExperimentVariant[] = [
   { key: 'control', name: '对照组', weight: 50 },
   { key: 'treatment', name: '实验组', weight: 50 },
@@ -229,7 +229,11 @@ export default function AnalyticsExperimentsTab() {
     <>
       <SearchToolbar>
         <KeywordInput placeholder="实验名称" value={draft.name} onChange={(name) => setDraft((prev) => ({ ...prev, name }))} />
-        <Select placeholder="状态" value={draft.status || undefined} optionList={ANALYTICS_EXPERIMENT_STATUS_OPTIONS} onChange={(status) => setDraft((prev) => ({ ...prev, status: (status as AnalyticsExperiment['status']) ?? '' }))} showClear style={{ width: 130 }} />
+        <StatusSelect
+          items={ANALYTICS_EXPERIMENT_STATUS_OPTIONS}
+          value={draft.status}
+          onChange={(status) => setDraft((prev) => ({ ...prev, status: status as AnalyticsExperiment['status'] | undefined }))}
+        />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
         <CreateButton onClick={experimentModal.openCreate} />

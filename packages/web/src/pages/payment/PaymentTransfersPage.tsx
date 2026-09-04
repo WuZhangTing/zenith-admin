@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { Banner, Button, Col, Form, Input, Row, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Form, Input, Row, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { SendHorizontal } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -31,14 +31,14 @@ import type {
   PaymentTransferStatus,
 } from '@zenith/shared/payment';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 
 const yuan = formatYuan;
 const STATUS_COLOR = { pending: 'grey', processing: 'blue', unknown: 'orange', success: 'green', failed: 'red' } as const satisfies Record<PaymentTransferStatus, string>;
 const APPROVAL_COLOR = { none: 'grey', pending: 'orange', approved: 'green', rejected: 'red' } as const satisfies Record<PaymentTransferApprovalStatus, string>;
 
-interface SearchParams { keyword: string; channel: string; status: string; approvalStatus: string; }
-const defaultSearch: SearchParams = { keyword: '', channel: '', status: '', approvalStatus: '' };
+interface SearchParams { keyword: string; channel?: string; status?: string; approvalStatus?: string; }
+const defaultSearch: SearchParams = { keyword: '', channel: undefined, status: undefined, approvalStatus: '' };
 
 interface TransferFormValues {
   applicationId: number;
@@ -223,8 +223,12 @@ export default function PaymentTransfersPage() {
     <KeywordInput placeholder="转账单号 / 收款账号..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} />
   );
   const renderChannelFilter = () => (
-    <Select placeholder="全部渠道" value={draftParams.channel || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, channel: (v as string) ?? '' }))}
-      showClear style={{ width: 120 }} optionList={PAYMENT_CHANNEL_OPTIONS} />
+    <FilterSelect
+      placeholder="全部渠道"
+      items={PAYMENT_CHANNEL_OPTIONS}
+      value={draftParams.channel}
+      onChange={(v) => setDraftParams((p) => ({ ...p, channel: v }))}
+    />
   );
   const renderStatusFilter = () => (
     <StatusSelect
@@ -234,8 +238,13 @@ export default function PaymentTransfersPage() {
     />
   );
   const renderApprovalFilter = () => (
-    <Select placeholder="审批状态" value={draftParams.approvalStatus || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, approvalStatus: (v as string) ?? '' }))}
-      showClear style={{ width: 120 }} optionList={PAYMENT_TRANSFER_APPROVAL_STATUS_OPTIONS} />
+    <FilterSelect
+      placeholder="全部审批状态"
+      items={PAYMENT_TRANSFER_APPROVAL_STATUS_OPTIONS}
+      value={draftParams.approvalStatus}
+      onChange={(v) => setDraftParams((p) => ({ ...p, approvalStatus: v }))}
+      width={140}
+    />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;

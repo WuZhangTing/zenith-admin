@@ -4,7 +4,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import AppModal from '@/components/AppModal';
 import UserSelect from '@/components/UserSelect';
@@ -44,12 +44,12 @@ const ALARM_STATUS_COLORS = { firing: 'red', acknowledged: 'blue', resolved: 'gr
 // ─── 告警记录 Tab ─────────────────────────────────────────────────────────────
 interface AlarmSearchParams {
   keyword: string;
-  status: string;
-  level: string;
-  ruleType: string;
+  status?: string;
+  level?: string;
+  ruleType?: string;
 }
 
-const defaultAlarmSearch: AlarmSearchParams = { keyword: '', status: '', level: '', ruleType: '' };
+const defaultAlarmSearch: AlarmSearchParams = { keyword: '', status: undefined, level: undefined, ruleType: '' };
 
 function AlarmRecordsTab() {
   const { hasPermission } = usePermission();
@@ -175,26 +175,26 @@ function AlarmRecordsTab() {
 
   const renderStatusFilter = () => (
     <StatusSelect
-      placeholder="全部状态"
-      items={IOT_ALARM_STATUS_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+     
+      items={IOT_ALARM_STATUS_OPTIONS}
       value={draftParams.status}
       onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
     />
   );
 
   const renderLevelFilter = () => (
-    <StatusSelect
+    <FilterSelect
       placeholder="全部级别"
-      items={IOT_ALARM_LEVEL_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+      items={IOT_ALARM_LEVEL_OPTIONS}
       value={draftParams.level}
       onChange={(v) => setDraftParams((p) => ({ ...p, level: v }))}
     />
   );
 
   const renderTypeFilter = () => (
-    <StatusSelect
+    <FilterSelect
       placeholder="全部类型"
-      items={IOT_ALARM_RULE_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+      items={IOT_ALARM_RULE_TYPE_OPTIONS}
       value={draftParams.ruleType}
       onChange={(v) => setDraftParams((p) => ({ ...p, ruleType: v }))}
     />
@@ -280,7 +280,7 @@ function AlarmRecordsTab() {
           rows={3} maxCount={512}
           placeholder="处理备注（选填）：如现场处理情况、根因说明"
           value={resolveNote}
-          onChange={(v) => setResolveNote(v)}
+          onChange={setResolveNote}
         />
       </Modal>
 
@@ -338,11 +338,11 @@ function AlarmRecordsTab() {
 // ─── 告警规则 Tab ─────────────────────────────────────────────────────────────
 interface RuleSearchParams {
   keyword: string;
-  ruleType: string;
-  status: string;
+  ruleType?: string;
+  status?: string;
 }
 
-const defaultRuleSearch: RuleSearchParams = { keyword: '', ruleType: '', status: '' };
+const defaultRuleSearch: RuleSearchParams = { keyword: '', ruleType: undefined, status: '' };
 
 function AlarmRulesTab() {
   const { hasPermission } = usePermission();
@@ -486,9 +486,9 @@ function AlarmRulesTab() {
   );
 
   const renderTypeFilter = () => (
-    <StatusSelect
+    <FilterSelect
       placeholder="全部类型"
-      items={IOT_ALARM_RULE_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+      items={IOT_ALARM_RULE_TYPE_OPTIONS}
       value={draftParams.ruleType}
       onChange={(v) => setDraftParams((p) => ({ ...p, ruleType: v }))}
     />

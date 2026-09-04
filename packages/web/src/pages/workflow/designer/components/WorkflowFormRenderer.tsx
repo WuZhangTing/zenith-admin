@@ -386,7 +386,7 @@ function DetailCell({ col, cellValue, disabled, onCellChange }: Readonly<{
       return (
         <DatePicker
           value={cellValue as string | undefined}
-          onChange={(_d, dateString) => onCellChange((dateString as string) || undefined)}
+          onChange={(_d, dateString) => onCellChange(dateString as string | undefined)}
           type={dateFormatHasTime(col.dateFormat) ? 'dateTime' : dateFormatHasDay(col.dateFormat) ? 'date' : 'month'}
           insetInput={dateFormatHasTime(col.dateFormat)}
           format={toDateFnsToken(col.dateFormat)}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Tag, Form, Toast, Typography, Select, Row, Col } from '@douyinfe/semi-ui';
+import { Button, Tag, Form, Toast, Typography, Row, Col } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Trash2 } from 'lucide-react';
 import { API_SCOPE_GROUPS, API_SCOPE_GROUP_LABELS } from '@zenith/shared/open-platform';
@@ -21,7 +21,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 const { Text } = Typography;
@@ -150,21 +150,16 @@ export default function ApiScopesPage() {
         primary={(
           <>
             <KeywordInput placeholder="搜索编码 / 名称" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
-            <Select
-              placeholder="分组"
+            <FilterSelect
+              placeholder="全部分组"
+              items={GROUP_OPTIONS}
               value={draftParams.scopeGroup}
               onChange={(v) => setDraftParams({ ...draftParams, scopeGroup: v as string })}
-              optionList={GROUP_OPTIONS}
-              showClear
-              style={{ width: 120 }}
             />
-            <Select
-              placeholder="状态"
+            <StatusSelect
+              items={STATUS_OPTIONS}
               value={draftParams.status}
               onChange={(v) => setDraftParams({ ...draftParams, status: v as 'enabled' | 'disabled' })}
-              optionList={STATUS_OPTIONS}
-              showClear
-              style={{ width: 110 }}
             />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />

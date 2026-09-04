@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Tag, Toast, Tabs, TabPane, Select, SideSheet, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Tag, Toast, Tabs, TabPane, SideSheet, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Trash2 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -21,7 +21,7 @@ import { CMS_AD_EVENT_TYPE_LABELS, CMS_DEVICE_TYPE_LABELS, CMS_AD_EVENT_TYPE_OPT
 import type { CmsAdEvent, CmsAdSlot, CmsAd } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateColumn, dateTimeColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -178,13 +178,12 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   return (
     <>
       <SearchToolbar>
-        <Select
+        <FilterSelect
           placeholder="全部广告位"
+          items={(slotsQuery.data ?? []).map((s) => ({ value: s.id, label: s.name }))}
           value={slotFilter}
           onChange={(v) => { setSlotFilter(v as number | undefined); setPage(1); }}
-          showClear
-          style={{ width: 180 }}
-          optionList={(slotsQuery.data ?? []).map((s) => ({ value: s.id, label: s.name }))}
+          width={180}
         />
         {canManage ? <CreateButton onClick={adModal.openCreate}>新增广告</CreateButton> : null}
       </SearchToolbar>
@@ -276,18 +275,33 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
 
   const filterFields = (
     <>
-      <Select placeholder="全部广告" showClear value={draft.adId} style={{ width: 160 }}
-        optionList={(adsQuery.data?.list ?? []).map((ad) => ({ value: ad.id, label: ad.name }))}
-        onChange={(value) => setDraft((current) => ({ ...current, adId: value as number | undefined }))} />
-      <Select placeholder="全部广告位" showClear value={draft.slotId} style={{ width: 160 }}
-        optionList={(slotsQuery.data ?? []).map((slot) => ({ value: slot.id, label: slot.name }))}
-        onChange={(value) => setDraft((current) => ({ ...current, slotId: value as number | undefined }))} />
-      <Select placeholder="事件类型" showClear value={draft.eventType} style={{ width: 130 }}
-        optionList={CMS_AD_EVENT_TYPE_OPTIONS}
-        onChange={(value) => setDraft((current) => ({ ...current, eventType: value as AdEventSearch['eventType'] }))} />
-      <Select placeholder="设备" showClear value={draft.device} style={{ width: 130 }}
-        optionList={CMS_DEVICE_TYPE_OPTIONS}
-        onChange={(value) => setDraft((current) => ({ ...current, device: value as AdEventSearch['device'] }))} />
+      <FilterSelect
+        placeholder="全部广告"
+        items={(adsQuery.data?.list ?? []).map((ad) => ({ value: ad.id, label: ad.name }))}
+        value={draft.adId}
+        onChange={(value) => setDraft((current) => ({ ...current, adId: value as number | undefined }))}
+        width={160}
+      />
+      <FilterSelect
+        placeholder="全部广告位"
+        items={(slotsQuery.data ?? []).map((slot) => ({ value: slot.id, label: slot.name }))}
+        value={draft.slotId}
+        onChange={(value) => setDraft((current) => ({ ...current, slotId: value as number | undefined }))}
+        width={160}
+      />
+      <FilterSelect
+        placeholder="全部事件类型"
+        items={CMS_AD_EVENT_TYPE_OPTIONS}
+        value={draft.eventType}
+        onChange={(value) => setDraft((current) => ({ ...current, eventType: value as AdEventSearch['eventType'] }))}
+        width={140}
+      />
+      <FilterSelect
+        placeholder="全部设备"
+        items={CMS_DEVICE_TYPE_OPTIONS}
+        value={draft.device}
+        onChange={(value) => setDraft((current) => ({ ...current, device: value as AdEventSearch['device'] }))}
+      />
       <DateRangeFilter placeholder={['发生开始时间', '发生结束时间']} value={draft.timeRange} onChange={(value) => setDraft((current) => ({ ...current, timeRange: value as [Date, Date] | undefined }))} width={330} />
     </>
   );
@@ -424,12 +438,20 @@ function StatsTab({ siteId, setSiteId }: Readonly<{
     <>
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={setSiteId} />
-        <Select placeholder="事件类型" showClear value={draft.eventType} style={{ width: 140 }}
-          optionList={CMS_AD_EVENT_TYPE_OPTIONS}
-          onChange={(value) => setDraft((current) => ({ ...current, eventType: value as AdEventSearch['eventType'] }))} />
-        <Select placeholder="设备" showClear value={draft.device} style={{ width: 140 }}
-          optionList={CMS_DEVICE_TYPE_OPTIONS}
-          onChange={(value) => setDraft((current) => ({ ...current, device: value as AdEventSearch['device'] }))} />
+        <FilterSelect
+          placeholder="全部事件类型"
+          items={CMS_AD_EVENT_TYPE_OPTIONS}
+          value={draft.eventType}
+          onChange={(value) => setDraft((current) => ({ ...current, eventType: value as AdEventSearch['eventType'] }))}
+          width={140}
+        />
+        <FilterSelect
+          placeholder="全部设备"
+          items={CMS_DEVICE_TYPE_OPTIONS}
+          value={draft.device}
+          onChange={(value) => setDraft((current) => ({ ...current, device: value as AdEventSearch['device'] }))}
+          width={140}
+        />
         <DateRangeFilter placeholder={['统计开始时间', '统计结束时间']} value={draft.timeRange} onChange={(value) => setDraft((current) => ({ ...current, timeRange: value as [Date, Date] | undefined }))} width={330} />
         <SearchButton onClick={() => setSubmitted(draft)} />
         <ResetButton onClick={() => { setDraft({}); setSubmitted({}); }} />

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Button, Select, Form, Tag } from '@douyinfe/semi-ui';
+import { Button, Form, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Coins } from 'lucide-react';
 import type { MemberPointTransaction } from '@zenith/shared/member';
@@ -16,7 +16,7 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 
 const typeOptions = (Object.keys(POINT_TX_TYPE_LABELS) as (keyof typeof POINT_TX_TYPE_LABELS)[]).map((v) => ({ value: v, label: POINT_TX_TYPE_LABELS[v] }));
 const TYPE_COLORS: Record<string, string> = { earn: 'green', redeem: 'orange', expire: 'grey', adjust: 'blue', refund: 'cyan' };
@@ -74,17 +74,15 @@ export default function MemberPointsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <KeywordInput placeholder="会员ID/昵称" value={draftParams.memberKeyword} onChange={(v) => setDraftParams((p) => ({ ...p, memberKeyword: v || undefined }))} onSearch={handleSearch} width={180} />
+    <KeywordInput placeholder="会员ID/昵称" value={draftParams.memberKeyword} onChange={(v) => setDraftParams((p) => ({ ...p, memberKeyword: v }))} onSearch={handleSearch} width={180} />
   );
 
   const renderTypeFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部类型"
+      items={typeOptions}
       value={draftParams.type}
-      style={{ width: 130 }}
-      showClear
       onChange={(v) => setDraftParams((p) => ({ ...p, type: v as string | undefined }))}
-      optionList={typeOptions}
     />
   );
 

@@ -40,7 +40,9 @@ import {
 import { WORKFLOW_DIFF_KIND_META as DIFF_KIND_META } from '../constants';
 import { PUBLISHABLE_STATUS_META as STATUS_MAP } from '@/lib/publishable-status';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
+
+const STATUS_FILTER_OPTIONS = [{ value: 'draft', label: '草稿' }, { value: 'published', label: '已发布' }, { value: 'disabled', label: '已禁用' }];
 import { confirmDelete, confirmDanger } from '@/utils/confirm';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'indigo' | 'light-blue' | 'light-green' | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow' | 'white';
@@ -53,7 +55,7 @@ const FORM_TYPE_COLOR: Record<WorkflowFormType, TagColor> = {
 
 interface SearchParams {
   keyword: string;
-  status: string;
+  status?: string;
   selectedCategoryId: number | null;
 }
 
@@ -75,7 +77,7 @@ interface WorkflowDefinitionImportPayload {
   form?: unknown;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', status: '', selectedCategoryId: null };
+const defaultSearchParams: SearchParams = { keyword: '', status: undefined, selectedCategoryId: null };
 
 const stringifyFlowData = (value: unknown) => JSON.stringify(value ?? null, null, 2);
 
@@ -435,17 +437,11 @@ export default function WorkflowDefinitionsPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="状态"
-      value={draftParams.status || undefined}
-      onChange={(v) => setDraftParams((prev) => ({ ...prev, status: typeof v === 'string' ? v : '' }))}
-      showClear
-      style={{ width: 120 }}
-    >
-      <Select.Option value="draft">草稿</Select.Option>
-      <Select.Option value="published">已发布</Select.Option>
-      <Select.Option value="disabled">已禁用</Select.Option>
-    </Select>
+    <StatusSelect
+      items={STATUS_FILTER_OPTIONS}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((prev) => ({ ...prev, status: v }))}
+    />
   );
 
   const renderSearchButton = () => (

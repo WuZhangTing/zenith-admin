@@ -21,6 +21,7 @@ import { copyTextWithToast } from '@/utils/clipboard';
 import { buildSearchIndex, compileSearchPattern, computeEffectiveLevels, type LogLevel, type MatchRange, type SearchMatch } from './logFilesSearch';
 import { LogContentView, type LogContentViewHandle } from './LogContentView';
 import { formatBytes } from '@zenith/shared/core';
+import { FilterSelect } from '@/components/search-filters';
 
 const EMPTY_LOG_FILES: LogFile[] = [];
 const EMPTY_LINES: string[] = [];
@@ -28,8 +29,7 @@ const MAX_TAIL_LINES = 5000;
 const TAIL_RETRY_LIMIT = 3;
 const TAIL_RETRY_DELAY_MS = 1500;
 
-const LEVEL_FILTER_VALUES: Array<{ value: 'all' | LogLevel; label: string }> = [
-  { value: 'all', label: '全部级别' },
+const LEVEL_FILTER_VALUES: Array<{ value: LogLevel; label: string }> = [
   { value: 'error', label: 'ERROR' },
   { value: 'warn', label: 'WARN' },
   { value: 'info', label: 'INFO' },
@@ -79,7 +79,7 @@ export default function LogFilesPage() {
   const [fullText, setFullText] = useState(false);
   const [serverKeyword, setServerKeyword] = useState('');
   const [activeMatchIndex, setActiveMatchIndex] = useState(0);
-  const [levelFilter, setLevelFilter] = useState<'all' | LogLevel>('all');
+  const [levelFilter, setLevelFilter] = useState<LogLevel | undefined>();
 
   // 显示偏好（持久化）
   const [showLineNumbers, setShowLineNumbers] = usePersistentState('logFiles.lineNumbers', true);
@@ -139,15 +139,12 @@ export default function LogFilesPage() {
     return counts;
   }, [levels]);
   const levelOptions = useMemo(
-    () => LEVEL_FILTER_VALUES.map(({ value, label }) => ({
-      value,
-      label: value === 'all' ? `${label} (${rawLines.length})` : `${label} (${levelCounts[value]})`,
-    })),
-    [levelCounts, rawLines.length],
+    () => LEVEL_FILTER_VALUES.map(({ value, label }) => ({ value, label: `${label} (${levelCounts[value]})` })),
+    [levelCounts],
   );
 
   const baseIndexes = useMemo(() => {
-    if (levelFilter === 'all') return rawLines.map((_, i) => i);
+    if (!levelFilter) return rawLines.map((_, i) => i);
     const out: number[] = [];
     levels.forEach((level, i) => {
       if (level === levelFilter) out.push(i);
@@ -155,7 +152,7 @@ export default function LogFilesPage() {
     return out;
   }, [rawLines, levels, levelFilter]);
   const baseLines = useMemo(
-    () => (levelFilter === 'all' ? rawLines : baseIndexes.map((i) => rawLines[i])),
+    () => (levelFilter ? baseIndexes.map((i) => rawLines[i]) : rawLines),
     [levelFilter, rawLines, baseIndexes],
   );
 
@@ -313,7 +310,7 @@ export default function LogFilesPage() {
     setSearchDraft('');
     setServerKeyword('');
     setActiveMatchIndex(0);
-    setLevelFilter('all');
+    setLevelFilter(undefined);
   }, [abortTail]);
 
   const appliedFileParamRef = useRef<string | null>(null);
@@ -476,7 +473,7 @@ export default function LogFilesPage() {
     emptyText = '等待日志输出…';
   } else if (rawLines.length > 0 && grepActive) {
     emptyText = '无匹配行';
-  } else if (rawLines.length > 0 && levelFilter !== 'all') {
+  } else if (rawLines.length > 0 && levelFilter) {
     emptyText = '当前级别下无日志';
   } else if (fullText && serverKeyword) {
     emptyText = '未找到匹配的日志内容';
@@ -734,12 +731,12 @@ export default function LogFilesPage() {
                     style={{ width: 128 }}
                   />
                 )}
-                <Select
-                  size="small"
+                <FilterSelect
+                  placeholder="全部级别"
+                  items={levelOptions}
                   value={levelFilter}
-                  onChange={(value) => { setLevelFilter(value as 'all' | LogLevel); setActiveMatchIndex(0); }}
-                  optionList={levelOptions}
-                  style={{ width: 132 }}
+                  onChange={(value) => { setLevelFilter(value); setActiveMatchIndex(0); }}
+                  size="small"
                 />
                 {/* 追踪中隐藏而非置灰：行数/全文/刷新此时不生效，腾出的宽度正好容纳暂停/停止，避免工具栏换行跳动 */}
                 {!tailing && (

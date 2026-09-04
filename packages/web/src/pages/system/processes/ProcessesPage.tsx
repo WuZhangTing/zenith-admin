@@ -103,7 +103,7 @@ export default function ProcessesPage() {
     setKeyword(pid);
     setSearchParams(hostId == null ? {} : { hostId: String(hostId) }, { replace: true });
   }, [searchParams, setSearchParams, hostId]);
-  const [filterStatus, setFilterStatus] = useState<string>('');
+  const [filterStatus, setFilterStatus] = useState<string | undefined>();
 
   // ─── 详情弹窗 ──────────────────────────────────────────────────────────
   const [detailVisible, setDetailVisible] = useState(false);

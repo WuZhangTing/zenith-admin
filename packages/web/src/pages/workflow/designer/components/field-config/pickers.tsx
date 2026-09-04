@@ -47,7 +47,7 @@ export function DictCodePicker({
   return (
     <Select
       value={value || undefined}
-      onChange={(v) => onChange((v as string) || undefined)}
+      onChange={(v) => onChange(v as string | undefined)}
       placeholder={loading ? '加载中...' : '请选择数据字典'}
       filter
       showClear

@@ -1,23 +1,6 @@
 import { lazy, Suspense, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Button,
-  Form,
-  Input,
-  JsonViewer,
-  Modal,
-  Select,
-  SideSheet,
-  Space,
-  Spin,
-  Tabs,
-  TabPane,
-  Tag,
-  Timeline,
-  Toast,
-  Tooltip,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Button, Form, Input, JsonViewer, Modal, SideSheet, Space, Spin, Tabs, TabPane, Tag, Timeline, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Download, FileText, UserRoundCog } from 'lucide-react';
@@ -67,7 +50,7 @@ import {
 } from '@/hooks/queries/workflow-monitor';
 import { useAllUsers } from '@/hooks/queries/users';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
@@ -378,8 +361,8 @@ function buildFocusDiagnosis(diagnostics: WorkflowRuntimeDiagnostics, diagNodes:
 export default function WorkflowMonitorPage() {
   const [activeTab, setActiveTab] = useUrlTabState(['list', 'tasks', 'analytics', 'engine', 'jobs', 'compensations'] as const, 'list');
   const queryClient = useQueryClient();
-  interface SearchParams { keyword: string; initiator: string; status: string; categoryId: number | ''; definitionId: number | ''; priority: string }
-  const defaultSearchParams: SearchParams = { keyword: '', initiator: '', status: '', categoryId: '', definitionId: '', priority: '' };
+  interface SearchParams { keyword: string; initiator: string; status?: string; categoryId?: number; definitionId?: number; priority?: string }
+  const defaultSearchParams: SearchParams = { keyword: '', initiator: '', status: undefined, categoryId: undefined, definitionId: undefined, priority: undefined };
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
@@ -390,8 +373,8 @@ export default function WorkflowMonitorPage() {
     pageSize,
     keyword: submittedParams.keyword || undefined,
     status: submittedParams.status || undefined,
-    categoryId: submittedParams.categoryId === '' ? undefined : submittedParams.categoryId,
-    definitionId: submittedParams.definitionId === '' ? undefined : submittedParams.definitionId,
+    categoryId: submittedParams.categoryId,
+    definitionId: submittedParams.definitionId,
     initiatorKeyword: submittedParams.initiator || undefined,
     priority: submittedParams.priority || undefined,
   });
@@ -444,8 +427,8 @@ export default function WorkflowMonitorPage() {
 
   const canAdmin = hasPermission('workflow:instance:cancel');
 
-  const handleStatCardClick = (st: string) => {
-    const next = draftParams.status === st ? '' : st;
+  const handleStatCardClick = (st: string | undefined) => {
+    const next = draftParams.status === st ? undefined : st;
     const newParams = { ...draftParams, status: next };
     applySearch(newParams);
   };
@@ -1092,25 +1075,23 @@ export default function WorkflowMonitorPage() {
   );
 
   const renderCategoryFilter = () => (
-    <Select
-      placeholder="所有分类"
-      showClear
-      value={draftParams.categoryId === '' ? undefined : draftParams.categoryId}
-      onChange={v => setDraftParams(prev => ({ ...prev, categoryId: (v as number) ?? '' }))}
-      style={{ width: 140 }}
-      optionList={categories.map((c: WorkflowCategory) => ({ label: c.name, value: c.id }))}
+    <FilterSelect
+      placeholder="全部所有分类"
+      items={categories.map((c: WorkflowCategory) => ({ label: c.name, value: c.id }))}
+      value={draftParams.categoryId}
+      onChange={v => setDraftParams(prev => ({ ...prev, categoryId: v as number | undefined }))}
+      width={140}
     />
   );
 
   const renderDefinitionFilter = () => (
-    <Select
-      placeholder="所有流程"
-      showClear
+    <FilterSelect
+      placeholder="全部所有流程"
+      items={definitions.map((d) => ({ label: d.name, value: d.id }))}
+      value={draftParams.definitionId}
+      onChange={v => setDraftParams(prev => ({ ...prev, definitionId: v as number | undefined }))}
+      width={160}
       filter
-      value={draftParams.definitionId === '' ? undefined : draftParams.definitionId}
-      onChange={v => setDraftParams(prev => ({ ...prev, definitionId: (v as number) ?? '' }))}
-      style={{ width: 160 }}
-      optionList={definitions.map((d) => ({ label: d.name, value: d.id }))}
     />
   );
 
@@ -1126,24 +1107,22 @@ export default function WorkflowMonitorPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="所有状态"
-      showClear
-      value={draftParams.status || undefined}
-      onChange={v => setDraftParams(prev => ({ ...prev, status: (v as string) ?? '' }))}
-      style={{ width: 140 }}
-      optionList={['running', 'suspended', 'returned', 'approved', 'rejected', 'withdrawn', 'cancelled'].map((s) => ({ value: s, label: INSTANCE_STATUS_MAP[s].text }))}
+    <FilterSelect
+      placeholder="全部所有状态"
+      items={['running', 'suspended', 'returned', 'approved', 'rejected', 'withdrawn', 'cancelled'].map((s) => ({ value: s, label: INSTANCE_STATUS_MAP[s].text }))}
+      value={draftParams.status}
+      onChange={v => setDraftParams(prev => ({ ...prev, status: v }))}
+      width={140}
     />
   );
 
   const renderPriorityFilter = () => (
-    <Select
-      placeholder="所有优先级"
-      showClear
-      value={draftParams.priority || undefined}
-      onChange={v => setDraftParams(prev => ({ ...prev, priority: (v as string) ?? '' }))}
-      style={{ width: 130 }}
-      optionList={WORKFLOW_PRIORITY_OPTIONS}
+    <FilterSelect
+      placeholder="全部所有优先级"
+      items={WORKFLOW_PRIORITY_OPTIONS}
+      value={draftParams.priority}
+      onChange={v => setDraftParams(prev => ({ ...prev, priority: v }))}
+      width={140}
     />
   );
 
@@ -1160,8 +1139,8 @@ export default function WorkflowMonitorPage() {
     return {
       ...(keyword ? { keyword } : {}),
       ...(status ? { status } : {}),
-      ...(categoryId !== '' ? { categoryId: String(categoryId) } : {}),
-      ...(definitionId !== '' ? { definitionId: String(definitionId) } : {}),
+      ...(categoryId != null ? { categoryId: String(categoryId) } : {}),
+      ...(definitionId != null ? { definitionId: String(definitionId) } : {}),
       ...(initiator ? { initiatorKeyword: initiator } : {}),
       ...(priority ? { priority } : {}),
     };
@@ -1183,7 +1162,7 @@ export default function WorkflowMonitorPage() {
         <TabPane tab="实例监控" itemKey="list">
       {/* 统计卡片 */}
       <StatGrid minItemWidth={120} style={{ marginBottom: 16 }}>
-        <StatCard title="全部" value={statValue(stats.total)} accent="var(--semi-color-text-0)" onClick={() => handleStatCardClick('')} active={draftParams.status === ''} />
+        <StatCard title="全部" value={statValue(stats.total)} accent="var(--semi-color-text-0)" onClick={() => handleStatCardClick(undefined)} active={!draftParams.status} />
         <StatCard title="审批中" value={statValue(stats.running)} accent="var(--semi-color-primary)" onClick={() => handleStatCardClick('running')} active={draftParams.status === 'running'} />
         <StatCard title="已挂起" value={statValue(stats.suspended ?? 0)} accent="var(--semi-color-warning)" onClick={() => handleStatCardClick('suspended')} active={draftParams.status === 'suspended'} />
         <StatCard title="已退回" value={statValue(stats.returned ?? 0)} accent="var(--semi-color-warning)" onClick={() => handleStatCardClick('returned')} active={draftParams.status === 'returned'} />

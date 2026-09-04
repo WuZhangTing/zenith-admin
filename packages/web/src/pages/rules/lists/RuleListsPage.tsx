@@ -26,7 +26,7 @@ import {
   useSaveRuleListItem,
 } from '@/hooks/queries/rules';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 
@@ -182,7 +182,12 @@ export default function RuleListsPage() {
         primary={(
           <>
             <KeywordInput placeholder="搜索名称" value={draftKeyword} onChange={setDraftKeyword} onSearch={() => { setPage(1); setSubmittedKeyword(draftKeyword); setSubmittedType(draftType); void queryClient.invalidateQueries({ queryKey: ruleKeys.ruleLists.lists }); }} width={200} />
-            <Select placeholder="类型" value={draftType} onChange={(v) => setDraftType(v as string | undefined)} optionList={TYPE_OPTIONS} showClear style={{ width: 120 }} />
+            <FilterSelect
+              placeholder="全部类型"
+              items={TYPE_OPTIONS}
+              value={draftType}
+              onChange={(v) => setDraftType(v as string | undefined)}
+            />
             <SearchButton onClick={() => { setPage(1); setSubmittedKeyword(draftKeyword); setSubmittedType(draftType); void queryClient.invalidateQueries({ queryKey: ruleKeys.ruleLists.lists }); }} />
             <ResetButton onClick={() => { setDraftKeyword(''); setSubmittedKeyword(''); setDraftType(undefined); setSubmittedType(undefined); setPage(1); void queryClient.invalidateQueries({ queryKey: ruleKeys.ruleLists.lists }); }} />
             {canCreate && <CreateButton onClick={modal.openCreate} />}

@@ -32,6 +32,7 @@
 | 防抖 / 节流 | `@tanstack/react-pacer`：值防抖 `useDebouncedValue`，回调防抖 `useDebouncedCallback`（需手动 `cancel` / `flush` 时用 `useDebouncer`），节流 `useThrottledCallback`；`useEffect` 内等非 hook 上下文用 `Debouncer` / `Throttler` 类 | `setTimeout` + `clearTimeout` 手写防抖、`Date.now()` 差值手写节流、timer ref + 卸载清理样板 | 各处 wait / 边沿语义不一致；漏写卸载清理导致组件卸载后仍 setState / 发请求 |
 | 复制 / 读取剪贴板 | `utils/clipboard.ts` 的 `copyText` / `copyTextWithToast` / `readClipboardText` / `canWriteClipboardItems` | 裸调 `navigator.clipboard.writeText` / `readText`（ESLint 已封禁）、自写 textarea + `execCommand` | 内网 `http://ip` 访问不是安全上下文，`navigator.clipboard` 为 undefined，点复制直接 TypeError |
 | 带鉴权的非 JSON 请求（流式 / SSE / 二进制 / 第三方上传组件） | `request.fetchRaw(url, init)` 拿原生 Response；纯文本流 `streamText`、SSE 流 `readSseStream`（`utils/streaming.ts`）；二进制 `request.getBlob(url, init?)` / `request.download`；Semi `Upload` / wangEditor 等组件的 `headers` 传 `request.authHeaders()` | 裸 `fetch` + `localStorage.getItem(TOKEN_KEY)` 手拼 `Authorization`、自写 `getReader()` 循环与 `event:` / `data:` 帧解析 | token 过期不刷新直接 401、失败没有统一提示、Demo 模式拦不住；SSE 帧被拆到两个 chunk 时事件丢失 |
+| 列表页枚举筛选下拉 | `components/search-filters.tsx` 的 `FilterSelect`（占位「全部 X」）/ `StatusSelect`；选项用 shared `XXX_OPTIONS` 或字典项 | `<Select showClear style={{ width }} optionList>` 手写、`{ value: '', label: '全部' }` 哨兵选项、「请选择 X」占位、`Object.entries(XXX_LABELS).map(...)` | 同一后台出现「选回全部」「点 ✕ 清除」两套交互，宽度 100–160 参差；哨兵 `''` 混进状态类型，清空与未选语义不一致 |
 | 树形数据转换 | `@zenith/shared/core` 的 `buildTree`（平铺 → 树）与 `mapTree`（树 → Semi `TreeNodeData` 等形态）；CMS 栏目选择树用 `pages/cms/channel-tree.ts` 的 `channelsToTree` / `channelsToSelectTree` | 手写 `Map` + `parent.children.push` 挂接、`nodes.map((n) => ({ ..., children: n.children ? fn(n.children) : undefined }))` 递归 | 各处对孤儿节点 / 空 children 的处理不一致，禁用规则（仅列表型栏目可选）漏抄 |
 
 各症状的完整诊断见 [troubleshooting.md](./troubleshooting.md)。
@@ -84,10 +85,16 @@
 - **搜索栏布局**：统一用 `components/SearchToolbar.tsx`。筛选 / 操作较多时必须使用结构化模式
   （`primary` / `filters` / `actions`，必要时 `mobilePrimary` / `mobileFilters` / `mobileActions` 覆盖移动端）；
   移动端至少露出一个高频搜索 / 筛选项（优先关键词）、查询与新增，其余筛选进底部抽屉、低频操作进更多菜单
-- **筛选控件**：关键字 / 状态 / 时间范围统一用 `components/search-filters.tsx` 的
-  `KeywordInput` / `StatusSelect` / `DateRangeFilter`，**禁止**手写 `prefix={<Search size={14} />}`、
+- **筛选控件**：关键字 / 枚举 / 状态 / 时间范围统一用 `components/search-filters.tsx` 的
+  `KeywordInput` / `FilterSelect` / `StatusSelect` / `DateRangeFilter`，**禁止**手写 `prefix={<Search size={14} />}`、
   `showClear`、`style={{ width: N }}` 这类装饰性属性；业务属性仍显式传入。
   **例外**：面板 / 弹窗内需跟随容器自适应的搜索框（如 `NavListPanel` 的 List header）不套用
+- **枚举筛选下拉**：列表页搜索栏（含 Tab / 抽屉 / 展开行内的子列表）里的单选枚举筛选一律 `FilterSelect`，
+  状态用 `StatusSelect`；占位必须是「全部 X」（描述空值含义），**禁止**「请选择 X」或裸「X」，**禁止**在选项里放
+  `{ value: '', label: '全部' }` 之类哨兵项；空值即 `undefined`（`SearchParams` 字段声明为可选、`defaults` 写 `undefined`），
+  宽度用默认 120，只在占位或选项文案放不下时传 `width`。多选筛选与没有「全部」语义的必选下拉（视图切换、所属应用）用原生 `Select`
+- **枚举选项**：下拉 / 单选组的选项用 shared 各域导出的 `XXX_OPTIONS`（由 `createLabelOptionsFromMap(XXX_LABELS)` 派生），
+  **禁止**在页面里 `Object.entries(XXX_LABELS).map(([value, label]) => ({ value, label }))`；页面本地标签表同样经 `createLabelOptionsFromMap` 派生
 - **公共按钮**：查询 / 重置 / 新增 / 刷新统一用 `components/toolbar-controls.tsx` 的
   `SearchButton` / `ResetButton` / `CreateButton` / `RefreshButton`，文案不同时用 children 覆盖。
   **例外**：仅复用同一图标的独立操作（「测试发送」「生成链接」）及视觉本就不同的写法保持原生 `Button`

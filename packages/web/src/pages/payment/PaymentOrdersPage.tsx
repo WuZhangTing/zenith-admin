@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatYuan, getPaymentQrInstruction, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banner, Button, Col, Divider, Form, Input, InputNumber, Row, Select, SideSheet, Tabs, TabPane, Toast, Tag, Timeline, Typography, Modal, Descriptions } from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Divider, Form, Input, InputNumber, Row, SideSheet, Tabs, TabPane, Toast, Tag, Timeline, Typography, Modal, Descriptions } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -33,7 +33,7 @@ import {
 import { usePaymentStats } from '@/hooks/queries/payment-stats';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { compactQuery } from '@/lib/query';
 import { copyableNoColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
@@ -59,15 +59,15 @@ function paymentAppConfigId(app: PaymentApp, channel: PaymentChannel): number | 
 
 interface SearchParams {
   keyword: string;
-  channel: string;
-  status: string;
-  payMethod: string;
+  channel?: string;
+  status?: string;
+  payMethod?: string;
   bizType: string;
   minAmount: number | null;
   maxAmount: number | null;
   timeRange: [Date, Date] | null;
 }
-const defaultSearch: SearchParams = { keyword: '', channel: '', status: '', payMethod: '', bizType: '', minAmount: null, maxAmount: null, timeRange: null };
+const defaultSearch: SearchParams = { keyword: '', channel: undefined, status: undefined, payMethod: undefined, bizType: '', minAmount: null, maxAmount: null, timeRange: null };
 interface ManualOrderFormValues { applicationId: number; subject: string; amount: number; bizType: string; bizId: string; payMethod: PaymentMethod; openId?: string; }
 interface ManualOrderRecord { id: number; orderNo: string; payParams: CreatePaymentResult; payMethod: PaymentMethod; }
 interface RefundFormValues { amountYuan: number; reason?: string; }
@@ -383,24 +383,21 @@ export default function PaymentOrdersPage() {
   );
 
   const renderChannelFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部渠道"
-      value={draftParams.channel || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, channel: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 110 }}
-      optionList={PAYMENT_CHANNEL_OPTIONS}
+      items={PAYMENT_CHANNEL_OPTIONS}
+      value={draftParams.channel}
+      onChange={(v) => setDraftParams((p) => ({ ...p, channel: v }))}
     />
   );
 
   const renderPayMethodFilter = () => (
-    <Select
-      placeholder="支付方式"
-      value={draftParams.payMethod || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, payMethod: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 130 }}
-      optionList={PAYMENT_METHOD_OPTIONS}
+    <FilterSelect
+      placeholder="全部支付方式"
+      items={PAYMENT_METHOD_OPTIONS}
+      value={draftParams.payMethod}
+      onChange={(v) => setDraftParams((p) => ({ ...p, payMethod: v }))}
+      width={140}
     />
   );
 
@@ -409,7 +406,6 @@ export default function PaymentOrdersPage() {
       items={PAYMENT_ORDER_STATUS_OPTIONS}
       value={draftParams.status}
       onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
-      width={110}
     />
   );
 

@@ -26,7 +26,7 @@ import type { CmsSearchResult, CmsSearchWord, CmsHotKeyword } from '@zenith/shar
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { formatDateTimeForApi } from '@/utils/date';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn, renderEnabledStatusTag } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -217,11 +217,19 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={(value) => { onSiteChange(value); setPage(1); setSelectedIds([]); }} width={180} />
         <KeywordInput placeholder="搜索词条..." value={draftParams.keyword} onChange={(v) => setDraftParams({ keyword: v })} onSearch={handleSearch} width={200} />
-        <Select placeholder="词典类型" showClear value={type} onChange={(value) => { setType(value as 'extension' | 'stop' | undefined); setSelectedIds([]); }} style={{ width: 120 }}
-          optionList={CMS_SEARCH_WORD_TYPES.map((value) => ({ value, label: CMS_SEARCH_WORD_TYPE_LABELS[value] }))} />
+        <FilterSelect
+          placeholder="全部词典类型"
+          items={CMS_SEARCH_WORD_TYPES.map((value) => ({ value, label: CMS_SEARCH_WORD_TYPE_LABELS[value] }))}
+          value={type}
+          onChange={(value) => { setType(value as 'extension' | 'stop' | undefined); setSelectedIds([]); }}
+          width={140}
+        />
         <Input placeholder="分组" value={groupName} onChange={(value) => { setGroupName(value); setSelectedIds([]); }} style={{ width: 130 }} />
-        <Select placeholder="状态" showClear value={status} onChange={(value) => { setStatus(value as string | undefined); setSelectedIds([]); }} style={{ width: 110 }}
-          optionList={COMMON_STATUS_OPTIONS} />
+        <StatusSelect
+          items={COMMON_STATUS_OPTIONS}
+          value={status}
+          onChange={(value) => { setStatus(value as string | undefined); setSelectedIds([]); }}
+        />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={() => { handleReset(); setType(undefined); setGroupName(''); setStatus(undefined); setSelectedIds([]); }} />
         {canManage ? <CreateButton onClick={modal.openCreate}>新增词条</CreateButton> : null}
@@ -348,8 +356,13 @@ function HotKeywordsTab({ siteId, onSiteChange }: Readonly<{ siteId: number | un
       <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="统计前台搜索框的关键词频次（Redis 累计），可用于运营选题与内链词建设。" />
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={onSiteChange} width={180} />
-        <Select placeholder="热词分组" showClear value={groupId} onChange={(value) => setGroupId(value as number | undefined)} style={{ width: 150 }}
-          optionList={(groupsQuery.data ?? []).map((group) => ({ value: group.id, label: group.name }))} />
+        <FilterSelect
+          placeholder="全部热词分组"
+          items={(groupsQuery.data ?? []).map((group) => ({ value: group.id, label: group.name }))}
+          value={groupId}
+          onChange={(value) => setGroupId(value as number | undefined)}
+          width={150}
+        />
         <Input placeholder="关键词" value={keyword} onChange={setKeyword} showClear style={{ width: 150 }} />
         <DatePicker type="dateTime" value={startTime} onChange={(value) => setStartTime(value as Date | undefined)} placeholder="开始时间" />
         <DatePicker type="dateTime" value={endTime} onChange={(value) => setEndTime(value as Date | undefined)} placeholder="结束时间" />

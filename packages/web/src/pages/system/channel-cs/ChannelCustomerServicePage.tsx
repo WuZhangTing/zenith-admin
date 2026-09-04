@@ -30,11 +30,12 @@ import {
   useReplyChannelConversation,
   useResolveChannelConversation,
 } from '@/hooks/queries/channel-cs';
+import { FilterSelect, StatusSelect } from '@/components/search-filters';
 
 const { Text } = Typography;
 
-type StatusFilter = 'all' | ChannelConversationStatus;
-type AssigneeFilter = 'all' | 'mine' | 'unassigned';
+type StatusFilter = ChannelConversationStatus | undefined;
+type AssigneeFilter = 'mine' | 'unassigned' | undefined;
 
 const STATUS_TAG_COLOR: Record<ChannelConversationStatus, 'orange' | 'blue' | 'green'> = {
   open: 'orange',
@@ -54,8 +55,8 @@ export default function ChannelCustomerServicePage() {
   const [activeUserId, setActiveUserId] = useState<number | null>(null);
   const [reply, setReply] = useState('');
   const [manageVisible, setManageVisible] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>();
+  const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>();
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const [tagModalVisible, setTagModalVisible] = useState(false);
@@ -70,8 +71,8 @@ export default function ChannelCustomerServicePage() {
   const agentsQuery = useChannelCsAgents();
   const agents = agentsQuery.data ?? EMPTY_AGENTS;
   const conversationParams = useMemo(() => ({
-    status: statusFilter === 'all' ? undefined : statusFilter,
-    assignee: assigneeFilter === 'all' ? undefined : assigneeFilter,
+    status: statusFilter,
+    assignee: assigneeFilter,
     keyword: keyword || undefined,
   }), [assigneeFilter, keyword, statusFilter]);
   const conversationsQuery = useChannelConversations(channelId ?? undefined, conversationParams, channelId != null);
@@ -236,26 +237,25 @@ export default function ChannelCustomerServicePage() {
                 onClear={() => { setKeywordInput(''); setKeyword(''); }}
               />
               <div style={{ display: 'flex', gap: 8 }}>
-                <Select
-                  value={statusFilter}
-                  onChange={(v) => setStatusFilter(v as StatusFilter)}
-                  style={{ flex: 1 }}
-                  optionList={[
-                    { label: '全部状态', value: 'all' },
+                <StatusSelect
+                  items={[
                     { label: CHANNEL_CONVERSATION_STATUS_LABELS.open, value: 'open' },
                     { label: CHANNEL_CONVERSATION_STATUS_LABELS.processing, value: 'processing' },
                     { label: CHANNEL_CONVERSATION_STATUS_LABELS.resolved, value: 'resolved' },
                   ]}
-                />
-                <Select
-                  value={assigneeFilter}
-                  onChange={(v) => setAssigneeFilter(v as AssigneeFilter)}
+                  value={statusFilter}
+                  onChange={setStatusFilter}
                   style={{ flex: 1 }}
-                  optionList={[
-                    { label: '全部归属', value: 'all' },
+                />
+                <FilterSelect
+                  placeholder="全部归属"
+                  items={[
                     { label: '我的', value: 'mine' },
                     { label: '未分配', value: 'unassigned' },
                   ]}
+                  value={assigneeFilter}
+                  onChange={setAssigneeFilter}
+                  style={{ flex: 1 }}
                 />
               </div>
             </div>

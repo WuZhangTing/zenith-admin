@@ -28,7 +28,7 @@ import { useSmsTemplateList } from '@/hooks/queries/sms-templates';
 import type { AnalyticsSegmentAttributeCondition, AnalyticsSegmentCompareOp, AnalyticsSegmentCondition, AnalyticsSegmentEventCondition, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSegmentPropertyFilter, AnalyticsUserSegment } from '@zenith/shared/analytics';
 import { ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS, ANALYTICS_CAMPAIGN_CHANNEL_OPTIONS, ANALYTICS_CAMPAIGN_STATUS_LABELS, ANALYTICS_IDENTITY_TYPE_OPTIONS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS } from '@zenith/shared/analytics';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 
@@ -37,9 +37,9 @@ const MAX_CONDITIONS = 10;
 
 interface SegmentFilter {
   keyword: string;
-  status: 'enabled' | 'disabled' | '';
+  status?: 'enabled' | 'disabled';
 }
-const defaultFilter: SegmentFilter = { keyword: '', status: '' };
+const defaultFilter: SegmentFilter = { keyword: '', status: undefined };
 
 interface PropertyFilterDraft {
   id: string;
@@ -413,13 +413,10 @@ export default function AnalyticsSegmentsTab() {
     <div>
       <SearchToolbar>
         <KeywordInput placeholder="分群名称" value={filter.keyword} onChange={(value) => setFilter((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} width={200} />
-        <Select
-          placeholder="状态"
-          value={filter.status || undefined}
-          onChange={(value) => setFilter((prev) => ({ ...prev, status: (value as SegmentFilter['status']) ?? '' }))}
-          optionList={ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS}
-          showClear
-          style={{ width: 130 }}
+        <StatusSelect
+          items={ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS}
+          value={filter.status}
+          onChange={(value) => setFilter((prev) => ({ ...prev, status: value as SegmentFilter['status'] | undefined }))}
         />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />

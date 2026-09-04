@@ -4,7 +4,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { DateRangeFilter, StatusSelect } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, StatusSelect } from '@/components/search-filters';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
@@ -24,12 +24,12 @@ import {
 } from '@zenith/shared/identity';
 
 interface SearchParams {
-  sourceId: string;
-  status: string;
+  sourceId?: string;
+  status?: string;
   timeRange: [Date, Date] | null;
 }
 
-const defaultSearchParams: SearchParams = { sourceId: '', status: '', timeRange: null };
+const defaultSearchParams: SearchParams = { sourceId: undefined, status: undefined, timeRange: null };
 
 const RUN_STATUS_TAG_COLOR: Record<string, 'green' | 'red' | 'orange' | 'blue' | 'grey'> = {
   success: 'green',
@@ -94,7 +94,7 @@ export default function DirectorySyncLogsPage() {
 
   // ─── 差异明细抽屉 ─────────────────────────────────────────────────────────
   const [detailRun, setDetailRun] = useState<DirectorySyncRun | null>(null);
-  const [itemAction, setItemAction] = useState('');
+  const [itemAction, setItemAction] = useState<string | undefined>();
   const itemsPagination = usePagination(20);
   const itemsQuery = useDirectorySyncRunItems(
     detailRun?.id,
@@ -178,7 +178,7 @@ export default function DirectorySyncLogsPage() {
   ];
 
   const renderSourceFilter = () => (
-    <StatusSelect
+    <FilterSelect
       placeholder="全部同步源"
       width={160}
       items={sourceItems}
@@ -251,7 +251,7 @@ export default function DirectorySyncLogsPage() {
               <Typography.Text type="tertiary">{detailRun.message ?? ''}</Typography.Text>
             </div>
             <div style={{ marginBottom: 12 }}>
-              <StatusSelect
+              <FilterSelect
                 placeholder="全部动作"
                 items={DIRECTORY_SYNC_ITEM_ACTIONS.map((a) => ({ value: a, label: DIRECTORY_SYNC_ITEM_ACTION_LABELS[a] }))}
                 value={itemAction}

@@ -110,7 +110,7 @@ export default function CouponRecordsPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <KeywordInput placeholder="会员ID/昵称" value={draftParams.memberKeyword} onChange={(v) => setDraftParams((p) => ({ ...p, memberKeyword: v || undefined }))} onSearch={handleSearch} width={180} />
+    <KeywordInput placeholder="会员ID/昵称" value={draftParams.memberKeyword} onChange={(v) => setDraftParams((p) => ({ ...p, memberKeyword: v }))} onSearch={handleSearch} width={180} />
   );
 
   const renderCouponIdFilter = () => (
@@ -119,7 +119,7 @@ export default function CouponRecordsPage() {
       value={draftParams.couponId}
       min={1}
       style={{ width: 120 }}
-      onChange={(v) => setDraftParams((p) => ({ ...p, couponId: (v as number) || undefined }))}
+      onChange={(v) => setDraftParams((p) => ({ ...p, couponId: v as number | undefined }))}
     />
   );
 
@@ -127,8 +127,7 @@ export default function CouponRecordsPage() {
     <StatusSelect
       items={statusOptions}
       value={draftParams.status}
-      onChange={(v) => setDraftParams((p) => ({ ...p, status: v || undefined }))}
-      width={130}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
     />
   );
 

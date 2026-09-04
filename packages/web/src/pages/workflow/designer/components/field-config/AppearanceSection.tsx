@@ -64,7 +64,7 @@ export function AppearanceSection({ field, flags, onChange }: Readonly<Appearanc
                 <Typography.Text strong size="small">标签位置</Typography.Text>
                 <Select
                   value={field.labelPosition ?? ''}
-                  onChange={(v) => onChange({ labelPosition: (v as 'top' | 'left' | 'inset') || undefined })}
+                  onChange={(v) => onChange({ labelPosition: v as 'top' | 'left' | 'inset' | undefined })}
                   placeholder="跟随表单设置"
                   style={{ width: '100%' }}
                   showClear
@@ -75,7 +75,7 @@ export function AppearanceSection({ field, flags, onChange }: Readonly<Appearanc
                 <Typography.Text strong size="small">标签对齐</Typography.Text>
                 <Select
                   value={field.labelAlign ?? ''}
-                  onChange={(v) => onChange({ labelAlign: (v as 'left' | 'right') || undefined })}
+                  onChange={(v) => onChange({ labelAlign: v as 'left' | 'right' | undefined })}
                   placeholder="跟随表单设置"
                   style={{ width: '100%' }}
                   showClear

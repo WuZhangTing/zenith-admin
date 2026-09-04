@@ -562,7 +562,7 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
           description="导入将全量替换当前产品的属性、服务与事件定义，请先导出备份。" />
         <TextArea
           rows={12} placeholder='粘贴 TSL JSON：{"properties":[...],"services":[...],"events":[...]}'
-          value={importText} onChange={(v) => setImportText(v)}
+          value={importText} onChange={setImportText}
         />
       </AppModal>
     </SideSheet>

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Button, Select, Form, Toast, Tag, Banner } from '@douyinfe/semi-ui';
+import { Button, Form, Toast, Tag, Banner } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { WalletCards, Undo2 } from 'lucide-react';
@@ -21,7 +21,7 @@ import {
   useRefundMemberWallet,
 } from '@/hooks/queries/member-admin';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
 
 const typeOptions = (Object.keys(WALLET_TX_TYPE_LABELS) as (keyof typeof WALLET_TX_TYPE_LABELS)[]).map((v) => ({ value: v, label: WALLET_TX_TYPE_LABELS[v] }));
@@ -75,17 +75,15 @@ export default function MemberWalletPage() {
   ];
 
   const renderKeywordSearch = () => (
-    <KeywordInput placeholder="会员ID/昵称" value={draftParams.memberKeyword} onChange={(v) => setDraftParams((p) => ({ ...p, memberKeyword: v || undefined }))} onSearch={handleSearch} width={180} />
+    <KeywordInput placeholder="会员ID/昵称" value={draftParams.memberKeyword} onChange={(v) => setDraftParams((p) => ({ ...p, memberKeyword: v }))} onSearch={handleSearch} width={180} />
   );
 
   const renderTypeFilter = () => (
-    <Select
+    <FilterSelect
       placeholder="全部类型"
+      items={typeOptions}
       value={draftParams.type}
-      style={{ width: 130 }}
-      showClear
       onChange={(v) => setDraftParams((p) => ({ ...p, type: v as string | undefined }))}
-      optionList={typeOptions}
     />
   );
 

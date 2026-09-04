@@ -24,7 +24,7 @@ import {
   useSaveMpAutoReply,
 } from '@/hooks/queries/mp-auto-replies';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 
@@ -204,13 +204,12 @@ export default function MpAutoRepliesPage() {
     <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />
   );
   const renderTypeFilter = () => (
-    <Select
-      placeholder="回复类型"
+    <FilterSelect
+      placeholder="全部回复类型"
+      items={REPLY_TYPE_OPTIONS}
       value={draftParams.filterType}
       onChange={(v) => setDraftParams({ ...draftParams, filterType: v as MpAutoReplyType | undefined })}
-      optionList={REPLY_TYPE_OPTIONS}
-      showClear
-      style={{ width: 140 }}
+      width={140}
     />
   );
   const renderKeywordInput = () => (

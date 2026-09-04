@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Form, JsonViewer, Select, Spin, Toast } from '@douyinfe/semi-ui';
+import { Form, JsonViewer, Spin, Toast } from '@douyinfe/semi-ui';
 import type { SystemConfig } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import DictTag from '@/components/DictTag';
@@ -21,16 +21,16 @@ import {
   useSystemConfigList,
 } from '@/hooks/queries/system-configs';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { FilterSelect, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 
 interface SearchParams {
   keyword: string;
-  configType: string;
+  configType?: string;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', configType: '' };
+const defaultSearchParams: SearchParams = { keyword: '', configType: undefined };
 
 /** JSON 文本美化；解析失败时原样返回，避免用户输入被吞掉 */
 function prettyJson(raw: string): string {
@@ -134,10 +134,6 @@ export default function SystemConfigsPage() {
     Toast.success('删除成功');
   };
 
-  const configTypeFilterOptions = [
-    { value: '', label: '全部类型' },
-    ...configTypeItems.map((item) => ({ value: item.value, label: item.label })),
-  ];
   const buildExportQuery = () => ({
     ...(submittedParams.keyword ? { keyword: submittedParams.keyword } : {}),
     ...(submittedParams.configType ? { configType: submittedParams.configType } : {}),
@@ -188,12 +184,12 @@ export default function SystemConfigsPage() {
         primary={(
           <>
           <KeywordInput placeholder="搜索配置键/名称/描述" value={draftParams.keyword} onChange={(value) => setDraftParams((p) => ({ ...p, keyword: value }))} onSearch={handleSearch} width={240} />
-          <Select
-            placeholder="配置类型"
-            value={draftParams.configType || undefined}
-            onChange={(v) => setDraftParams((p) => ({ ...p, configType: (v as string) ?? '' }))}
-            style={{ width: 140 }}
-            optionList={configTypeFilterOptions}
+          <FilterSelect
+            placeholder="全部配置类型"
+            items={configTypeItems}
+            value={draftParams.configType}
+            onChange={(v) => setDraftParams((p) => ({ ...p, configType: v }))}
+            width={140}
             loading={configTypeLoading}
           />
           <SearchButton onClick={handleSearch} />
@@ -218,12 +214,12 @@ export default function SystemConfigsPage() {
           </>
         )}
         mobileFilters={(
-          <Select
-            placeholder="配置类型"
-            value={draftParams.configType || undefined}
-            onChange={(v) => setDraftParams((p) => ({ ...p, configType: (v as string) ?? '' }))}
-            style={{ width: 140 }}
-            optionList={configTypeFilterOptions}
+          <FilterSelect
+            placeholder="全部配置类型"
+            items={configTypeItems}
+            value={draftParams.configType}
+            onChange={(v) => setDraftParams((p) => ({ ...p, configType: v }))}
+            width={140}
             loading={configTypeLoading}
           />
         )}

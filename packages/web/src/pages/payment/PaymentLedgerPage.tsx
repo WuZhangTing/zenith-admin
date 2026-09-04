@@ -1,19 +1,5 @@
 import { useMemo, useState, type CSSProperties } from 'react';
-import {
-  ArrayField,
-  Banner,
-  Button,
-  Descriptions,
-  Form,
-  Modal,
-  Select,
-  SideSheet,
-  TabPane,
-  Tabs,
-  Tag,
-  TextArea,
-  Toast,
-} from '@douyinfe/semi-ui';
+import { ArrayField, Banner, Button, Descriptions, Form, Modal, SideSheet, TabPane, Tabs, Tag, TextArea, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw, Trash2 } from 'lucide-react';
 import type {
@@ -40,7 +26,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
+import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -98,21 +84,21 @@ interface AccountSearchParams {
   keyword: string;
   appId?: number;
   channelConfigId?: number;
-  currency: string;
-  status: string;
+  currency?: string;
+  status?: string;
 }
 
 interface JournalSearchParams {
   sourceType: string;
   appId?: number;
   channelConfigId?: number;
-  currency: string;
+  currency?: string;
   timeRange: [Date, Date] | null;
 }
 
 interface ReservationSearchParams {
   accountId?: number;
-  status: string;
+  status?: string;
   sourceType: string;
   timeRange: [Date, Date] | null;
 }
@@ -154,7 +140,7 @@ interface ReservationFormValues {
 interface JournalScope {
   appId?: number;
   channelConfigId?: number;
-  currency?: string;
+  currency: string;
 }
 
 function JournalLinesField({ accountOptions }: Readonly<{ accountOptions: Array<{ value: number; label: string }> }>) {
@@ -248,15 +234,15 @@ export default function PaymentLedgerPage() {
   const merchantNameById = useMemo(() => new Map(merchants.map((merchant) => [merchant.id, merchant.name])), [merchants]);
 
   const accountSearch = useListSearch<AccountSearchParams>({
-    defaults: { keyword: '', currency: '', status: '' },
+    defaults: { keyword: '', currency: undefined, status: undefined },
     listKey: paymentLedgerAccountKeys.lists,
   });
   const journalSearch = useListSearch<JournalSearchParams>({
-    defaults: { sourceType: '', currency: '', timeRange: null },
+    defaults: { sourceType: '', currency: undefined, timeRange: null },
     listKey: paymentJournalKeys.lists,
   });
   const reservationSearch = useListSearch<ReservationSearchParams>({
-    defaults: { status: '', sourceType: '', timeRange: null },
+    defaults: { status: undefined, sourceType: '', timeRange: null },
     listKey: paymentFundReservationKeys.lists,
   });
 
@@ -575,13 +561,25 @@ export default function PaymentLedgerPage() {
   ];
 
   const appFilter = (value: number | undefined, onChange: (value: number | undefined) => void) => (
-    <Select placeholder="全部应用" value={value} onChange={(next) => onChange(next as number | undefined)} optionList={appOptions} showClear style={{ width: 150 }} />
+    <FilterSelect
+      placeholder="全部应用"
+      items={appOptions}
+      value={value}
+      onChange={(next) => onChange(next as number | undefined)}
+      width={150}
+    />
   );
   const merchantFilter = (value: number | undefined, onChange: (value: number | undefined) => void) => (
-    <Select placeholder="全部商户配置" value={value} onChange={(next) => onChange(next as number | undefined)} optionList={merchantOptions} showClear style={{ width: 170 }} />
+    <FilterSelect
+      placeholder="全部商户配置"
+      items={merchantOptions}
+      value={value}
+      onChange={(next) => onChange(next as number | undefined)}
+      width={170}
+    />
   );
-  const currencyFilter = (value: string, onChange: (value: string) => void) => (
-    <Select placeholder="全部币种" value={value || undefined} onChange={(next) => onChange((next as string) ?? '')} optionList={CURRENCY_OPTIONS} showClear style={{ width: 130 }} />
+  const currencyFilter = (value: string | undefined, onChange: (value: string | undefined) => void) => (
+    <FilterSelect placeholder="全部币种" items={CURRENCY_OPTIONS} value={value} onChange={onChange} />
   );
 
   return (
@@ -674,7 +672,14 @@ export default function PaymentLedgerPage() {
           <SearchToolbar
             primary={(
               <>
-                <Select placeholder="全部账户" value={reservationSearch.draftParams.accountId} onChange={(accountId) => reservationSearch.setDraftParams((prev) => ({ ...prev, accountId: accountId as number | undefined }))} optionList={accountOptions} filter showClear style={{ width: 180 }} />
+                <FilterSelect
+                  placeholder="全部账户"
+                  items={accountOptions}
+                  value={reservationSearch.draftParams.accountId}
+                  onChange={(accountId) => reservationSearch.setDraftParams((prev) => ({ ...prev, accountId: accountId as number | undefined }))}
+                  width={180}
+                  filter
+                />
                 <StatusSelect items={RESERVATION_STATUS_ITEMS} value={reservationSearch.draftParams.status} onChange={(status) => reservationSearch.setDraftParams((prev) => ({ ...prev, status }))} />
                 <KeywordInput placeholder="来源类型" value={reservationSearch.draftParams.sourceType} onChange={(sourceType) => reservationSearch.setDraftParams((prev) => ({ ...prev, sourceType }))} onSearch={reservationSearch.handleSearch} />
                 <DateRangeFilter value={reservationSearch.draftParams.timeRange} onChange={(timeRange) => reservationSearch.setDraftParams((prev) => ({ ...prev, timeRange }))} width={330} />
@@ -692,7 +697,14 @@ export default function PaymentLedgerPage() {
             )}
             mobileFilters={(
               <>
-                <Select placeholder="全部账户" value={reservationSearch.draftParams.accountId} onChange={(accountId) => reservationSearch.setDraftParams((prev) => ({ ...prev, accountId: accountId as number | undefined }))} optionList={accountOptions} filter showClear style={{ width: 180 }} />
+                <FilterSelect
+                  placeholder="全部账户"
+                  items={accountOptions}
+                  value={reservationSearch.draftParams.accountId}
+                  onChange={(accountId) => reservationSearch.setDraftParams((prev) => ({ ...prev, accountId: accountId as number | undefined }))}
+                  width={180}
+                  filter
+                />
                 <StatusSelect items={RESERVATION_STATUS_ITEMS} value={reservationSearch.draftParams.status} onChange={(status) => reservationSearch.setDraftParams((prev) => ({ ...prev, status }))} />
                 <DateRangeFilter value={reservationSearch.draftParams.timeRange} onChange={(timeRange) => reservationSearch.setDraftParams((prev) => ({ ...prev, timeRange }))} />
               </>
