@@ -1,16 +1,17 @@
-import { eq, desc, and, type SQL } from 'drizzle-orm';
+import { eq, desc, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { cmsPushLogs, cmsSites, cmsContents, cmsChannels } from '../../db/schema';
+import { cmsPushLogs } from '../../db/schema';
 import type { CmsSiteRow, CmsPushLogRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
 import { buildWhere, withPagination } from '../../lib/where-helpers';
 import { httpPost } from '../../lib/http-client';
 import logger from '../../lib/logger';
 import { assertSiteAccess } from './cms-sites.service';
-import { siteOrigin, contentUrl } from './cms-render.service';
+import { siteOrigin } from './cms-render.service';
 import { ensureCmsSiteExists } from './cms-sites.service';
 import { assertAllCmsSiteChannelsAccess } from './cms-channels.service';
+import { loadPublishedContentTarget } from './cms-published-content-target';
 
 export type CmsPushEngine = 'baidu' | 'indexnow';
 
@@ -128,30 +129,11 @@ export async function pushCmsUrls(siteId: number, urls: string[], engines?: CmsP
 /** 内容发布后自动推送（未配置引擎时静默跳过；路由 fire-and-forget 调用） */
 export function triggerAutoPushForContent(contentId: number): void {
   void (async () => {
-    const [row] = await db.select({
-      content: cmsContents,
-      channelPath: cmsChannels.path,
-      channelDetailPathRule: cmsChannels.detailPathRule,
-      site: cmsSites,
-    })
-      .from(cmsContents)
-      .innerJoin(cmsChannels, and(
-        eq(cmsContents.channelId, cmsChannels.id),
-      ))
-      .innerJoin(cmsSites, and(
-        eq(cmsContents.siteId, cmsSites.id),
-      ))
-      .where(eq(cmsContents.id, contentId))
-      .limit(1);
-    if (!row || row.content.status !== 'published' || row.content.externalLink?.trim()) return;
-    const cfg = getSitePushConfig(row.site);
+    const target = await loadPublishedContentTarget(contentId);
+    if (!target) return;
+    const cfg = getSitePushConfig(target.site);
     if (!cfg.baiduPushToken && !cfg.indexNowKey) return;
-    if (!siteOrigin(row.site)) return;
-    await pushCmsUrlsForSite(row.site, [contentUrl(
-      '',
-      { path: row.channelPath, detailPathRule: row.channelDetailPathRule },
-      row.content,
-    )]);
+    await pushCmsUrlsForSite(target.site, [target.path]);
   })().catch((err) => {
     logger.error(`[CMS] 内容 ${contentId} 自动推送失败`, err);
   });
