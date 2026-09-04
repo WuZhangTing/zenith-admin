@@ -24,6 +24,7 @@ import { assertCmsWidgetChannelVisibilityMutable, assertCmsWidgetSourcesMutable 
 import { submitCmsWidgetChannelRefreshSideEffect, submitCmsWidgetSourceRefreshSideEffect } from './cms-widget-tasks';
 import { sanitizeCmsHtml } from './cms-html-sanitizer';
 import { resolveEffectivelyEnabledChannelIds } from './cms-channel-visibility.service';
+import { buildTree } from '@zenith/shared/core';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCmsChannel(row: CmsChannelRow, modelName?: string | null): CmsChannel {
@@ -58,26 +59,9 @@ export function mapCmsChannel(row: CmsChannelRow, modelName?: string | null): Cm
   };
 }
 
-/** 平铺列表 → 树（children 按 sort 排序） */
+/** 平铺列表 → 树（保持入参的 sort 顺序） */
 export function buildChannelTree(list: CmsChannel[]): CmsChannel[] {
-  const map = new Map<number, CmsChannel>();
-  const roots: CmsChannel[] = [];
-  for (const item of list) map.set(item.id, { ...item, children: [] });
-  for (const item of map.values()) {
-    if (item.parentId && map.has(item.parentId)) {
-      map.get(item.parentId)!.children!.push(item);
-    } else {
-      roots.push(item);
-    }
-  }
-  const prune = (nodes: CmsChannel[]) => {
-    for (const n of nodes) {
-      if (n.children && n.children.length > 0) prune(n.children);
-      else delete n.children;
-    }
-  };
-  prune(roots);
-  return roots;
+  return buildTree(list);
 }
 
 /** Sanitize the only HTML-bearing channel field before it reaches persistence. */

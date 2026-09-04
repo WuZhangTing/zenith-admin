@@ -18,6 +18,7 @@ import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime } from '../../lib/datetime';
 import { reportCreateTenantId, reportScopedWhere, reportTenantScope } from './report-access';
 import { defaultReportOwnerId, ensureReportOwner } from './report-resource.service';
+import { buildTree } from '@zenith/shared/core';
 
 type FolderRow = typeof reportFolders.$inferSelect & {
   owner?: { nickname: string | null; username: string } | null;
@@ -109,17 +110,10 @@ export async function listReportFolderTree(resourceType?: ReportResourceType): P
     orderBy: [asc(reportFolders.sort), asc(reportFolders.id)],
   });
   const resourceCounts = await countFolderResourcesByFolder(rows);
-  const nodes = new Map<number, ReportFolderTreeNode>();
-  for (const row of rows) {
-    nodes.set(row.id, { ...mapReportFolder(row), resourceCount: resourceCounts.get(row.id) ?? 0, children: [] });
-  }
-  const roots: ReportFolderTreeNode[] = [];
-  for (const node of nodes.values()) {
-    const parent = node.parentId ? nodes.get(node.parentId) : undefined;
-    if (parent) parent.children!.push(node);
-    else roots.push(node);
-  }
-  return roots;
+  return buildTree<ReportFolderTreeNode>(
+    rows.map((row) => ({ ...mapReportFolder(row), resourceCount: resourceCounts.get(row.id) ?? 0 })),
+    { keepEmptyChildren: true },
+  );
 }
 
 export async function getReportFolder(id: number): Promise<ReportFolder> {

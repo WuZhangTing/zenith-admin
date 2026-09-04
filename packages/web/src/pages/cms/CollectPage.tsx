@@ -15,23 +15,14 @@ import {
   useCmsChannelTree, useCmsCollectRules, useSaveCmsCollectRule, useDeleteCmsCollectRule,
   useRunCmsCollectRule, useCmsCollectItems, cmsCollectKeys,
 } from '@/hooks/queries/cms';
-import type { CmsChannel, CmsCollectRule, CmsCollectItem } from '@zenith/shared/cms';
+import type { CmsCollectRule, CmsCollectItem } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
-
-function channelsToSelectTree(nodes: CmsChannel[]): { key: string; value: number; label: string; disabled: boolean; children?: ReturnType<typeof channelsToSelectTree> }[] {
-  return nodes.map((n) => ({
-    key: String(n.id),
-    value: n.id,
-    label: n.name,
-    disabled: n.type !== 'list',
-    children: n.children ? channelsToSelectTree(n.children) : undefined,
-  }));
-}
+import { channelsToSelectTree } from './channel-tree';
 
 const ITEM_STATUS_META: Record<CmsCollectItem['status'], { label: string; color: 'green' | 'grey' | 'red' }> = {
   success: { label: '成功', color: 'green' },

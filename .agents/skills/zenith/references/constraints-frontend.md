@@ -32,6 +32,7 @@
 | 防抖 / 节流 | `@tanstack/react-pacer`：值防抖 `useDebouncedValue`，回调防抖 `useDebouncedCallback`（需手动 `cancel` / `flush` 时用 `useDebouncer`），节流 `useThrottledCallback`；`useEffect` 内等非 hook 上下文用 `Debouncer` / `Throttler` 类 | `setTimeout` + `clearTimeout` 手写防抖、`Date.now()` 差值手写节流、timer ref + 卸载清理样板 | 各处 wait / 边沿语义不一致；漏写卸载清理导致组件卸载后仍 setState / 发请求 |
 | 复制 / 读取剪贴板 | `utils/clipboard.ts` 的 `copyText` / `copyTextWithToast` / `readClipboardText` / `canWriteClipboardItems` | 裸调 `navigator.clipboard.writeText` / `readText`（ESLint 已封禁）、自写 textarea + `execCommand` | 内网 `http://ip` 访问不是安全上下文，`navigator.clipboard` 为 undefined，点复制直接 TypeError |
 | 带鉴权的非 JSON 请求（流式 / SSE / 二进制 / 第三方上传组件） | `request.fetchRaw(url, init)` 拿原生 Response；纯文本流 `streamText`、SSE 流 `readSseStream`（`utils/streaming.ts`）；二进制 `request.getBlob(url, init?)` / `request.download`；Semi `Upload` / wangEditor 等组件的 `headers` 传 `request.authHeaders()` | 裸 `fetch` + `localStorage.getItem(TOKEN_KEY)` 手拼 `Authorization`、自写 `getReader()` 循环与 `event:` / `data:` 帧解析 | token 过期不刷新直接 401、失败没有统一提示、Demo 模式拦不住；SSE 帧被拆到两个 chunk 时事件丢失 |
+| 树形数据转换 | `@zenith/shared/core` 的 `buildTree`（平铺 → 树）与 `mapTree`（树 → Semi `TreeNodeData` 等形态）；CMS 栏目选择树用 `pages/cms/channel-tree.ts` 的 `channelsToTree` / `channelsToSelectTree` | 手写 `Map` + `parent.children.push` 挂接、`nodes.map((n) => ({ ..., children: n.children ? fn(n.children) : undefined }))` 递归 | 各处对孤儿节点 / 空 children 的处理不一致，禁用规则（仅列表型栏目可选）漏抄 |
 
 各症状的完整诊断见 [troubleshooting.md](./troubleshooting.md)。
 

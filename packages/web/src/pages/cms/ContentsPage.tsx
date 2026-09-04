@@ -31,6 +31,8 @@ import { DATE_TIME_COLUMN_WIDTH, dateTimeColumn } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { channelsToSelectTree } from './channel-tree';
+import { mapTree } from '@zenith/shared/core';
 const STATUS_COLORS: Record<CmsContentStatus, 'grey' | 'orange' | 'green' | 'red' | 'violet'> = {
   draft: 'grey',
   pending: 'orange',
@@ -41,22 +43,9 @@ const STATUS_COLORS: Record<CmsContentStatus, 'grey' | 'orange' | 'green' | 'red
 
 type TabKey = 'all' | 'pending' | 'published' | 'archived' | 'recycle';
 
+/** 栏目筛选树：仅 key / label，不带 value */
 function channelsToTree(nodes: CmsChannel[]): TreeNodeData[] {
-  return nodes.map((n) => ({
-    key: String(n.id),
-    label: n.name,
-    children: n.children ? channelsToTree(n.children) : undefined,
-  }));
-}
-
-function channelsToSelectTree(nodes: CmsChannel[]): TreeNodeData[] {
-  return nodes.map((n) => ({
-    key: String(n.id),
-    value: n.id,
-    label: n.name,
-    disabled: n.type !== 'list',
-    children: n.children ? channelsToSelectTree(n.children) : undefined,
-  }));
+  return mapTree<CmsChannel, TreeNodeData>(nodes, (n) => ({ key: String(n.id), label: n.name }));
 }
 
 export default function ContentsPage() {

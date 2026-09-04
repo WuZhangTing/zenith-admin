@@ -10,6 +10,7 @@ import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import type { Department, createDepartmentSchema, updateDepartmentSchema } from '@zenith/shared/identity';
 import type * as z from 'zod';
 import { getScopeMemberSummaries } from './user-scope.service';
+import { buildTree } from '@zenith/shared/core';
 
 export type CreateDepartmentInput = z.infer<typeof createDepartmentSchema>;
 export type UpdateDepartmentInput = z.infer<typeof updateDepartmentSchema>;
@@ -51,22 +52,7 @@ export async function buildLeaderMap(leaderIds: number[]): Promise<Map<number, s
 // ─── 树形结构构建 ─────────────────────────────────────────────────────────────
 
 export function buildDepartmentTree(list: Omit<Department, 'children'>[]): Department[] {
-  const map = new Map<number, Department>();
-  list.forEach((item) => map.set(item.id, { ...item }));
-  const roots: Department[] = [];
-  map.forEach((node) => {
-    if (node.parentId === 0) { roots.push(node); return; }
-    const parent = map.get(node.parentId);
-    if (!parent) { roots.push(node); return; }
-    parent.children = parent.children ?? [];
-    parent.children.push(node);
-  });
-  const sortNodes = (nodes: Department[]) => {
-    nodes.sort((a, b) => a.sort - b.sort || a.id - b.id);
-    nodes.forEach((item) => item.children && sortNodes(item.children));
-  };
-  sortNodes(roots);
-  return roots;
+  return buildTree<Department>(list, { compare: (a, b) => a.sort - b.sort || a.id - b.id });
 }
 
 export function filterDepartmentTree(nodes: Department[], keyword: string, status?: string): Department[] {

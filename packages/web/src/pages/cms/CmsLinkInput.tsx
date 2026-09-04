@@ -10,17 +10,9 @@ import { cmsContentKeys, useAllCmsSites, useCmsChannelTree, useCmsContentList, u
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { channelsToTree } from './channel-tree';
 
 type PickerMode = 'content' | 'channel' | null;
-
-function channelsToTree(nodes: CmsChannel[]): TreeNodeData[] {
-  return nodes.map((n) => ({
-    key: String(n.id),
-    value: n.id,
-    label: n.name,
-    children: n.children ? channelsToTree(n.children) : undefined,
-  }));
-}
 
 /** 内容选择弹窗：左侧栏目树定位，右侧按关键词检索本站内容 */
 function ContentPickerModal({ siteId, visible, onCancel, onSelect, excludeId }: Readonly<{

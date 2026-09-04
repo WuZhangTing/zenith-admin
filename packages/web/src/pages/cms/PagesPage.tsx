@@ -29,15 +29,12 @@ import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
+import { mapTree } from '@zenith/shared/core';
+import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
 
 /** 区块按栏目标识引用栏目：value 用 code，站点复制/重建后配置无需重配 */
-function channelsToSelectTree(nodes: CmsChannel[]): { key: string; value: string; label: string; children?: ReturnType<typeof channelsToSelectTree> }[] {
-  return nodes.map((n) => ({
-    key: n.code,
-    value: n.code,
-    label: n.name,
-    children: n.children ? channelsToSelectTree(n.children) : undefined,
-  }));
+function channelsToSelectTree(nodes: CmsChannel[]): TreeNodeData[] {
+  return mapTree<CmsChannel, TreeNodeData>(nodes, (n) => ({ key: n.code, value: n.code, label: n.name }));
 }
 
 function newBlockId(): string {

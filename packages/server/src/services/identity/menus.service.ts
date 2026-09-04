@@ -8,6 +8,7 @@ import { getEffectiveTenantId } from '../../lib/tenant';
 import { getTenantPackageFeatureSet } from '../../lib/tenant-package';
 import { isSuperAdmin, getUserMenuIds } from '../../lib/permissions';
 import { formatDateTime } from '../../lib/datetime';
+import { buildTree } from '@zenith/shared/core';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 
@@ -59,33 +60,11 @@ export function excludeDisabledSubtrees<T extends Pick<Menu, 'id' | 'parentId' |
   return rows.filter(isEffectivelyEnabled);
 }
 
+/** 同层 visible=true 的菜单排在前面，其后按 sort */
 export function buildMenuTree(list: Omit<Menu, 'children'>[]): Menu[] {
-  const map = new Map<number, Menu>();
-  list.forEach((item) => map.set(item.id, { ...item }));
-  const roots: Menu[] = [];
-  map.forEach((node) => {
-    if (node.parentId === 0) {
-      roots.push(node);
-    } else {
-      const parent = map.get(node.parentId);
-      if (parent) {
-        parent.children = parent.children ?? [];
-        parent.children.push(node);
-      } else {
-        roots.push(node);
-      }
-    }
+  return buildTree<Menu>(list, {
+    compare: (a, b) => (a.visible !== b.visible ? (a.visible ? -1 : 1) : a.sort - b.sort),
   });
-  const sortNodes = (nodes: Menu[]) => {
-    nodes.sort((a, b) => {
-      // visible=true 的优先排在前面
-      if (a.visible !== b.visible) return a.visible ? -1 : 1;
-      return a.sort - b.sort;
-    });
-    nodes.forEach((n) => n.children && sortNodes(n.children));
-  };
-  sortNodes(roots);
-  return roots;
 }
 
 // ─── 输入类型 ─────────────────────────────────────────────────────────────────

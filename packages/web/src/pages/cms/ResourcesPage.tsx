@@ -30,7 +30,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
-import { formatBytes } from '@zenith/shared/core';
+import { formatBytes, mapTree } from '@zenith/shared/core';
 
 const TYPE_COLORS: Record<CmsResourceType, 'blue' | 'purple' | 'cyan' | 'orange' | 'grey'> = {
   image: 'blue', video: 'purple', audio: 'cyan', document: 'orange', other: 'grey',
@@ -39,11 +39,10 @@ const TYPE_COLORS: Record<CmsResourceType, 'blue' | 'purple' | 'cyan' | 'orange'
 const REFERENCE_KIND_LABELS = CMS_RESOURCE_OWNER_TYPE_LABELS;
 
 function foldersToTree(folders: CmsResourceFolder[]): TreeNodeData[] {
-  return folders.map((folder) => ({
+  return mapTree<CmsResourceFolder, TreeNodeData>(folders, (folder) => ({
     key: String(folder.id),
     value: folder.id,
     label: `${folder.name}${folder.resourceCount ? ` (${folder.resourceCount})` : ''}`,
-    children: folder.children ? foldersToTree(folder.children) : undefined,
   }));
 }
 

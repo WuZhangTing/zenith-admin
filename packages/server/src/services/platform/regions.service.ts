@@ -5,6 +5,7 @@ import type { Region } from '@zenith/shared/platform';
 import { HTTPException } from 'hono/http-exception';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime } from '../../lib/datetime';
+import { buildTree } from '@zenith/shared/core';
 
 export function mapRegion(row: typeof regions.$inferSelect): Omit<Region, 'children'> {
   return {
@@ -21,21 +22,11 @@ export function mapRegion(row: typeof regions.$inferSelect): Omit<Region, 'child
 }
 
 export function buildRegionTree(list: Omit<Region, 'children'>[]): Region[] {
-  const map = new Map<string, Region>();
-  list.forEach((item) => map.set(item.code, { ...item }));
-  const roots: Region[] = [];
-  map.forEach((node) => {
-    if (!node.parentCode) { roots.push(node); return; }
-    const parent = map.get(node.parentCode);
-    if (parent) { parent.children = parent.children ?? []; parent.children.push(node); }
-    else { roots.push(node); }
+  return buildTree<Region>(list, {
+    id: (r) => r.code,
+    parentId: (r) => r.parentCode || null,
+    compare: (a, b) => a.sort - b.sort || a.code.localeCompare(b.code),
   });
-  const sortNodes = (nodes: Region[]) => {
-    nodes.sort((a, b) => a.sort - b.sort || a.code.localeCompare(b.code));
-    nodes.forEach((item) => item.children && sortNodes(item.children));
-  };
-  sortNodes(roots);
-  return roots;
 }
 
 export function filterRegionTree(nodes: Region[], keyword: string, status?: string, level?: string): Region[] {

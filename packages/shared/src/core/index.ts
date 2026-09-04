@@ -11,6 +11,7 @@ export * from './math';
 export * from './json-shape';
 export * from './random';
 export * from './text';
+export * from './tree';
 export * from './types';
 export * from './url';
 export * from './validation';

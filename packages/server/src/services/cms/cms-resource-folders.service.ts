@@ -7,6 +7,7 @@ import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import type { CmsResourceFolder, CreateCmsResourceFolderInput, UpdateCmsResourceFolderInput } from '@zenith/shared/cms';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
+import { buildTree } from '@zenith/shared/core';
 
 export function mapCmsResourceFolder(row: CmsResourceFolderRow, resourceCount = 0): CmsResourceFolder {
   return {
@@ -39,24 +40,6 @@ async function ensureParent(siteId: number, parentId: number | null, selfId?: nu
     if (parent.siteId !== siteId) throw new HTTPException(400, { message: '父文件夹不属于当前站点' });
     cursor = parent.parentId;
   }
-}
-
-function buildTree(rows: Array<CmsResourceFolder & { children?: CmsResourceFolder[] }>): CmsResourceFolder[] {
-  const map = new Map(rows.map((row) => [row.id, { ...row, children: [] as CmsResourceFolder[] }]));
-  const roots: CmsResourceFolder[] = [];
-  for (const row of map.values()) {
-    const parent = row.parentId === null ? undefined : map.get(row.parentId);
-    if (parent) parent.children!.push(row);
-    else roots.push(row);
-  }
-  const prune = (nodes: CmsResourceFolder[]) => {
-    for (const node of nodes) {
-      if (node.children?.length) prune(node.children);
-      else delete node.children;
-    }
-  };
-  prune(roots);
-  return roots;
 }
 
 export async function listCmsResourceFolderTree(siteId: number): Promise<CmsResourceFolder[]> {

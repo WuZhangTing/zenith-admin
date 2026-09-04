@@ -39,6 +39,7 @@ import { wikiDeletedDocVisibilityCondition, wikiDocStatusVisibilityCondition, wi
 import { notifyWikiDocPublished, notifyWikiDocReviewed } from './notifications.service';
 import { removeWikiDocFromAiKb, syncPublishedWikiDocToAiKb } from './ai-sync.service';
 import { ensureSpaceRole, getMySpaceRole, spaceRoleAtLeast } from './spaces.service';
+import { buildTree } from '@zenith/shared/core';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 
@@ -263,18 +264,11 @@ export async function getWikiDocTree(spaceId: number): Promise<WikiDocTreeNode[]
     ))
     .orderBy(desc(wikiDocs.isPinned), asc(wikiDocs.sort), asc(wikiDocs.id));
 
-  const nodes = new Map<number, WikiDocTreeNode>();
-  for (const r of rows) {
-    nodes.set(r.id, { id: r.id, parentId: r.parentId ?? null, title: r.title, status: r.status, isPinned: r.isPinned, sort: r.sort, createdBy: r.createdBy ?? null, children: [] });
-  }
-  const roots: WikiDocTreeNode[] = [];
-  for (const node of nodes.values()) {
-    // 父节点被过滤掉（未发布等）时提升为根节点，保证子文档可达
-    const parent = node.parentId !== null ? nodes.get(node.parentId) : undefined;
-    if (parent) parent.children!.push(node);
-    else roots.push(node);
-  }
-  return roots;
+  // 父节点被过滤掉（未发布等）时提升为根节点，保证子文档可达
+  return buildTree<WikiDocTreeNode>(
+    rows.map((r) => ({ id: r.id, parentId: r.parentId ?? null, title: r.title, status: r.status, isPinned: r.isPinned, sort: r.sort, createdBy: r.createdBy ?? null })),
+    { keepEmptyChildren: true },
+  );
 }
 
 // ─── 创建与更新 ───────────────────────────────────────────────────────────────

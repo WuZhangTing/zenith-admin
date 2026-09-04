@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Form, Spin, Toast, Row, Col, Banner, SideSheet, Space, Timeline, Modal, Upload, Typography, useFormApi, Tag, Input, Tabs, TabPane } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
 import { ArrowLeft, Save, Send, History, ImageUp, Eye, GitCompare, Images, Paperclip, SpellCheck, ScrollText } from 'lucide-react';
 import { MediaPickerModal } from '@/components/MediaPickerModal';
 import { formatDateTimeForApi } from '@/utils/date';
@@ -21,6 +20,7 @@ import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS, CMS_CONTENT_TYPES, 
 import type { CmsChannel, CmsModelField, CmsEditLock, CmsTextCheckResult, CmsContentType, CmsAlbumImage, CmsContentAttachment } from '@zenith/shared/cms';
 import { useCmsLinkPicker } from './CmsLinkInput';
 import { formatBytes } from '@zenith/shared/core';
+import { channelsToSelectTree } from './channel-tree';
 import './ContentEditPage.css';
 
 // 富文本引擎（wangeditor）压缩后约 266 KB。静态导入会阻塞整个编辑页 chunk 的加载，
@@ -43,16 +43,6 @@ const editorLoadingFallback = (
 
 const AUTO_SAVE_INTERVAL_MS = 30_000;
 const EDIT_LOCK_HEARTBEAT_MS = 30_000;
-
-function channelsToTree(nodes: CmsChannel[]): TreeNodeData[] {
-  return nodes.map((n) => ({
-    key: String(n.id),
-    value: n.id,
-    label: n.name,
-    disabled: n.type !== 'list',
-    children: n.children ? channelsToTree(n.children) : undefined,
-  }));
-}
 
 function findChannel(nodes: CmsChannel[], id: number | undefined): CmsChannel | undefined {
   if (!id) return undefined;
@@ -881,7 +871,7 @@ export default function ContentEditPage() {
                     label="所属栏目"
                     size="small"
                     style={{ width: '100%' }}
-                    treeData={channelsToTree(treeQuery.data ?? [])}
+                    treeData={channelsToSelectTree(treeQuery.data ?? [])}
                     rules={[{ required: true, message: '请选择栏目' }]}
                   />
                   <Form.Input
@@ -977,7 +967,7 @@ export default function ContentEditPage() {
                     multiple
                     size="small"
                     style={{ width: '100%' }}
-                    treeData={channelsToTree(treeQuery.data ?? [])}
+                    treeData={channelsToSelectTree(treeQuery.data ?? [])}
                     placeholder="同时展示在其他栏目（可选）"
                   />
                   <Form.Select

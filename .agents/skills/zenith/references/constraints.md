@@ -201,6 +201,8 @@
 | 任意字符串拼入 `new RegExp()` | `escapeRegExp(text)` |
 | 数值限制在区间内 | `clamp(value, min, max)` |
 | 字节数展示（B / KB / MB / GB / TB） | `formatBytes(bytes)` |
+| 平铺列表（`id` / `parentId`，或自定义键）→ 树 | `buildTree(list, { compare?, keepEmptyChildren?, id?, parentId? })`；父节点缺失的节点挂到根 |
+| 树 → 另一种节点形态（如 Semi `TreeNodeData`） | `mapTree(nodes, (node) => ({ ... }))`，children 自动递归 |
 
 - 前端毫秒耗时展示用 `@/utils/format` 的 `formatDurationMs(ms)`；空值统一渲染 `EMPTY_PLACEHOLDER`
 - 服务端手机号脱敏用 `lib/masking.ts` 的 `maskPhone()`；等待用 `node:timers/promises` 的 `setTimeout`

@@ -41,6 +41,7 @@ import {
   resolveCmsSiteSnapshot,
 } from './cms-site-inheritance.service';
 import { planCmsSiteMove, validateCmsSiteEnablement } from './cms-site-hierarchy-policy';
+import { buildTree } from '@zenith/shared/core';
 
 function assertCdnPurgeSetting(settings: Record<string, unknown>): void {
   const rawUrl = typeof settings.cdnPurgeUrl === 'string' ? settings.cdnPurgeUrl.trim() : '';
@@ -359,7 +360,9 @@ export async function listAllCmsSites() {
   return Promise.all(mapped.map((row) => resolveCmsResourcePayload(row, row.id)));
 }
 
-export async function listCmsSiteTree(query: { keyword?: string; status?: 'enabled' | 'disabled' }) {
+type CmsSiteTreeNode = ReturnType<typeof mapCmsSite> & { children?: CmsSiteTreeNode[] };
+
+export async function listCmsSiteTree(query: { keyword?: string; status?: 'enabled' | 'disabled' }): Promise<CmsSiteTreeNode[]> {
   const accessible = await getAccessibleSiteIds();
   const conditions: (SQL | undefined)[] = [];
   if (accessible !== null) conditions.push(inArray(cmsSites.id, accessible));
@@ -371,22 +374,7 @@ export async function listCmsSiteTree(query: { keyword?: string; status?: 'enabl
     db.select().from(cmsSites),
     db.select().from(cmsSiteInheritances),
   ]);
-  const mapped = mapCmsSiteRows(rows, allRows, inheritanceRows, accessible);
-  const byId = new Map(mapped.map((row) => [row.id, { ...row, children: [] as typeof mapped }]));
-  const roots: Array<(typeof mapped)[number] & { children: typeof mapped }> = [];
-  for (const row of byId.values()) {
-    const parent = row.parentId == null ? null : byId.get(row.parentId);
-    if (parent) parent.children.push(row);
-    else roots.push(row);
-  }
-  const prune = (items: typeof roots): void => {
-    for (const item of items) {
-      if (item.children.length) prune(item.children as typeof roots);
-      else delete (item as { children?: unknown }).children;
-    }
-  };
-  prune(roots);
-  return roots;
+  return buildTree<CmsSiteTreeNode>(mapCmsSiteRows(rows, allRows, inheritanceRows, accessible));
 }
 
 export async function getCmsSiteInheritanceChain(siteId: number) {
