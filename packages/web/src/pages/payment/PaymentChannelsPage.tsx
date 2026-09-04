@@ -21,7 +21,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 
@@ -200,13 +200,10 @@ export default function PaymentChannelsPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
-      value={draftParams.status || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 120 }}
-      optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))}
+    <StatusSelect
+      items={statusItems}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
     />
   );
 

@@ -35,7 +35,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 
@@ -252,7 +252,7 @@ export default function WorkflowConnectorsPage() {
     <Select placeholder="全部类型" value={draftParams.type || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, type: (v as string) ?? '' }))} showClear style={{ width: 130 }} optionList={TYPE_OPTIONS} />
   );
   const renderStatusFilter = () => (
-    <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={STATUS_OPTIONS} />
+    <StatusSelect items={STATUS_OPTIONS} value={draftParams.status} onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))} />
   );
   const renderCreate = () => hasPermission('workflow:connector:create') ? <CreateButton onClick={openCreate} /> : null;
 

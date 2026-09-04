@@ -8,7 +8,7 @@ import ExportButton from '@/components/ExportButton';
 import AppModal from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { formatDateTimeRangeForApi } from '@/utils/date';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -277,13 +277,10 @@ export default function AlertEventsPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
-      value={draftParams.status || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 120 }}
-      optionList={[...MONITOR_ALERT_EVENT_STATUS_OPTIONS]}
+    <StatusSelect
+      items={MONITOR_ALERT_EVENT_STATUS_OPTIONS}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
     />
   );
 

@@ -30,6 +30,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { confirmDelete } from '@/utils/confirm';
 import { copyableNoColumn, dateColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
+import { StatusSelect } from '@/components/search-filters';
 
 const STATUS_COLOR = { pending: 'grey', comparing: 'blue', done: 'green', failed: 'red' } as const satisfies Record<PaymentReconStatus, string>;
 const RESULT_COLOR = { matched: 'green', local_only: 'amber', channel_only: 'orange', amount_diff: 'red', status_diff: 'red' } as const satisfies Record<PaymentReconResult, string>;
@@ -321,13 +322,10 @@ export default function PaymentReconPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
-      value={draftParams.status || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 120 }}
-      optionList={Object.entries(PAYMENT_RECON_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+    <StatusSelect
+      items={Object.entries(PAYMENT_RECON_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
     />
   );
 

@@ -27,7 +27,7 @@ import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import InteractionResultsSheet from './interaction/InteractionResultsSheet';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
@@ -231,9 +231,8 @@ export default function SurveysPage() {
       <Select placeholder="全部类型" showClear value={draft.kind} style={{ width: 130 }}
         optionList={Object.entries(CMS_INTERACTION_KIND_LABELS).map(([value, label]) => ({ value, label }))}
         onChange={(value) => { setDraft((current) => ({ ...current, kind: value as CmsInteractionKind | undefined })); setSelectedIds([]); }} />
-      <Select placeholder="全部状态" showClear value={draft.status} style={{ width: 130 }}
-        optionList={Object.entries(CMS_INTERACTION_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
-        onChange={(value) => { setDraft((current) => ({ ...current, status: value as CmsInteractionStatus | undefined })); setSelectedIds([]); }} />
+      <StatusSelect items={Object.entries(CMS_INTERACTION_STATUS_LABELS).map(([value, label]) => ({ value, label }))} value={draft.status} width={130}
+        onChange={(value) => { setDraft((current) => ({ ...current, status: (value as CmsInteractionStatus) || undefined })); setSelectedIds([]); }} />
       <SearchButton onClick={handleSearch} />
       <ResetButton onClick={handleReset} />
     </>

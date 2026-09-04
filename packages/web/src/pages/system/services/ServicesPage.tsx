@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { Button, Tag, Toast, SideSheet, Typography, Empty, Select } from '@douyinfe/semi-ui';
+import { Button, Tag, Toast, SideSheet, Typography, Empty } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { FileText, RefreshCw, Play, Square } from 'lucide-react';
 import { streamText } from '@/utils/streaming';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { useServiceAction, useServiceList, useServiceLogs, type ServiceAction, type ServiceInfo } from '@/hooks/queries/services';
 import { HostSelector } from '@/components/HostSelector';
 import { useOpsHostSelection } from '@/hooks/useOpsHostSelection';
@@ -207,13 +207,17 @@ export default function ServicesPage() {
           <>
             <HostSelector value={hostId} onChange={handleHostChange} />
             <KeywordInput placeholder="搜索服务名 / 描述" value={keyword} onChange={setKeyword} width={240} />
-            <Select placeholder="全部状态" value={stateFilter || undefined} onChange={(v) => setStateFilter((v as string) ?? '')} showClear style={{ width: 130 }}
-              optionList={[
+            <StatusSelect
+              items={[
                 { label: '运行中', value: 'active' },
                 { label: '已停止', value: 'inactive' },
                 { label: '失败', value: 'failed' },
                 { label: '激活中', value: 'activating' },
-              ]} />
+              ]}
+              value={stateFilter}
+              onChange={setStateFilter}
+              width={130}
+            />
             {failedCount > 0 && (
               <Button size="default" type={stateFilter === 'failed' ? 'primary' : 'tertiary'} theme={stateFilter === 'failed' ? 'solid' : 'light'} onClick={() => setStateFilter(stateFilter === 'failed' ? '' : 'failed')}>
                 失败服务 {failedCount}
@@ -231,13 +235,17 @@ export default function ServicesPage() {
         )}
         mobileFilters={(
           <>
-            <Select placeholder="全部状态" value={stateFilter || undefined} onChange={(v) => setStateFilter((v as string) ?? '')} showClear style={{ width: 130 }}
-              optionList={[
+            <StatusSelect
+              items={[
                 { label: '运行中', value: 'active' },
                 { label: '已停止', value: 'inactive' },
                 { label: '失败', value: 'failed' },
                 { label: '激活中', value: 'activating' },
-              ]} />
+              ]}
+              value={stateFilter}
+              onChange={setStateFilter}
+              width={130}
+            />
             {failedCount > 0 && (
               <Button size="default" type={stateFilter === 'failed' ? 'primary' : 'tertiary'} theme={stateFilter === 'failed' ? 'solid' : 'light'} onClick={() => setStateFilter(stateFilter === 'failed' ? '' : 'failed')}>
                 失败服务 {failedCount}

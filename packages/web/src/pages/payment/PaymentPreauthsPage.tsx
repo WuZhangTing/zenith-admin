@@ -23,7 +23,7 @@ import {
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_PREAUTH_STATUS_LABELS, PAYMENT_PREAUTH_STATUS_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentPreauth, PaymentPreauthMethod, PaymentPreauthStatus } from '@zenith/shared/payment';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 
 const yuan = formatYuan;
 const STATUS_COLOR = { pending: 'grey', unknown: 'orange', frozen: 'blue', captured: 'green', released: 'teal', failed: 'red' } as const satisfies Record<PaymentPreauthStatus, string>;
@@ -203,7 +203,7 @@ export default function PaymentPreauthsPage() {
     />
   );
   const renderStatusFilter = () => (
-    <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={PAYMENT_PREAUTH_STATUS_OPTIONS} />
+    <StatusSelect items={PAYMENT_PREAUTH_STATUS_OPTIONS} value={draftParams.status} onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))} />
   );
   const renderChannelFilter = () => (
     <Select placeholder="全部渠道" value={draftParams.channel || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, channel: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={channelOptions} />

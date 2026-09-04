@@ -25,7 +25,7 @@ import {
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete as confirmDeleteModal } from '@/utils/confirm';
 
 interface SearchState {
@@ -254,13 +254,11 @@ export default function WidgetsPage() {
     <KeywordInput placeholder="部件名称 / 编码" value={draft.keyword} onChange={(keyword) => setDraft((current) => ({ ...current, keyword }))} onSearch={handleSearch} />
   );
   const statusFilter = (
-    <Select
-      placeholder="全部状态"
-      value={draft.status || undefined}
-      onChange={(value) => { setDraft((current) => ({ ...current, status: (value as CmsWidgetStatus) ?? '' })); setSelectedIds([]); setSelectedRecords({}); }}
-      showClear
-      style={{ width: 130 }}
-      optionList={Object.entries(CMS_WIDGET_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+    <StatusSelect
+      items={Object.entries(CMS_WIDGET_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      value={draft.status}
+      onChange={(value) => { setDraft((current) => ({ ...current, status: value as CmsWidgetStatus | '' })); setSelectedIds([]); setSelectedRecords({}); }}
+      width={130}
     />
   );
   const typeFilter = (

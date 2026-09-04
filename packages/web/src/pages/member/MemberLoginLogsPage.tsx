@@ -1,4 +1,4 @@
-import { Select, Tag } from '@douyinfe/semi-ui';
+import { Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { MemberLoginLog } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
@@ -11,7 +11,7 @@ import { memberAdminKeys, useMemberLoginLogList } from '@/hooks/queries/member-a
 import { useListSearch } from '@/hooks/useListSearch';
 import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 
 interface SearchParams {
   keyword?: string;
@@ -63,13 +63,11 @@ export default function MemberLoginLogsPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
+    <StatusSelect
+      items={statusOptions}
       value={draftParams.status}
-      style={{ width: 130 }}
-      showClear
-      optionList={statusOptions}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: value as 'success' | 'fail' | undefined }))}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as 'success' | 'fail') || undefined }))}
+      width={130}
     />
   );
 

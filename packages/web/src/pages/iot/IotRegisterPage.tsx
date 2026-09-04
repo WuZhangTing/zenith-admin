@@ -5,7 +5,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import AppModal from '@/components/AppModal';
 import { StatCard, StatGrid } from '@/components/charts';
@@ -158,11 +158,11 @@ export default function IotRegisterPage() {
   );
 
   const renderUsedFilter = () => (
-    <Select
-      placeholder="全部状态" showClear style={{ width: 140 }}
-      optionList={[{ value: 'false', label: '待注册' }, { value: 'true', label: '已注册' }]}
-      value={draftParams.used || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, used: (v as WhitelistSearchParams['used'] | undefined) ?? '' }))}
+    <StatusSelect
+      items={[{ value: 'false', label: '待注册' }, { value: 'true', label: '已注册' }]}
+      value={draftParams.used}
+      onChange={(v) => setDraftParams((p) => ({ ...p, used: v as WhitelistSearchParams['used'] | '' }))}
+      width={140}
     />
   );
 

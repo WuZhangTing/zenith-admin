@@ -22,7 +22,7 @@ import {
   useSaveCoupon,
 } from '@/hooks/queries/member-admin';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete as confirmDeleteModal } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -210,13 +210,10 @@ export default function CouponsPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
+    <StatusSelect
+      items={statusOptions}
       value={draftParams.status}
-      style={{ width: 120 }}
-      showClear
-      onChange={(v) => setDraftParams((p) => ({ ...p, status: v as string | undefined }))}
-      optionList={statusOptions}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v || undefined }))}
     />
   );
 

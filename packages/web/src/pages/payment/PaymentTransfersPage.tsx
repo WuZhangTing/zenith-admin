@@ -36,7 +36,7 @@ import type {
   PaymentTransferStatus,
 } from '@zenith/shared/payment';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 
 const yuan = formatYuan;
 const STATUS_COLOR = { pending: 'grey', processing: 'blue', unknown: 'orange', success: 'green', failed: 'red' } as const satisfies Record<PaymentTransferStatus, string>;
@@ -232,8 +232,11 @@ export default function PaymentTransfersPage() {
       showClear style={{ width: 120 }} optionList={PAYMENT_CHANNEL_OPTIONS} />
   );
   const renderStatusFilter = () => (
-    <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
-      showClear style={{ width: 120 }} optionList={Object.entries(PAYMENT_TRANSFER_STATUS_LABELS).map(([value, label]) => ({ value, label }))} />
+    <StatusSelect
+      items={Object.entries(PAYMENT_TRANSFER_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
+    />
   );
   const renderApprovalFilter = () => (
     <Select placeholder="审批状态" value={draftParams.approvalStatus || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, approvalStatus: (v as string) ?? '' }))}

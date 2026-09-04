@@ -21,7 +21,7 @@ import {
   useRejectPaymentRefund,
 } from '@/hooks/queries/payment-refunds';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { compactQuery } from '@/lib/query';
 import { copyableNoColumn, dateTimeColumn } from '@/utils/table-columns';
 
@@ -149,13 +149,10 @@ export default function PaymentRefundsPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
-      value={draftParams.status || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 120 }}
-      optionList={Object.entries(PAYMENT_REFUND_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+    <StatusSelect
+      items={Object.entries(PAYMENT_REFUND_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
     />
   );
 

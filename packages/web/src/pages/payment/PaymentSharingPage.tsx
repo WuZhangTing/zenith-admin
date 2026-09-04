@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Descriptions, Form, Select, SideSheet, Spin, Switch, Tabs, TabPane, Tag, TextArea, Toast } from '@douyinfe/semi-ui';
+import { Button, Descriptions, Form, SideSheet, Spin, Switch, Tabs, TabPane, Tag, TextArea, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -29,7 +29,7 @@ import { PAYMENT_SHARING_RECEIVER_TYPE_LABELS, PAYMENT_SHARING_ORDER_STATUS_LABE
 import type { PaymentSharingOrder, PaymentSharingOrderStatus, PaymentSharingReceiver, PaymentSharingReceiverType, PaymentSharingReversal, PaymentSharingReversalStatus } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 
@@ -335,13 +335,10 @@ export default function PaymentSharingPage() {
     <KeywordInput placeholder="订单号..." value={orderKeyword} onChange={setOrderKeyword} onSearch={handleOrderSearch} width={200} />
   );
   const renderOrderStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
-      value={orderStatus || undefined}
-      onChange={(v) => setOrderStatus((v as string) ?? '')}
-      showClear
-      style={{ width: 120 }}
-      optionList={Object.entries(PAYMENT_SHARING_ORDER_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+    <StatusSelect
+      items={Object.entries(PAYMENT_SHARING_ORDER_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      value={orderStatus}
+      onChange={setOrderStatus}
     />
   );
   const renderOrderSearchButton = () => <SearchButton onClick={handleOrderSearch} />;
@@ -350,13 +347,11 @@ export default function PaymentSharingPage() {
     <Button type="primary" icon={<Plus size={14} />} onClick={openDispatch}>发起分账</Button>
   ) : null;
   const renderReversalStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
-      value={reversalStatus || undefined}
-      onChange={(v) => setReversalStatus((v as string) ?? '')}
-      showClear
-      style={{ width: 140 }}
-      optionList={Object.entries(PAYMENT_SHARING_REVERSAL_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+    <StatusSelect
+      items={Object.entries(PAYMENT_SHARING_REVERSAL_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      value={reversalStatus}
+      onChange={setReversalStatus}
+      width={140}
     />
   );
 

@@ -28,7 +28,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { useRuleListList } from '@/hooks/queries/rules';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
@@ -300,7 +300,7 @@ export default function PaymentRiskRulesPage() {
     <Select placeholder="全部作用域" value={draftParams.scope || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, scope: (v as string) ?? '' }))} showClear style={{ width: 130 }} optionList={scopeOptions} />
   );
   const renderStatusFilter = () => (
-    <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))} />
+    <StatusSelect items={statusItems} value={draftParams.status} onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))} />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
@@ -322,7 +322,7 @@ export default function PaymentRiskRulesPage() {
     <KeywordInput placeholder="审核单号/订单号/业务ID..." value={reviewKeyword} onChange={setReviewKeyword} onSearch={handleReviewSearch} />
   );
   const renderReviewStatusFilter = () => (
-    <Select placeholder="全部状态" value={reviewStatus || undefined} onChange={(v) => setReviewStatus((v as string) ?? '')} showClear style={{ width: 120 }} optionList={reviewStatusOptions} />
+    <StatusSelect items={reviewStatusOptions} value={reviewStatus} onChange={setReviewStatus} />
   );
 
   return (

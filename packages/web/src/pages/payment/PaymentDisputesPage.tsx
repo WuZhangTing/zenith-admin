@@ -23,7 +23,7 @@ import {
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_DISPUTE_ROUTE_LABELS, PAYMENT_DISPUTE_ROUTE_OPTIONS, PAYMENT_DISPUTE_STATUS_LABELS, PAYMENT_DISPUTE_STATUS_OPTIONS, PAYMENT_DISPUTE_TYPE_LABELS, PAYMENT_DISPUTE_TYPE_OPTIONS, PAYMENT_ORDER_STATUS_LABELS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentDispute, PaymentDisputeRoute, PaymentDisputeStatus, PaymentDisputeType } from '@zenith/shared/payment';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 
 const yuan = formatYuan;
@@ -169,7 +169,7 @@ export default function PaymentDisputesPage() {
     <KeywordInput placeholder="投诉单号/订单号/投诉人..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} />
   );
   const renderStatusFilter = () => (
-    <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={PAYMENT_DISPUTE_STATUS_OPTIONS} />
+    <StatusSelect items={PAYMENT_DISPUTE_STATUS_OPTIONS} value={draftParams.status} onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))} />
   );
   const renderTypeFilter = () => (
     <Select placeholder="全部类型" value={draftParams.type || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, type: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={PAYMENT_DISPUTE_TYPE_OPTIONS} />

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Descriptions, Input, InputNumber, Select, Toast, Tag } from '@douyinfe/semi-ui';
+import { Button, Descriptions, Input, InputNumber, Toast, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ScanLine } from 'lucide-react';
 import type { MemberCoupon, MemberCouponStatus } from '@zenith/shared/member';
@@ -15,7 +15,7 @@ import { memberAdminKeys, useCouponByCode, useCouponRecordList, useRedeemCoupon,
 import { useListSearch } from '@/hooks/useListSearch';
 import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 
 const statusOptions = (Object.keys(MEMBER_COUPON_STATUS_LABELS) as MemberCouponStatus[]).map((v) => ({ value: v, label: MEMBER_COUPON_STATUS_LABELS[v] }));
@@ -124,13 +124,11 @@ export default function CouponRecordsPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
+    <StatusSelect
+      items={statusOptions}
       value={draftParams.status}
-      style={{ width: 130 }}
-      showClear
-      onChange={(v) => setDraftParams((p) => ({ ...p, status: v as string | undefined }))}
-      optionList={statusOptions}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v || undefined }))}
+      width={130}
     />
   );
 

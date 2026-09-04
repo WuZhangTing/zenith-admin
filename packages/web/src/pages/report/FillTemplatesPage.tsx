@@ -31,7 +31,7 @@ import FormDesigner from '@/pages/workflow/designer/components/FormDesigner';
 import WorkflowFormRenderer from '@/pages/workflow/designer/components/WorkflowFormRenderer';
 import { isRevisionConflict, validateFillTemplateInput } from './report-p2-utils';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 
@@ -320,13 +320,10 @@ export default function FillTemplatesPage() {
   );
   const filters = (
     <>
-      <Select
-        placeholder="全部状态"
+      <StatusSelect
+        items={REPORT_FILL_TEMPLATE_STATUS_OPTIONS}
         value={draft.status}
-        optionList={REPORT_FILL_TEMPLATE_STATUS_OPTIONS}
-        onChange={(value) => setDraft((current) => ({ ...current, status: value as ReportFillTemplate['status'] }))}
-        showClear
-        style={{ width: 120 }}
+        onChange={(value) => setDraft((current) => ({ ...current, status: (value as ReportFillTemplate['status']) || undefined }))}
       />
       <Select
         placeholder="全部负责人"

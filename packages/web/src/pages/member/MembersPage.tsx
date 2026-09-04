@@ -35,7 +35,7 @@ import {
   useSetMemberTags,
 } from '@/hooks/queries/member-admin';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -265,12 +265,11 @@ export default function MembersPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
-      value={draftParams.status || undefined}
-      style={{ width: 130 }}
-      onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
-      optionList={[{ value: '', label: '全部状态' }, ...statusOptions]}
+    <StatusSelect
+      items={statusOptions}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
+      width={130}
     />
   );
 

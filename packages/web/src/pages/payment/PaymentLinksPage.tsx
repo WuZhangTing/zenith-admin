@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import { useMemo, useRef, useState } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { downloadBlob } from '@/utils/download';
-import { Button, Form, Input, Select, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { QRCodeSVG } from 'qrcode.react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -22,7 +22,7 @@ import { usePaymentMethodList } from '@/hooks/queries/payment-methods';
 import { useEnsureShortLink } from '@/hooks/queries/short-links';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { copyTextWithToast } from '@/utils/clipboard';
 
@@ -295,13 +295,10 @@ export default function PaymentLinksPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
-      value={draftParams.status || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as PaymentLinkStatus | undefined) ?? '' }))}
-      showClear
-      style={{ width: 120 }}
-      optionList={Object.entries(PAYMENT_LINK_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+    <StatusSelect
+      items={Object.entries(PAYMENT_LINK_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v as PaymentLinkStatus | '' }))}
     />
   );
 

@@ -33,7 +33,7 @@ import {
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CONTRACT_STATUS_LABELS, PAYMENT_DEDUCT_PERIOD_LABELS, PAYMENT_DEDUCT_PERIOD_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentContract, PaymentContractStatus, PaymentDeductPeriod, PaymentDeductPlan } from '@zenith/shared/payment';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
@@ -343,7 +343,7 @@ export default function PaymentContractsPage() {
     />
   );
   const renderStatusFilter = () => (
-    <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={contractStatusOptions} />
+    <StatusSelect items={contractStatusOptions} value={draftParams.status} onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))} />
   );
   const renderChannelFilter = () => (
     <Select placeholder="全部渠道" value={draftParams.channel || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, channel: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={channelOptions} />

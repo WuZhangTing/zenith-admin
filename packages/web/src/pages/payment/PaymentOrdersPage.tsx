@@ -33,7 +33,7 @@ import {
 import { usePaymentStats } from '@/hooks/queries/payment-stats';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { compactQuery } from '@/lib/query';
 import { copyableNoColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
@@ -405,13 +405,11 @@ export default function PaymentOrdersPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
-      value={draftParams.status || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 110 }}
-      optionList={Object.entries(PAYMENT_ORDER_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+    <StatusSelect
+      items={Object.entries(PAYMENT_ORDER_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
+      width={110}
     />
   );
 

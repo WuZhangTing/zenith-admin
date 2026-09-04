@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Form, Select, Spin, Toast, Switch, Modal, Row, Col, Typography, Tag, Empty } from '@douyinfe/semi-ui';
+import { Button, Form, Spin, Toast, Switch, Modal, Row, Col, Typography, Tag, Empty } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -18,7 +18,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -187,13 +187,10 @@ export default function WorkflowDataSourcesPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
-      value={draftParams.status || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 120 }}
-      optionList={STATUS_OPTIONS}
+    <StatusSelect
+      items={STATUS_OPTIONS}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
     />
   );
 

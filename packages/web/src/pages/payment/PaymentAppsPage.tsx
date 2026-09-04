@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Banner, Form, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Form, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { AppModal } from '@/components/AppModal';
@@ -15,7 +15,7 @@ import type { PaymentApp, PaymentChannel, PaymentChannelConfig } from '@zenith/s
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 interface SearchParams { keyword: string; status: string; }
@@ -154,8 +154,11 @@ export default function PaymentAppsPage() {
     <KeywordInput placeholder="名称..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} width={200} />
   );
   const renderStatusFilter = () => (
-    <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
-      showClear style={{ width: 120 }} optionList={STATUS_OPTIONS} />
+    <StatusSelect
+      items={STATUS_OPTIONS}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
+    />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;

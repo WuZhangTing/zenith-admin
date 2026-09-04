@@ -1,4 +1,4 @@
-import { Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 // 直接引组件文件而非 charts 桶文件：后者会连带引入 ~2MB 的 vchart，本页无图表
@@ -11,7 +11,7 @@ import type { PaymentOutboxEvent } from '@zenith/shared/payment';
 import { paymentEventKeys, usePaymentEventList, usePaymentOpsHealth, useRedispatchPaymentEvent } from '@/hooks/queries/payment-events';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { copyableNoColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 
 const EVENT_STATUS_LABELS = { pending: '待处理', done: '已完成', failed: '失败' } as const satisfies Record<PaymentOutboxEvent['status'], string>;
@@ -118,13 +118,10 @@ export default function PaymentEventsPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
-      value={draftParams.status || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 120 }}
-      optionList={Object.entries(EVENT_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+    <StatusSelect
+      items={Object.entries(EVENT_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
     />
   );
 

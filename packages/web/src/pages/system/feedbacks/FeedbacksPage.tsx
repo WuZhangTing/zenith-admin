@@ -18,7 +18,7 @@ import { useDeleteFeedbacks, useHandleFeedback, useUserFeedbackList, userFeedbac
 import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
 // 文案统一来自 @zenith/shared；Tag 色为本页特化
@@ -203,13 +203,10 @@ export default function FeedbacksPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
+    <StatusSelect
+      items={STATUS_OPTIONS}
       value={draftParams.status}
-      onChange={(v) => setDraftParams((p) => ({ ...p, status: v as UserFeedbackStatus | undefined }))}
-      showClear
-      style={{ width: 120 }}
-      optionList={STATUS_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as UserFeedbackStatus) || undefined }))}
     />
   );
 

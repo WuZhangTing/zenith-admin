@@ -30,7 +30,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { switchAlertSource } from './report-platform-utils';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 
@@ -359,8 +359,11 @@ export default function AlertsPage() {
       showClear filter style={{ width: 180 }} optionList={metrics.map((metric) => ({ value: String(metric.id), label: metric.name }))} />
   );
   const renderStatusFilter = () => (
-    <Select placeholder="全部状态" value={draftParams.enabled || undefined} onChange={(value) => setDraftParams((prev) => ({ ...prev, enabled: (value as string) ?? '' }))}
-      showClear style={{ width: 120 }} optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))} />
+    <StatusSelect
+      items={statusItems}
+      value={draftParams.enabled}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, enabled: value }))}
+    />
   );
   const renderSearchBtn = () => <SearchButton onClick={handleSearch} />;
   const renderResetBtn = () => <ResetButton onClick={handleReset} />;

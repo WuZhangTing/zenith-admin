@@ -54,6 +54,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { WORKFLOW_TASK_STATUS_LABELS } from '@zenith/shared/workflow';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
+import { StatusSelect } from '@/components/search-filters';
 
 const TASK_STATUS_TEXT: Record<string, string> = WORKFLOW_TASK_STATUS_LABELS;
 
@@ -730,17 +731,12 @@ export default function MyApplicationsPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
-      value={draftParams.status || undefined}
-      onChange={v => setDraftParams((prev) => ({ ...prev, status: typeof v === 'string' ? v : '' }))}
-      showClear
-      style={{ width: 140 }}
-    >
-      {Object.entries(INSTANCE_STATUS_MAP).map(([k, s]) => (
-        <Select.Option key={k} value={k}>{s.text}</Select.Option>
-      ))}
-    </Select>
+    <StatusSelect
+      items={Object.entries(INSTANCE_STATUS_MAP).map(([value, s]) => ({ value, label: s.text }))}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((prev) => ({ ...prev, status: v }))}
+      width={140}
+    />
   );
 
   const renderPriorityFilter = () => (

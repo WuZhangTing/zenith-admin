@@ -13,7 +13,7 @@ import { memberAdminKeys, useMemberRechargeList } from '@/hooks/queries/member-a
 import { useListSearch } from '@/hooks/useListSearch';
 import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
+import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 
 interface SearchParams {
   keyword?: string;
@@ -82,13 +82,11 @@ export default function MemberRechargesPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
+    <StatusSelect
+      items={statusOptions}
       value={draftParams.status}
-      style={{ width: 130 }}
-      showClear
-      optionList={statusOptions}
-      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: value as PaymentOrderStatus | undefined }))}
+      onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as PaymentOrderStatus) || undefined }))}
+      width={130}
     />
   );
 

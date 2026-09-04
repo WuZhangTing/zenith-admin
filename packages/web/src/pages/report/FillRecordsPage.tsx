@@ -32,7 +32,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { formatDateTime } from '@/utils/date';
 import { canRunFillRecordAction, isRevisionConflict, shouldShowFillReviewTab } from './report-p2-utils';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 
@@ -294,13 +294,11 @@ export default function FillRecordsPage() {
     />
   ) : null;
   const statusFilter = (value: ReportFillRecordStatus | undefined, onChange: (value?: ReportFillRecordStatus) => void) => (
-    <Select
-      placeholder="全部状态"
+    <StatusSelect
+      items={REPORT_FILL_RECORD_STATUS_OPTIONS}
       value={value}
-      optionList={REPORT_FILL_RECORD_STATUS_OPTIONS}
-      onChange={(next) => onChange(next as ReportFillRecordStatus | undefined)}
-      showClear
-      style={{ width: 130 }}
+      onChange={(next) => onChange((next as ReportFillRecordStatus) || undefined)}
+      width={130}
     />
   );
 

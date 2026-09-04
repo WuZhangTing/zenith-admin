@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import {
-  Button, Descriptions, Form, InputNumber,
-  Select, Space, Spin, Tag, Toast, Typography,
-} from '@douyinfe/semi-ui';
+import { Button, Descriptions, Form, InputNumber, Space, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import {
   Activity, RefreshCw,
@@ -23,7 +20,7 @@ import { useKillProcess, useProcessDetail, useProcessList, useSetProcessPriority
 import { dateTimeColumn } from '@/utils/table-columns';
 import { HostSelector } from '@/components/HostSelector';
 import { useOpsHostSelection } from '@/hooks/useOpsHostSelection';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { formatBytes } from '@zenith/shared/core';
 
 // 自定义进程表格 CSS
@@ -383,13 +380,10 @@ export default function ProcessesPage() {
               width={240}
             />
             {/* 状态筛选 */}
-            <Select
-              placeholder="全部状态"
-              value={filterStatus || undefined}
-              onChange={(v) => setFilterStatus((v as string) ?? '')}
-              showClear
-              style={{ width: 120 }}
-              optionList={Object.entries(STATUS_META).map(([k, v]) => ({ value: k, label: v.label }))}
+            <StatusSelect
+              items={Object.entries(STATUS_META).map(([k, v]) => ({ value: k, label: v.label }))}
+              value={filterStatus}
+              onChange={setFilterStatus}
             />
             {/* 手动刷新 */}
             <Button
@@ -446,13 +440,10 @@ export default function ProcessesPage() {
           </>
         )}
         mobileFilters={(
-          <Select
-            placeholder="全部状态"
-            value={filterStatus || undefined}
-            onChange={(v) => setFilterStatus((v as string) ?? '')}
-            showClear
-            style={{ width: 120 }}
-            optionList={Object.entries(STATUS_META).map(([k, v]) => ({ value: k, label: v.label }))}
+          <StatusSelect
+            items={Object.entries(STATUS_META).map(([k, v]) => ({ value: k, label: v.label }))}
+            value={filterStatus}
+            onChange={setFilterStatus}
           />
         )}
         mobileActions={(

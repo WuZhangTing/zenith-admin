@@ -27,6 +27,7 @@ import type { PaymentChannel, PaymentSettlementBatch, PaymentSettlementItem, Pay
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { abortSubmit } from '@/lib/abort-submit';
 import { confirmDelete } from '@/utils/confirm';
+import { StatusSelect } from '@/components/search-filters';
 
 const yuan = formatYuan;
 const channelOptions = Object.entries(PAYMENT_CHANNEL_LABELS).map(([value, label]) => ({ value, label }));
@@ -258,13 +259,10 @@ export default function PaymentSettlementsPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
-      value={draftParams.status || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 120 }}
-      optionList={Object.entries(PAYMENT_SETTLEMENT_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+    <StatusSelect
+      items={Object.entries(PAYMENT_SETTLEMENT_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
     />
   );
 

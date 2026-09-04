@@ -18,7 +18,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { useTreeExpansion } from '@/hooks/useTreeExpansion';
 import { REGION_LEVEL_LABELS } from '@zenith/shared/platform';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 
 const LEVEL_LABELS: Record<string, string> = REGION_LEVEL_LABELS;
@@ -248,13 +248,11 @@ export default function RegionsPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
-      value={draftParams.status || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 110, maxWidth: '100%' }}
-      optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))}
+    <StatusSelect
+      items={statusItems}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
+      width={110}
     />
   );
 

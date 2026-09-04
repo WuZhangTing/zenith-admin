@@ -9,14 +9,14 @@
  * settings JSONB ⇄ 表单映射的纯函数与单测见 ./sites/site-form-mapping.ts。
  */
 import React, { useMemo, useRef, useState } from 'react';
-import { Button, Modal, Select, Tag, Toast } from '@douyinfe/semi-ui';
+import { Button, Modal, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Upload as UploadIcon, ChevronsDownUp, ChevronsUpDown, ListTree, List as ListIcon } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { createdAtColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
 import { confirmDelete } from '@/utils/confirm';
 import { request } from '@/utils/request';
@@ -278,13 +278,10 @@ export default function SitesPage() {
   );
 
   const renderStatusFilter = () => (
-    <Select
-      placeholder="全部状态"
-      value={draftParams.status || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
-      showClear
-      style={{ width: 120 }}
-      optionList={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '停用' }]}
+    <StatusSelect
+      items={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '停用' }]}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
     />
   );
 

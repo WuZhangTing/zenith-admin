@@ -35,7 +35,7 @@ import { useReportDqAnomalyList } from '@/hooks/queries/report-dq';
 import { useReportDeprecationList } from '@/hooks/queries/report-assets';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { KeywordInput } from '@/components/search-filters';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 
@@ -578,8 +578,11 @@ export default function DatasetsPage() {
     <KeywordInput placeholder="搜索名称/备注..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} />
   );
   const renderStatusFilter = () => (
-    <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
-      showClear style={{ width: 120 }} optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))} />
+    <StatusSelect
+      items={statusItems}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
+    />
   );
   const renderOwnerFilter = () => (
     <Select placeholder="全部负责人" value={draftParams.ownerId} showClear filter style={{ width: 140 }}
