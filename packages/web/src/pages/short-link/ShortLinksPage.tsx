@@ -20,11 +20,12 @@ import {
   shortLinkKeys, useBatchUpdateShortLinkStatus, useDeleteShortLinks,
   useSaveShortLink, useShortLinkDetail, useShortLinkList,
 } from '@/hooks/queries/short-links';
+import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
 import {
-  SHORT_LINK_BIZ_TYPE_LABELS, SHORT_LINK_BIZ_TYPE_OPTIONS,
+  SHORT_LINK_BIZ_TYPES, SHORT_LINK_BIZ_TYPE_LABELS, SHORT_LINK_BIZ_TYPE_OPTIONS,
   SHORT_LINK_REDIRECT_TYPE_OPTIONS,
 } from '@zenith/shared/short-link';
-import type { ShortLink } from '@zenith/shared/short-link';
+import type { CreateShortLinkInput, ShortLink } from '@zenith/shared/short-link';
 import ShortLinkStatsDrawer from './ShortLinkStatsDrawer';
 
 const { Text } = Typography;
@@ -38,16 +39,21 @@ interface SearchParams {
 
 const defaultSearchParams: SearchParams = { keyword: '', status: undefined, bizType: undefined, timeRange: null };
 
+/** 短链表单值：`expiresAt` 在表单里是 Date，提交前由 beforeSave 转成接口格式；记录里的 null 在表单中归一为空串 / 未填 */
+interface ShortLinkFormValues extends Partial<Omit<CreateShortLinkInput, 'expiresAt'>> {
+  expiresAt?: Date | string | null;
+}
+
 /** 表单值 → 提交载荷：空串统一转 null，DatePicker 值转 API 字符串 */
-function normalizePayload(values: Record<string, unknown>, isEdit: boolean): Partial<ShortLink> {
-  const nullable = (v: unknown) => (v === '' || v === undefined ? null : v);
+function normalizePayload(values: ShortLinkFormValues, isEdit: boolean): Partial<CreateShortLinkInput> {
+  const nullable = (v: string | null | undefined) => (v === '' || v === undefined ? null : v);
   return {
-    targetUrl: values.targetUrl as string,
-    ...(isEdit ? {} : { code: values.code ? (values.code as string) : undefined }),
+    targetUrl: values.targetUrl,
+    ...(isEdit ? {} : { code: values.code || undefined }),
     title: nullable(values.title),
     redirectType: values.redirectType,
     status: values.status,
-    expiresAt: values.expiresAt ? formatDateTimeForApi(values.expiresAt as Date | string) : null,
+    expiresAt: values.expiresAt ? formatDateTimeForApi(values.expiresAt) : null,
     maxVisits: typeof values.maxVisits === 'number' ? values.maxVisits : null,
     password: nullable(values.password),
     utmSource: nullable(values.utmSource),
@@ -56,7 +62,7 @@ function normalizePayload(values: Record<string, unknown>, isEdit: boolean): Par
     utmTerm: nullable(values.utmTerm),
     utmContent: nullable(values.utmContent),
     remark: nullable(values.remark),
-  } as Partial<ShortLink>;
+  };
 }
 
 export default function ShortLinksPage() {
@@ -80,14 +86,14 @@ export default function ShortLinksPage() {
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    status: submittedParams.status || undefined,
-    bizType: submittedParams.bizType || undefined,
+    status: enumValueOf(USER_STATUSES, submittedParams.status),
+    bizType: enumValueOf(SHORT_LINK_BIZ_TYPES, submittedParams.bizType),
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
-  const modal = useEditModal<ShortLink, Record<string, unknown>, Partial<ShortLink>>({
+  const modal = useEditModal<ShortLink, ShortLinkFormValues, Partial<CreateShortLinkInput>>({
     entityName: '短链',
     save: useSaveShortLink(),
     useDetail: useShortLinkDetail,
@@ -167,7 +173,7 @@ export default function ShortLinksPage() {
   function handleBatchStatus(status: 'enabled' | 'disabled') {
     const doBatch = () => {
       batchStatusMutation.mutate(
-        { ids: selectedRowKeys, status },
+        { body: { ids: selectedRowKeys, status } },
         {
           onSuccess: () => {
             Toast.success(status === 'enabled' ? '批量启用成功' : '批量禁用成功');

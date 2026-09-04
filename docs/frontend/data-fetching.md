@@ -48,13 +48,13 @@ packages/web/src/
 | 导出 | 说明 |
 | --- | --- |
 | `api(op, input?, options?)` | 单次调用，返回解包后的 `data`；`input` 为契约输入 `{ params?, query?, body? }`，`options` 为请求选项（`silent`、`client` 等） |
-| `urlOf(op, input?)` | 契约操作 + 输入 → 完整 URL（下载、`postForm` 等二进制通道使用） |
-| `contractKey(op, input?)` | 单操作查询的 query key：`[资源键, 操作名, input]` |
+| `urlOf(op, { params?, query? })` | 契约操作 + URL 相关输入段 → 完整 URL；带 body 的操作也只需 params / query（`request.postForm(urlOf(op), formData)`、`<Upload action>`、下载链接） |
+| `contractKey(op, input?)` | 单操作查询的 query key：`[资源键, 操作名, input]`；省略 input 得到该操作的公共前缀（`invalidateQueries` / `useListSearch({ listKey })`） |
 | `apiQueryOptions(op, input?, options?)` / `useApiQuery(op, input?, options?)` | 可缓存查询；`options` 透传 TanStack Query 选项（`enabled`、`staleTime`…） |
 | `useApiMutation(op, { invalidate, requestOptions, ...mutationOptions })` | 变更；变量即契约输入，`invalidate(qc, output, input)` 负责失效 |
 | `createResourceQueries(contract, options?)` | 标准 CRUD 契约组的 `keys` 与 `useList` / `useDetail` / `useSave` / `useDelete` / `useLookup` |
 
-`createResourceQueries` 依赖契约操作命名：`list`（分页）、`detail`、`create`、`update`、`remove`，可选 `removeBatch`（多条删除走 `/batch`）与 `all`（下拉源）。
+`createResourceQueries` 依赖契约操作命名：`list`（分页）、`detail`、`create`、`update`、`remove`，可选 `removeBatch`（多条删除走 `/batch`）与 `all`（下拉源）。主键类型取自 `detail` 的路径参数 `id`（`idParam` → number，`z.object({ id: z.string() })` → string），`useDetail` / `useSave` / `useDelete` / `keys.detail` 随之推导。
 
 | 选项 | 说明 |
 | --- | --- |

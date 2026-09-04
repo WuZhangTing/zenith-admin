@@ -109,7 +109,7 @@ describe('useBatchUpdateShortLinkStatus —— 非标准批量接口', () => {
     const fetches = observeFetches(qc);
     api.resetCalls();
 
-    await hook.result.current.batchStatus.mutateAsync({ ids: [1], status: 'disabled' });
+    await hook.result.current.batchStatus.mutateAsync({ body: { ids: [1], status: 'disabled' } });
     await waitFor(() => expect(hook.result.current.list.isFetching).toBe(false));
 
     expect(fetches.countOf(shortLinkKeys.lists)).toBe(1);

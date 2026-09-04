@@ -4,12 +4,15 @@ import AppModal from '@/components/AppModal';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useSaveShortLink } from '@/hooks/queries/short-links';
-import type { ShortLink } from '@zenith/shared/short-link';
+import type { CreateShortLinkInput, ShortLink } from '@zenith/shared/short-link';
 
 interface InsertShortLinkButtonProps {
   /** 生成成功后回调，参数为完整短链地址（调用方负责插入内容） */
   onInsert: (shortUrl: string) => void;
 }
+
+/** 即时生成表单只收长链接与标题 */
+type InsertShortLinkValues = Pick<CreateShortLinkInput, 'targetUrl' | 'title'>;
 
 /**
  * 「插入短链」按钮：输入长链接即时生成短链（bizType=custom，可在短链管理中统一治理），
@@ -17,12 +20,12 @@ interface InsertShortLinkButtonProps {
  */
 export default function InsertShortLinkButton({ onInsert }: InsertShortLinkButtonProps) {
   const { hasPermission } = usePermission();
-  const modal = useEditModal<ShortLink, Record<string, unknown>, Partial<ShortLink>>({
+  const modal = useEditModal<ShortLink, InsertShortLinkValues, Partial<CreateShortLinkInput>>({
     entityName: '短链',
     save: useSaveShortLink(),
     beforeSave: (values) => ({
-      targetUrl: values.targetUrl as string,
-      title: values.title ? (values.title as string) : null,
+      targetUrl: values.targetUrl,
+      title: values.title || null,
     }),
     onSaved: (saved) => onInsert(saved.shortUrl),
     successMessage: () => '短链已生成并插入内容',

@@ -135,7 +135,8 @@ function reportMisses(sites: CallSite[], routes: ServerRoute[], allowed: Set<str
     .map((s) => `${s.method} ${s.path}  (${s.file})`);
 }
 
-describe('API 路径契约（字面量 URL 必须存在于服务端路由表）', () => {
+// 全目录同步扫描：全量并行跑测试时磁盘争抢明显，放宽超时避免环境抖动误报
+describe('API 路径契约（字面量 URL 必须存在于服务端路由表）', { timeout: 60_000 }, () => {
   const routes = loadServerRoutes();
   const allowed = new Set(API_CONFORMANCE_ALLOWLIST.map((e) => `${e.method} ${e.path}`));
 

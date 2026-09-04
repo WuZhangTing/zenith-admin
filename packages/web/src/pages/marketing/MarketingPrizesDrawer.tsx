@@ -10,7 +10,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { confirmDelete } from '@/utils/confirm';
 import { useCouponList } from '@/hooks/queries/member-admin';
 import {
-  useDeleteMarketingPrize, useMarketingPrizes, useSaveMarketingPrize,
+  useCreateMarketingPrize, useDeleteMarketingPrize, useMarketingPrizes, useUpdateMarketingPrize,
 } from '@/hooks/queries/marketing-campaigns';
 import {
   MARKETING_PRIZE_TYPE_LABELS, MARKETING_PRIZE_TYPE_OPTIONS,
@@ -30,7 +30,8 @@ export default function MarketingPrizesDrawer({ campaign, onClose }: MarketingPr
   const { hasPermission } = usePermission();
   const campaignId = campaign?.id ?? null;
   const prizesQuery = useMarketingPrizes(campaignId);
-  const saveMutation = useSaveMarketingPrize();
+  const createMutation = useCreateMarketingPrize();
+  const updateMutation = useUpdateMarketingPrize();
   const deleteMutation = useDeleteMarketingPrize();
   const couponsQuery = useCouponList({ page: 1, pageSize: 100 });
   const [prizeType, setPrizeType] = useState<MarketingPrize['prizeType']>('points');
@@ -39,11 +40,14 @@ export default function MarketingPrizesDrawer({ campaign, onClose }: MarketingPr
   const prizes = prizesQuery.data ?? [];
   const totalWeight = prizes.reduce((s, p) => s + p.weight, 0);
 
-  const modal = useEditModal<MarketingPrize, Record<string, unknown>, SaveMarketingPrizeInput>({
+  const modal = useEditModal<MarketingPrize, Partial<SaveMarketingPrizeInput>, SaveMarketingPrizeInput>({
     entityName: '奖品',
+    // 新增 / 更新是两条独立契约操作，按是否带 id 分流
     save: {
-      mutateAsync: async ({ id, values }) => saveMutation.mutateAsync({ campaignId: campaignId!, prizeId: id ?? null, values }),
-      isPending: saveMutation.isPending,
+      mutateAsync: ({ id, values }) => (id === undefined
+        ? createMutation.mutateAsync({ params: { campaignId: campaignId! }, body: values })
+        : updateMutation.mutateAsync({ params: { campaignId: campaignId!, prizeId: id }, body: values })),
+      isPending: createMutation.isPending || updateMutation.isPending,
     },
     defaults: () => {
       setPrizeType('points');
@@ -62,8 +66,8 @@ export default function MarketingPrizesDrawer({ campaign, onClose }: MarketingPr
       };
     },
     beforeSave: (values) => ({
-      name: values.name as string,
-      prizeType: values.prizeType as MarketingPrize['prizeType'],
+      name: values.name ?? '',
+      prizeType: values.prizeType ?? prizeType,
       points: typeof values.points === 'number' ? values.points : null,
       couponId: typeof values.couponId === 'number' ? values.couponId : null,
       stock: typeof values.stock === 'number' ? values.stock : 0,
@@ -74,7 +78,7 @@ export default function MarketingPrizesDrawer({ campaign, onClose }: MarketingPr
   });
 
   async function handleDelete(prize: MarketingPrize) {
-    await deleteMutation.mutateAsync({ campaignId: campaignId!, prizeId: prize.id });
+    await deleteMutation.mutateAsync({ params: { campaignId: campaignId!, prizeId: prize.id } });
     Toast.success('删除成功');
   }
 

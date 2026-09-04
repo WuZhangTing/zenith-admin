@@ -1,8 +1,9 @@
-import { http } from 'msw';
-import { ok, badRequest, notFound, paginate } from '@/mocks/utils/handlers';
-import { removeWhere } from '@/mocks/utils/array';
+import { channelAnalysisContract, shortLinkContract } from '@zenith/shared/short-link';
 import type { ChannelAnalysisResult, ShortLink, ShortLinkStats } from '@zenith/shared/short-link';
 import { CHANNEL_ANALYSIS_UNSET, SHORT_LINK_CODE_ALPHABET, SHORT_LINK_CODE_LENGTH } from '@zenith/shared/short-link';
+import { mock } from '@/mocks/utils/contract';
+import { badRequest, notFound } from '@/mocks/utils/handlers';
+import { removeWhere } from '@/mocks/utils/array';
 import { mockShortLinks, getNextShortLinkId } from '../data/short-links';
 import { mockDateTime } from '../utils/date';
 
@@ -34,11 +35,10 @@ function seededSeries(seed: number, days: number): Array<{ date: string; pv: num
 }
 
 export const shortLinksHandlers = [
-  // ─── GET /api/growth/channel-analysis — 渠道推广分析（独立路径，先于短链资源）──
-  http.get('/api/growth/channel-analysis', ({ request }) => {
-    const url = new URL(request.url);
-    const days = Math.min(Math.max(Number(url.searchParams.get('days')) || 30, 1), 90);
-    const convEvent = url.searchParams.get('convEvent') || '';
+  // ─── 渠道推广分析（独立资源）────────────────────────────────────────────────
+  mock(channelAnalysisContract.analyze, ({ query, ok }) => {
+    const days = query.days ?? 30;
+    const convEvent = query.convEvent ?? '';
     const hasConv = convEvent !== '';
     const channelNames = ['wechat', 'weibo', 'baidu-sem', 'douyin', CHANNEL_ANALYSIS_UNSET];
     const rows = channelNames.map((name, i) => {
@@ -67,7 +67,7 @@ export const shortLinksHandlers = [
       });
     }
     const totalClicks = rows.reduce((s, r) => s + r.clicks, 0);
-    const result: ChannelAnalysisResult = {
+    return ok({
       totals: {
         clicks: totalClicks,
         uv: Math.round(totalClicks * 0.64),
@@ -76,57 +76,47 @@ export const shortLinksHandlers = [
       },
       trend,
       rows,
-    };
-    return ok(result);
+    });
   }),
 
-  // ─── GET / — 分页列表 ─────────────────────────────────────────────────────
-  http.get('/api/short-links', ({ request }) => {
-    const url = new URL(request.url);
-    const keyword = url.searchParams.get('keyword') || '';
-    const status = url.searchParams.get('status') || '';
-    const bizType = url.searchParams.get('bizType') || '';
-
+  // ─── 分页列表 ───────────────────────────────────────────────────────────────
+  mock(shortLinkContract.list, ({ query, ok, paginate }) => {
     let list = [...mockShortLinks].sort((a, b) => b.id - a.id);
-    if (keyword) {
+    if (query.keyword) {
+      const keyword = query.keyword;
       list = list.filter((x) => x.code.includes(keyword)
         || (x.title ?? '').includes(keyword)
         || x.targetUrl.includes(keyword));
     }
-    if (status) list = list.filter((x) => x.status === status);
-    if (bizType) list = list.filter((x) => x.bizType === bizType);
-    return ok(paginate(list, url));
+    if (query.status) list = list.filter((x) => x.status === query.status);
+    if (query.bizType) list = list.filter((x) => x.bizType === query.bizType);
+    return ok(paginate(list));
   }),
 
-  // ─── DELETE /batch —— 静态路径先于 /:id ──────────────────────────────────
-  http.delete('/api/short-links/batch', async ({ request }) => {
-    const { ids = [] } = (await request.json()) as { ids?: number[] };
-    if (ids.length === 0) return badRequest('请选择要删除的记录', { status: 400 });
-    const selected = new Set(ids);
+  // ─── 批量删除（静态路径先于 /{id}）─────────────────────────────────────────
+  mock(shortLinkContract.removeBatch, ({ body, ok }) => {
+    if (body.ids.length === 0) return badRequest('请选择要删除的记录', { status: 400 });
+    const selected = new Set(body.ids);
     const deleted = removeWhere(mockShortLinks, (x) => selected.has(x.id));
     return ok(null, `已删除 ${deleted} 条记录`);
   }),
 
-  // ─── PUT /batch/status — 批量启用/禁用 ────────────────────────────────────
-  http.put('/api/short-links/batch/status', async ({ request }) => {
-    const { ids = [], status } = (await request.json()) as { ids?: number[]; status?: 'enabled' | 'disabled' };
-    if (!ids.length || !status) return badRequest('请选择要操作的记录', { status: 400 });
-    const selected = new Set(ids);
+  // ─── 批量启用/禁用 ─────────────────────────────────────────────────────────
+  mock(shortLinkContract.batchUpdateStatus, ({ body, ok }) => {
+    const selected = new Set(body.ids);
     let updated = 0;
     for (const link of mockShortLinks) {
       if (selected.has(link.id)) {
-        link.status = status;
+        link.status = body.status;
         link.updatedAt = mockDateTime();
         updated++;
       }
     }
-    return ok(null, `已${status === 'enabled' ? '启用' : '禁用'} ${updated} 条记录`);
+    return ok(null, `已${body.status === 'enabled' ? '启用' : '禁用'} ${updated} 条记录`);
   }),
 
-  // ─── POST /ensure — 业务对象幂等取短链 ───────────────────────────────────
-  http.post('/api/short-links/ensure', async ({ request }) => {
-    const body = (await request.json()) as { targetUrl?: string; bizType?: ShortLink['bizType']; bizRef?: string; title?: string | null };
-    if (!body.targetUrl || !body.bizType || !body.bizRef) return badRequest('参数不完整', { status: 400 });
+  // ─── 业务对象幂等取短链 ─────────────────────────────────────────────────────
+  mock(shortLinkContract.ensure, ({ body, ok }) => {
     const existing = mockShortLinks.find((x) => x.bizType === body.bizType && x.bizRef === body.bizRef);
     if (existing) {
       existing.targetUrl = body.targetUrl;
@@ -165,13 +155,11 @@ export const shortLinksHandlers = [
     return ok(newLink);
   }),
 
-  // ─── GET /:id/stats — 访问统计 ───────────────────────────────────────────
-  http.get('/api/short-links/:id/stats', ({ params, request }) => {
-    const link = mockShortLinks.find((x) => x.id === Number(params.id));
+  // ─── 访问统计 ───────────────────────────────────────────────────────────────
+  mock(shortLinkContract.stats, ({ params, query, ok }) => {
+    const link = mockShortLinks.find((x) => x.id === params.id);
     if (!link) return notFound('短链不存在', { status: 404 });
-    const url = new URL(request.url);
-    const days = Math.min(Math.max(Number(url.searchParams.get('days')) || 30, 1), 90);
-    const trend = seededSeries(link.id, days);
+    const trend = seededSeries(link.id, query.days ?? 30);
     const pv = trend.reduce((s, p) => s + p.pv, 0);
     const uv = trend.reduce((s, p) => s + p.uv, 0);
     const today = trend[trend.length - 1];
@@ -208,17 +196,15 @@ export const shortLinksHandlers = [
     return ok(stats);
   }),
 
-  // ─── GET /:id — 详情 ─────────────────────────────────────────────────────
-  http.get('/api/short-links/:id', ({ params }) => {
-    const link = mockShortLinks.find((x) => x.id === Number(params.id));
+  // ─── 详情 ───────────────────────────────────────────────────────────────────
+  mock(shortLinkContract.detail, ({ params, ok }) => {
+    const link = mockShortLinks.find((x) => x.id === params.id);
     if (!link) return notFound('短链不存在', { status: 404 });
     return ok(link);
   }),
 
-  // ─── POST / — 创建 ───────────────────────────────────────────────────────
-  http.post('/api/short-links', async ({ request }) => {
-    const body = (await request.json()) as Partial<ShortLink>;
-    if (!body.targetUrl) return badRequest('目标地址不能为空', { status: 400 });
+  // ─── 创建：body 即 CreateShortLinkInput（已校验、已补默认值）────────────────
+  mock(shortLinkContract.create, ({ body, ok }) => {
     if (body.code && mockShortLinks.some((x) => x.code === body.code)) {
       return badRequest(`短码 "${body.code}" 已被占用，请更换`, { status: 400 });
     }
@@ -230,8 +216,8 @@ export const shortLinksHandlers = [
       shortUrl: `${window.location.origin}/s/${code}`,
       targetUrl: body.targetUrl,
       title: body.title ?? null,
-      redirectType: body.redirectType ?? '302',
-      status: body.status ?? 'enabled',
+      redirectType: body.redirectType,
+      status: body.status,
       expiresAt: body.expiresAt ?? null,
       expired: false,
       maxVisits: body.maxVisits ?? null,
@@ -253,20 +239,17 @@ export const shortLinksHandlers = [
     return ok(newLink, '创建成功');
   }),
 
-  // ─── PUT /:id — 更新 ─────────────────────────────────────────────────────
-  http.put('/api/short-links/:id', async ({ params, request }) => {
-    const idx = mockShortLinks.findIndex((x) => x.id === Number(params.id));
-    if (idx === -1) return notFound('短链不存在', { status: 404 });
-    const body = (await request.json()) as Partial<ShortLink>;
-    // code 不可修改，丢弃载荷中的 code / 派生字段
-    const { code: _code, shortUrl: _s, expired: _e, ...rest } = body;
-    Object.assign(mockShortLinks[idx], { ...rest, updatedAt: mockDateTime() });
-    return ok(mockShortLinks[idx], '更新成功');
+  // ─── 更新（code 不可修改，契约请求体不含 code）─────────────────────────────
+  mock(shortLinkContract.update, ({ params, body, ok }) => {
+    const link = mockShortLinks.find((x) => x.id === params.id);
+    if (!link) return notFound('短链不存在', { status: 404 });
+    Object.assign(link, body, { updatedAt: mockDateTime() });
+    return ok(link, '更新成功');
   }),
 
-  // ─── DELETE /:id — 删除 ──────────────────────────────────────────────────
-  http.delete('/api/short-links/:id', ({ params }) => {
-    const idx = mockShortLinks.findIndex((x) => x.id === Number(params.id));
+  // ─── 删除 ───────────────────────────────────────────────────────────────────
+  mock(shortLinkContract.remove, ({ params, ok }) => {
+    const idx = mockShortLinks.findIndex((x) => x.id === params.id);
     if (idx === -1) return notFound('短链不存在', { status: 404 });
     mockShortLinks.splice(idx, 1);
     return ok(null, '删除成功');

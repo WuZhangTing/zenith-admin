@@ -204,10 +204,12 @@ export default function PaymentLinksPage() {
   async function handleGenerateShortLink() {
     if (!qrLink) return;
     const link = await ensureShortLinkMutation.mutateAsync({
-      targetUrl: publicUrl(qrLink.token),
-      bizType: 'payment_link',
-      bizRef: String(qrLink.id),
-      title: qrLink.subject,
+      body: {
+        targetUrl: publicUrl(qrLink.token),
+        bizType: 'payment_link',
+        bizRef: String(qrLink.id),
+        title: qrLink.subject,
+      },
     });
     setPayShortUrl(link.shortUrl);
     Toast.success('短链已生成，二维码已切换为短链');
