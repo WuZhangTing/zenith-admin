@@ -1,102 +1,115 @@
-import { http } from 'msw';
-import { ok, badRequest, notFound, paginate, pageResult } from '@/mocks/utils/handlers';
+import { marketingCampaignContract } from '@zenith/shared/marketing';
 import type { MarketingCampaign, MarketingPrize } from '@zenith/shared/marketing';
+import { mock } from '@/mocks/utils/contract';
+import { badRequest, notFound } from '@/mocks/utils/handlers';
+import { mockCoupons } from '@/mocks/data/members';
 import {
   getNextMarketingCampaignId, getNextMarketingPrizeId,
   mockMarketingCampaigns, mockMarketingParticipations, mockMarketingPrizes,
 } from '../data/marketing';
 import { mockDateTime } from '../utils/date';
 
+/** 优惠券名称按模板关联回填（与服务端 leftJoin coupons 口径一致） */
+function withCouponName(prize: MarketingPrize): MarketingPrize {
+  return {
+    ...prize,
+    couponName: prize.couponId ? (mockCoupons.find((c) => c.id === prize.couponId)?.name ?? null) : null,
+  };
+}
+
 export const marketingHandlers = [
   // ─── 活动列表 ────────────────────────────────────────────────────────────────
-  http.get('/api/marketing/campaigns', ({ request }) => {
-    const url = new URL(request.url);
-    const keyword = url.searchParams.get('keyword') || '';
-    const status = url.searchParams.get('status') || '';
+  mock(marketingCampaignContract.list, ({ query, ok, paginate }) => {
     let list = [...mockMarketingCampaigns].sort((a, b) => b.id - a.id);
-    if (keyword) list = list.filter((c) => c.name.includes(keyword) || (c.description ?? '').includes(keyword));
-    if (status) list = list.filter((c) => c.status === status);
-    return ok(paginate(list, url));
+    if (query.keyword) {
+      const keyword = query.keyword;
+      list = list.filter((c) => c.name.includes(keyword) || (c.description ?? '').includes(keyword));
+    }
+    if (query.status) list = list.filter((c) => c.status === query.status);
+    return ok(paginate(list));
   }),
 
-  // ─── 奖品子资源（静态段先于 /:id 注册）──────────────────────────────────────
-  http.get('/api/marketing/campaigns/:campaignId/prizes', ({ params }) => {
-    const campaignId = Number(params.campaignId);
-    if (!mockMarketingCampaigns.some((c) => c.id === campaignId)) return notFound('营销活动不存在', { status: 404 });
-    return ok(mockMarketingPrizes.filter((p) => p.campaignId === campaignId).sort((a, b) => a.sort - b.sort || a.id - b.id));
+  // ─── 奖品子资源（静态段先于 /{id} 注册）──────────────────────────────────────
+  mock(marketingCampaignContract.listPrizes, ({ params, ok }) => {
+    if (!mockMarketingCampaigns.some((c) => c.id === params.campaignId)) return notFound('营销活动不存在', { status: 404 });
+    return ok(mockMarketingPrizes
+      .filter((p) => p.campaignId === params.campaignId)
+      .sort((a, b) => a.sort - b.sort || a.id - b.id)
+      .map(withCouponName));
   }),
-  http.post('/api/marketing/campaigns/:campaignId/prizes', async ({ params, request }) => {
-    const campaignId = Number(params.campaignId);
-    const body = (await request.json()) as Partial<MarketingPrize> & { stock?: number };
+  mock(marketingCampaignContract.createPrize, ({ params, body, ok }) => {
+    if (!mockMarketingCampaigns.some((c) => c.id === params.campaignId)) return notFound('营销活动不存在', { status: 404 });
     const now = mockDateTime();
     const prize: MarketingPrize = {
       id: getNextMarketingPrizeId(),
-      campaignId,
-      name: body.name ?? '',
-      prizeType: body.prizeType ?? 'points',
-      points: body.points ?? null,
-      couponId: body.couponId ?? null,
+      campaignId: params.campaignId,
+      name: body.name,
+      prizeType: body.prizeType,
+      points: body.prizeType === 'points' ? body.points ?? null : null,
+      couponId: body.prizeType === 'coupon' ? body.couponId ?? null : null,
       couponName: null,
-      stock: body.stock ?? 0,
-      totalStock: body.stock ?? 0,
-      weight: body.weight ?? 1,
-      sort: body.sort ?? 0,
+      stock: body.stock,
+      totalStock: body.stock,
+      weight: body.weight,
+      sort: body.sort,
       createdAt: now,
       updatedAt: now,
     };
     mockMarketingPrizes.push(prize);
-    return ok(prize, '创建成功');
+    return ok(withCouponName(prize), '创建成功');
   }),
-  http.put('/api/marketing/campaigns/:campaignId/prizes/:prizeId', async ({ params, request }) => {
-    const prizeId = Number(params.prizeId);
-    const idx = mockMarketingPrizes.findIndex((p) => p.id === prizeId);
-    if (idx === -1) return notFound('奖品不存在', { status: 404 });
-    const body = (await request.json()) as Partial<MarketingPrize> & { stock?: number };
-    const current = mockMarketingPrizes[idx];
-    const nextTotal = body.stock ?? current.totalStock;
-    const delta = nextTotal - current.totalStock;
+  mock(marketingCampaignContract.updatePrize, ({ params, body, ok }) => {
+    const current = mockMarketingPrizes.find((p) => p.id === params.prizeId && p.campaignId === params.campaignId);
+    if (!current) return notFound('奖品不存在', { status: 404 });
+    // 编辑库存：按增量同步调整剩余库存，已发放部分不受影响
+    const delta = body.stock - current.totalStock;
+    const nextStock = current.stock + delta;
+    if (nextStock < 0) return badRequest(`库存不可低于已发放数量（已发放 ${current.totalStock - current.stock}）`, { status: 400 });
     Object.assign(current, {
-      ...body,
-      totalStock: nextTotal,
-      stock: Math.max(0, current.stock + delta),
+      name: body.name,
+      prizeType: body.prizeType,
+      points: body.prizeType === 'points' ? body.points ?? null : null,
+      couponId: body.prizeType === 'coupon' ? body.couponId ?? null : null,
+      weight: body.weight,
+      sort: body.sort,
+      totalStock: body.stock,
+      stock: nextStock,
       updatedAt: mockDateTime(),
     });
-    return ok(current, '更新成功');
+    return ok(withCouponName(current), '更新成功');
   }),
-  http.delete('/api/marketing/campaigns/:campaignId/prizes/:prizeId', ({ params }) => {
-    const prizeId = Number(params.prizeId);
-    const idx = mockMarketingPrizes.findIndex((p) => p.id === prizeId);
+  mock(marketingCampaignContract.removePrize, ({ params, ok }) => {
+    const campaign = mockMarketingCampaigns.find((c) => c.id === params.campaignId);
+    if (!campaign) return notFound('营销活动不存在', { status: 404 });
+    if (campaign.status === 'published') return badRequest('进行中的活动不可删除奖品', { status: 400 });
+    const idx = mockMarketingPrizes.findIndex((p) => p.id === params.prizeId && p.campaignId === params.campaignId);
     if (idx === -1) return notFound('奖品不存在', { status: 404 });
     mockMarketingPrizes.splice(idx, 1);
     return ok(null, '删除成功');
   }),
 
   // ─── 参与记录 ────────────────────────────────────────────────────────────────
-  http.get('/api/marketing/campaigns/:campaignId/participations', ({ params, request }) => {
-    const campaignId = Number(params.campaignId);
-    const url = new URL(request.url);
-    const wonOnly = url.searchParams.get('wonOnly') === 'true';
-    const page = Number(url.searchParams.get('page')) || 1;
-    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
-    let list = mockMarketingParticipations.filter((r) => r.campaignId === campaignId);
-    if (wonOnly) list = list.filter((r) => r.prizeId !== null);
-    return ok(pageResult([...list].sort((a, b) => b.id - a.id), page, pageSize));
+  mock(marketingCampaignContract.listParticipations, ({ params, query, ok, paginate }) => {
+    if (!mockMarketingCampaigns.some((c) => c.id === params.campaignId)) return notFound('营销活动不存在', { status: 404 });
+    let list = mockMarketingParticipations.filter((r) => r.campaignId === params.campaignId);
+    if (query.memberId !== undefined) list = list.filter((r) => r.memberId === query.memberId);
+    if (query.wonOnly) list = list.filter((r) => r.prizeId !== null);
+    return ok(paginate([...list].sort((a, b) => b.id - a.id)));
   }),
 
   // ─── 发布 / 结束 ────────────────────────────────────────────────────────────
-  http.post('/api/marketing/campaigns/:id/publish', ({ params }) => {
-    const id = Number(params.id);
-    const campaign = mockMarketingCampaigns.find((c) => c.id === id);
+  mock(marketingCampaignContract.publish, ({ params, ok }) => {
+    const campaign = mockMarketingCampaigns.find((c) => c.id === params.id);
     if (!campaign) return notFound('营销活动不存在', { status: 404 });
-    if (!mockMarketingPrizes.some((p) => p.campaignId === id)) return badRequest('请先配置奖品再发布', { status: 400 });
+    if (campaign.status === 'published') return badRequest('活动已是进行中状态', { status: 400 });
+    if (!mockMarketingPrizes.some((p) => p.campaignId === params.id)) return badRequest('请先配置奖品再发布', { status: 400 });
     campaign.status = 'published';
-    if (campaign.landingUrl) campaign.shortUrl = `${window.location.origin}/s/act${id}x`;
+    if (campaign.landingUrl) campaign.shortUrl = `${window.location.origin}/s/act${params.id}x`;
     campaign.updatedAt = mockDateTime();
     return ok(campaign, '发布成功');
   }),
-  http.post('/api/marketing/campaigns/:id/end', ({ params }) => {
-    const id = Number(params.id);
-    const campaign = mockMarketingCampaigns.find((c) => c.id === id);
+  mock(marketingCampaignContract.end, ({ params, ok }) => {
+    const campaign = mockMarketingCampaigns.find((c) => c.id === params.id);
     if (!campaign) return notFound('营销活动不存在', { status: 404 });
     if (campaign.status !== 'published') return badRequest('仅进行中的活动可结束', { status: 400 });
     campaign.status = 'ended';
@@ -105,14 +118,12 @@ export const marketingHandlers = [
   }),
 
   // ─── 详情 / 创建 / 更新 / 删除 ──────────────────────────────────────────────
-  http.get('/api/marketing/campaigns/:id', ({ params }) => {
-    const campaign = mockMarketingCampaigns.find((c) => c.id === Number(params.id));
+  mock(marketingCampaignContract.detail, ({ params, ok }) => {
+    const campaign = mockMarketingCampaigns.find((c) => c.id === params.id);
     if (!campaign) return notFound('营销活动不存在', { status: 404 });
     return ok(campaign);
   }),
-  http.post('/api/marketing/campaigns', async ({ request }) => {
-    const body = (await request.json()) as Partial<MarketingCampaign>;
-    if (!body.name || !body.startAt || !body.endAt) return badRequest('活动名称与时间不能为空', { status: 400 });
+  mock(marketingCampaignContract.create, ({ body, ok }) => {
     const now = mockDateTime();
     const campaign: MarketingCampaign = {
       id: getNextMarketingCampaignId(),
@@ -121,7 +132,7 @@ export const marketingHandlers = [
       status: 'draft',
       startAt: body.startAt,
       endAt: body.endAt,
-      perMemberLimit: body.perMemberLimit ?? 1,
+      perMemberLimit: body.perMemberLimit,
       dailyPerMemberLimit: body.dailyPerMemberLimit ?? null,
       landingUrl: body.landingUrl ?? null,
       shortUrl: null,
@@ -134,17 +145,15 @@ export const marketingHandlers = [
     mockMarketingCampaigns.push(campaign);
     return ok(campaign, '创建成功');
   }),
-  http.put('/api/marketing/campaigns/:id', async ({ params, request }) => {
-    const campaign = mockMarketingCampaigns.find((c) => c.id === Number(params.id));
+  mock(marketingCampaignContract.update, ({ params, body, ok }) => {
+    const campaign = mockMarketingCampaigns.find((c) => c.id === params.id);
     if (!campaign) return notFound('营销活动不存在', { status: 404 });
     if (campaign.status === 'ended') return badRequest('已结束的活动不可修改', { status: 400 });
-    const body = (await request.json()) as Partial<MarketingCampaign>;
     Object.assign(campaign, body, { updatedAt: mockDateTime() });
     return ok(campaign, '更新成功');
   }),
-  http.delete('/api/marketing/campaigns/:id', ({ params }) => {
-    const id = Number(params.id);
-    const campaign = mockMarketingCampaigns.find((c) => c.id === id);
+  mock(marketingCampaignContract.remove, ({ params, ok }) => {
+    const campaign = mockMarketingCampaigns.find((c) => c.id === params.id);
     if (!campaign) return notFound('营销活动不存在', { status: 404 });
     if (campaign.status === 'published') return badRequest('进行中的活动不可删除，请先结束', { status: 400 });
     mockMarketingCampaigns.splice(mockMarketingCampaigns.indexOf(campaign), 1);
