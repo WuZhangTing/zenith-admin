@@ -11,7 +11,7 @@ import { uploadSessions, uploadChunks, managedFiles, fileStorageConfigs } from '
 import { buildUploadObjectKey, uploadObjectByConfig, extractBucketName, getMultipartDriver, mapObjectAclError, resolveObjectAcl } from '../../lib/file-storage';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { currentUser } from '../../lib/context';
-import { assertUploadSizeAllowed, assertUploadTypeAllowed, mapManagedFile } from './files.service';
+import { assertUploadSizeAllowed, assertUploadTypeAllowed, mapManagedFile, type ManagedFileUploadOptions } from './files.service';
 
 const UPLOAD_TEMP_ROOT = path.resolve(process.cwd(), 'storage/tmp/uploads');
 
@@ -106,7 +106,7 @@ export async function initChunkUpload(input: InitChunkUploadInput) {
   return { uploadId, chunkSize: input.chunkSize, totalChunks, received: [] as number[] };
 }
 
-export async function uploadChunk(uploadId: string, index: number, chunk: File) {
+export async function uploadChunk(uploadId: string, index: number, chunk: File, options: Pick<ManagedFileUploadOptions, 'skipTypeCheck'> = {}) {
   const session = await ensureSession(uploadId);
   if (session.status !== 'uploading') throw new HTTPException(400, { message: '上传会话已结束' });
   if (!Number.isInteger(index) || index < 0 || index >= session.totalChunks) {
@@ -117,7 +117,7 @@ export async function uploadChunk(uploadId: string, index: number, chunk: File) 
   if (driver && session.multipartUploadId) {
     // 云原生 multipart：分片直传云端，记录 ETag（首片做真实类型校验，快速失败）
     const body = Buffer.from(await chunk.arrayBuffer());
-    if (index === 0) await assertUploadTypeAllowed(body.subarray(0, 4100), session.mimeType ?? '');
+    if (index === 0 && !options.skipTypeCheck) await assertUploadTypeAllowed(body.subarray(0, 4100), session.mimeType ?? '');
     const config = await getSessionConfig(session.storageConfigId);
     const etag = await driver.uploadPart(config, session.objectKey, session.multipartUploadId, index + 1, body);
     await db
@@ -156,7 +156,7 @@ async function* mergedChunkStream(uploadId: string, totalChunks: number) {
   }
 }
 
-export async function completeChunkUpload(uploadId: string) {
+export async function completeChunkUpload(uploadId: string, options: ManagedFileUploadOptions = {}) {
   const user = currentUser();
   const session = await ensureSession(uploadId);
   if (session.status === 'completed') throw new HTTPException(400, { message: '上传已完成' });
@@ -180,8 +180,10 @@ export async function completeChunkUpload(uploadId: string) {
     await driver.complete(config, session.objectKey, session.multipartUploadId, parts, session.mimeType ?? undefined);
   } else {
     // 本地暂存：首片真实类型校验 + 按序流式合并上传
-    const head = await fs.readFile(chunkPath(uploadId, 0));
-    await assertUploadTypeAllowed(head.subarray(0, 4100), session.mimeType ?? '');
+    if (!options.skipTypeCheck) {
+      const head = await fs.readFile(chunkPath(uploadId, 0));
+      await assertUploadTypeAllowed(head.subarray(0, 4100), session.mimeType ?? '');
+    }
     const mergedStream = Readable.from(mergedChunkStream(uploadId, session.totalChunks));
     await uploadObjectByConfig(config, {
       objectKey: session.objectKey,
@@ -205,6 +207,8 @@ export async function completeChunkUpload(uploadId: string) {
       mimeType: session.mimeType,
       extension,
       objectAcl: session.objectAcl,
+      visibility: options.visibility ?? 'public',
+      contentHash: options.contentHash ?? null,
       tenantId: getCreateTenantId(user),
     })
     .returning();

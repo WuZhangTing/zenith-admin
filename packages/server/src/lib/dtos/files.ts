@@ -93,6 +93,8 @@ export const ManagedFileDTO = z
     size: z.number().int().openapi({ example: 10240 }),
     mimeType: z.string().nullable().optional(),
     extension: z.string().nullable().optional(),
+    visibility: z.enum(['public', 'restricted']).openapi({ description: 'restricted 文件不可经通用 content 接口读取' }),
+    contentHash: z.string().nullable().optional().openapi({ description: '内容 SHA-256（hex），未计算为 null' }),
     url: z.string().openapi({ description: '稳定代理路径 /api/files/{id}/content，可持久化', example: '/api/files/018f.../content' }),
     directUrl: z.string().nullable().optional().openapi({ description: 'public 策略的永久公开直链；仅渲染用，禁止持久化', example: 'https://cdn.example.com/2026/07/11/a.png' }),
     uploaderName: z.string().nullable().optional(),

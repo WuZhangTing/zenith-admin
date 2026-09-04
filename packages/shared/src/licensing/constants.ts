@@ -29,6 +29,7 @@ export const LICENSE_FEATURES = [
   'open-platform',
   'rules',
   'ops',
+  'drive',
 ] as const;
 
 export type LicenseFeatureKey = (typeof LICENSE_FEATURES)[number];
@@ -47,6 +48,7 @@ export const LICENSE_FEATURE_LABELS: Record<LicenseFeatureKey, string> = {
   'open-platform': '开放平台',
   rules: '规则中心',
   ops: '系统运维',
+  drive: '企业网盘',
 };
 
 export const LICENSE_FEATURE_OPTIONS: Array<{ value: LicenseFeatureKey; label: string }> =

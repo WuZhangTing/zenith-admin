@@ -19,6 +19,7 @@ import { SEED_MENUS_CMS } from './menus/cms';
 import { SEED_MENUS_WIKI } from './menus/wiki';
 import { SEED_MENUS_GROWTH } from './menus/growth';
 import { SEED_MENUS_IOT } from './menus/iot';
+import { SEED_MENUS_DRIVE } from './menus/drive';
 
 export { SEED_DATE } from './_base';
 
@@ -29,7 +30,7 @@ export { SEED_DATE } from './_base';
  *   系统管理 1000 / 系统设置 2000 / 智能助手 3000 / 工作流 4000 / 消息中心 5000 /
  *   规则中心 6000 / 数据分析 7000 / 支付中心 8000 / 会员中心 9000 / 公众号 10000 /
  *   业务示例 11000 / 报表中心 12000 / 开放平台 13000 / CMS 14000 / 告警中心 15000 /
- *   知识中心 16000 / 运营中心 17000
+ *   知识中心 16000 / 运营中心 17000 / IoT 18000 / 企业网盘 19000
  *
  * 数组顺序即菜单落库顺序，调整分片顺序会影响 SEED_MENUS 的相对次序。
  */
@@ -53,6 +54,7 @@ export const SEED_MENUS: Menu[] = applyMenuFeatureKeys([
   ...SEED_MENUS_WIKI,
   ...SEED_MENUS_GROWTH,
   ...SEED_MENUS_IOT,
+  ...SEED_MENUS_DRIVE,
 ]);
 
 /**
@@ -111,6 +113,10 @@ export const CMS_ROOT_MENU_ID = 14000;
 // 知识中心根目录与文档中心页面（供角色种子引用，避免魔法数字散落）
 export const WIKI_ROOT_MENU_ID = 16000;
 export const WIKI_DOC_CENTER_MENU_ID = 16010;
+
+// 企业网盘根目录与工作台页面（普通用户默认可用个人网盘）
+export const DRIVE_ROOT_MENU_ID = 19000;
+export const DRIVE_WORKBENCH_MENU_ID = 19010;
 
 export const CMS_RAW_EXPORT_MENU_IDS: number[] = SEED_MENUS
   .filter((m) => m.permission !== undefined && CMS_RAW_EXPORT_PERMISSIONS.includes(m.permission))

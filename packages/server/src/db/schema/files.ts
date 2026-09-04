@@ -11,6 +11,12 @@ export const fileObjectAclEnum = pgEnum('file_object_acl', ['default', 'private'
 /** 文件访问 URL 策略：proxy=服务端代理（兜底）；public=永久公开直链；presigned=临时签名直链 */
 export const fileUrlStrategyEnum = pgEnum('file_url_strategy', ['proxy', 'public', 'presigned']);
 
+/**
+ * 托管文件可见性：public=持有文件 ID 即可经 /api/files/{id}/content 读取（附件、头像等）；
+ * restricted=仅归属模块（如企业网盘）经自身鉴权接口读取，通用内容接口一律 404。
+ */
+export const fileVisibilityEnum = pgEnum('file_visibility', ['public', 'restricted']);
+
 // ─── 文件存储配置表 ──────────────────────────────────────────────────────────
 export const fileStorageConfigs = pgTable('file_storage_configs', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
@@ -93,16 +99,22 @@ export const managedFiles = pgTable('managed_files', {
   originalName: varchar({ length: 256 }).notNull(),
   objectKey: varchar({ length: 512 }).notNull(),
   bucketName: varchar({ length: 256 }),
-  size: integer().notNull().default(0),
+  size: bigint({ mode: 'number' }).notNull().default(0),
   mimeType: varchar({ length: 128 }),
   extension: varchar({ length: 32 }),
   // 上传时实际发送的对象 ACL 快照；null = 继承 Bucket（公开性未知）
   objectAcl: fileObjectAclEnum(),
+  visibility: fileVisibilityEnum().notNull().default('public'),
+  /** 内容 SHA-256（hex）；由归属模块按需写入，用于秒传 / 去重，null = 未计算 */
+  contentHash: varchar({ length: 64 }),
   tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('managed_files_tenant_idx').on(t.tenantId)]);
+}, (t) => [
+  index('managed_files_tenant_idx').on(t.tenantId),
+  index('managed_files_content_hash_idx').on(t.tenantId, t.contentHash),
+]);
 
 export type ManagedFileRow = typeof managedFiles.$inferSelect;
 

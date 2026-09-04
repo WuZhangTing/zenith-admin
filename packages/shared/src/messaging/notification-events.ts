@@ -610,6 +610,48 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     title: '{{title}}',
     content: '{{content}}',
   },
+  // ─── 企业网盘 ─────────────────────────────────────────────────────────────
+  'drive.node.shared': {
+    group: 'drive',
+    label: '文件 / 文件夹被授权给我',
+    severity: 'normal',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email'],
+    rateLimit: { limit: 20, windowMinutes: 60 },
+    vars: eventVars<{ nodeId: number; nodeName: string; nodeType: string; roleLabel: string; grantorName: string }>(),
+    title: '{{grantorName}} 向你共享了{{nodeType}}「{{nodeName}}」',
+    content: '{{grantorName}} 将{{nodeType}}「{{nodeName}}」授权给你（{{roleLabel}}），点击前往查看。',
+  },
+  'drive.space.member_added': {
+    group: 'drive',
+    label: '被加入协作空间',
+    severity: 'normal',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email'],
+    vars: eventVars<{ spaceId: number; spaceName: string; roleLabel: string; operatorName: string }>(),
+    title: '你已加入协作空间「{{spaceName}}」',
+    content: '{{operatorName}} 将你加入协作空间「{{spaceName}}」（{{roleLabel}}）。',
+  },
+  'drive.space.quota_warning': {
+    group: 'drive',
+    label: '空间配额预警',
+    severity: 'important',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email'],
+    vars: eventVars<{ spaceId: number; spaceName: string; usedText: string; quotaText: string; percent: number }>(),
+    title: '空间「{{spaceName}}」已用 {{percent}}%',
+    content: '空间「{{spaceName}}」已使用 {{usedText}} / {{quotaText}}，请及时清理回收站或联系管理员扩容。',
+  },
+  'drive.batch_download.ready': {
+    group: 'drive',
+    label: '打包下载已就绪',
+    severity: 'normal',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email'],
+    vars: eventVars<{ fileCount: number; sizeText: string }>(),
+    title: '打包下载已就绪',
+    content: '你请求打包的 {{fileCount}} 个文件（{{sizeText}}）已准备完成，点击下载。',
+  },
 });
 
 export type NotificationEventKey = keyof typeof NOTIFICATION_EVENTS;

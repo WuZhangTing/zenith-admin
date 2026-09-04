@@ -1,5 +1,6 @@
 import { managedFiles, fileStorageConfigs, users } from '../../db/schema';
 import type { FileStorageConfigRow } from '../../db/schema';
+import type { FileVisibility } from '@zenith/shared/platform';
 import { buildManagedFileProxyUrl, buildPublicFileUrl, deleteStoredFile, readStoredFile, resolveFileAccessUrl, resolveObjectAcl, uploadFileByConfig } from '../../lib/file-storage';
 import { formatDateTime } from '../../lib/datetime';
 import { getConfigBoolean, getConfigValue, getConfigNumber } from '../../lib/system-config';
@@ -15,12 +16,25 @@ export function mapManagedFile(row: typeof managedFiles.$inferSelect, config?: F
     size: row.size,
     mimeType: row.mimeType ?? null,
     extension: row.extension ?? null,
+    visibility: row.visibility,
+    contentHash: row.contentHash ?? null,
     // url 为稳定代理路径（合同：可持久化、永不失效）；directUrl 为 public 策略的永久直链（仅渲染用，禁止持久化）
     url: buildManagedFileProxyUrl(row.id),
     directUrl: buildPublicFileUrl(row, config),
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
+}
+
+/** 归属模块上传时的附加属性：受控可见性与内容哈希 */
+export interface ManagedFileUploadOptions {
+  visibility?: FileVisibility;
+  contentHash?: string | null;
+  /**
+   * 跳过 `file_upload_allowed_types` 白名单校验（仍校验大小上限）。
+   * 仅供自带内容策略的归属模块（企业网盘：扩展名黑名单 + 可执行文件魔数拦截）使用。
+   */
+  skipTypeCheck?: boolean;
 }
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
@@ -41,7 +55,19 @@ export async function getStorageConfigMap(): Promise<Map<number, FileStorageConf
 
 export async function getStoredFileForRead(id: string) {
   const [file] = await db.select().from(managedFiles).where(eq(managedFiles.id, id)).limit(1);
+  // 受控文件只能经归属模块的鉴权接口读取；通用接口按「不存在」处理，不泄露其存在性
+  if (!file || file.visibility === 'restricted') throw new HTTPException(404, { message: '文件不存在' });
+  return withStorageConfig(file);
+}
+
+/** 归属模块（网盘等）读取受控文件：跳过可见性检查，调用方自行完成鉴权 */
+export async function getRestrictedFileForRead(id: string) {
+  const [file] = await db.select().from(managedFiles).where(eq(managedFiles.id, id)).limit(1);
   if (!file) throw new HTTPException(404, { message: '文件不存在' });
+  return withStorageConfig(file);
+}
+
+async function withStorageConfig(file: typeof managedFiles.$inferSelect) {
   const [storageConfig] = await db
     .select()
     .from(fileStorageConfigs)
@@ -86,11 +112,16 @@ export async function readGeneratedManagedFile(id: string, tenantId: number | nu
 export async function listManagedFiles(query: {
   page?: number; pageSize?: number; keyword?: string; provider?: 'local' | 'oss' | 's3' | 'cos' | 'obs' | 'kodo' | 'bos' | 'azure' | 'sftp';
   fileType?: 'image' | 'video' | 'audio' | 'document'; startTime?: string; endTime?: string;
+  /** 缺省只列公开文件；受控文件（网盘等）由归属模块自行管理 */
+  visibility?: FileVisibility;
 }) {
   const user = currentUser();
   const page = Number(query.page ?? 1);
   const pageSize = Number(query.pageSize ?? 10);
-  const conditions = [keywordCondition(query.keyword, [managedFiles.originalName, managedFiles.objectKey, managedFiles.storageName])];
+  const conditions = [
+    keywordCondition(query.keyword, [managedFiles.originalName, managedFiles.objectKey, managedFiles.storageName]),
+    eq(managedFiles.visibility, query.visibility ?? 'public'),
+  ];
   if (query.provider) conditions.push(eq(managedFiles.provider, query.provider));
   if (query.fileType) {
     if (query.fileType === 'image') conditions.push(like(managedFiles.mimeType, 'image/%'));
@@ -182,12 +213,14 @@ export async function uploadManagedFileFromBody(fileValue: unknown) {
   return uploadManagedFile(normalizeUploadFile(fileValue));
 }
 
-export async function uploadManagedFile(file: File) {
+export async function uploadManagedFile(file: File, options: ManagedFileUploadOptions = {}) {
   const user = currentUser();
 
   // 大小上限 + 基于 magic bytes 的真实类型校验
   await assertUploadSizeAllowed(file.size);
-  await assertUploadTypeAllowed(Buffer.from(await file.slice(0, 4100).arrayBuffer()), file.type);
+  if (!options.skipTypeCheck) {
+    await assertUploadTypeAllowed(Buffer.from(await file.slice(0, 4100).arrayBuffer()), file.type);
+  }
   const [defaultConfig] = await db
     .select()
     .from(fileStorageConfigs)
@@ -208,6 +241,8 @@ export async function uploadManagedFile(file: File) {
       mimeType: uploaded.mimeType,
       extension: uploaded.extension,
       objectAcl: resolveObjectAcl(defaultConfig),
+      visibility: options.visibility ?? 'public',
+      contentHash: options.contentHash ?? null,
       tenantId: getCreateTenantId(user),
     })
     .returning();

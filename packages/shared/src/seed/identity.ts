@@ -1,5 +1,5 @@
 import type { Department, DirectorySyncSource, Position, Role, Tenant, TenantPackage } from '../identity/types';
-import { CMS_RAW_EXPORT_MENU_IDS, CMS_ROOT_MENU_ID, SEED_MENUS, WIKI_DOC_CENTER_MENU_ID, WIKI_ROOT_MENU_ID, collectMenuSubtreeIds } from './menus';
+import { CMS_RAW_EXPORT_MENU_IDS, CMS_ROOT_MENU_ID, DRIVE_ROOT_MENU_ID, DRIVE_WORKBENCH_MENU_ID, SEED_MENUS, WIKI_DOC_CENTER_MENU_ID, WIKI_ROOT_MENU_ID, collectMenuSubtreeIds } from './menus';
 import { SEED_DATE } from './_base';
 
 /**
@@ -12,6 +12,23 @@ const WIKI_READONLY_MENU_IDS: number[] = [
     const menu = SEED_MENUS.find((m) => m.id === id);
     if (!menu) return false;
     return menu.type !== 'button' || menu.permission === 'wiki:doc:list';
+  }),
+];
+
+/**
+ * 企业网盘「个人使用」菜单集：工作台页面 + 查询 / 上传 / 下载 / 编辑 / 删除 / 协作授权 / 回收站查看与还原。
+ * 外链分享、彻底删除、协作空间创建与治理权限由管理员按需显式分配，节点 ACL 仍是服务端兜底。
+ */
+const DRIVE_PERSONAL_PERMISSIONS: readonly string[] = [
+  'drive:node:list', 'drive:node:upload', 'drive:node:download', 'drive:node:edit', 'drive:node:delete',
+  'drive:node:grant', 'drive:recycle:list', 'drive:recycle:restore',
+];
+const DRIVE_PERSONAL_MENU_IDS: number[] = [
+  DRIVE_ROOT_MENU_ID,
+  ...collectMenuSubtreeIds(DRIVE_WORKBENCH_MENU_ID).filter((id) => {
+    const menu = SEED_MENUS.find((m) => m.id === id);
+    if (!menu) return false;
+    return menu.type !== 'button' || (menu.permission !== undefined && DRIVE_PERSONAL_PERMISSIONS.includes(menu.permission));
   }),
 ];
 
@@ -40,7 +57,8 @@ export const SEED_ROLES: Role[] = [
     updatedAt: SEED_DATE,
     // 首页 / 个人中心 / 公告中心 + 消息中心（页面与其按钮权限分离，按钮需显式分配）
     // + 知识中心只读（查询按钮 + 页面；写权限由管理员显式分配，空间角色仍是服务端兜底）
-    menuIds: [1, 11, 12, 5000, 5001, ...WIKI_READONLY_MENU_IDS],
+    // + 企业网盘个人使用（个人空间完整可用；外链 / 彻底删除 / 协作空间由管理员显式分配）
+    menuIds: [1, 11, 12, 5000, 5001, ...WIKI_READONLY_MENU_IDS, ...DRIVE_PERSONAL_MENU_IDS],
   },
   {
     id: 3,

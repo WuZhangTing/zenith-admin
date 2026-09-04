@@ -87,12 +87,17 @@ export const LICENSE_FEATURE_CATALOG: Record<LicenseFeatureKey, LicenseFeatureDe
     // 2440 = 系统设置 → 系统运维目录
     menuRoots: [2440],
   },
+  drive: {
+    label: LICENSE_FEATURE_LABELS.drive,
+    description: '企业网盘：个人 / 部门 / 协作空间、权限、外链与版本',
+    menuRoots: [19000],
+  },
 };
 
 /** 版本预设：签发 CLI 用它展开 features[]；运行时授权只看 License 载荷里的显式列表 */
 export const LICENSE_EDITION_PRESETS: Record<LicenseEdition, readonly LicenseFeatureKey[]> = {
   community: ['workflow', 'wiki', 'chat'],
-  pro: ['workflow', 'wiki', 'chat', 'analytics', 'report', 'cms', 'rules', 'ai'],
+  pro: ['workflow', 'wiki', 'chat', 'analytics', 'report', 'cms', 'rules', 'ai', 'drive'],
   enterprise: LICENSE_FEATURES,
 };
 

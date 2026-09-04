@@ -35,6 +35,7 @@
 		"./short-link": "./src/short-link/index.ts",
 		"./marketing": "./src/marketing/index.ts",
 		"./iot": "./src/iot/index.ts",
+		"./drive": "./src/drive/index.ts",
 		"./licensing": "./src/licensing/index.ts",
 		"./seed": "./src/seed/index.ts",
 		"./seed/*": "./src/seed/*.ts",

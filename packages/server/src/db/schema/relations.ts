@@ -67,6 +67,10 @@ import {
   iotForwardRules, iotForwardLogs, iotDeviceLogs,
   iotMaintenanceWindows, iotSchedules, iotScheduleRuns, iotDeviceWhitelist,
 } from './iot';
+import {
+  driveActivities, driveFileVersions, driveNodeComments, driveNodePermissions, driveNodes, driveNodeStars, driveNodeTags,
+  driveNodeTexts, driveRecentAccess, driveShareAccessLogs, driveShareLinks, driveSpaceMembers, driveSpaces, driveTags, driveUploadBindings,
+} from './drive';
 
 // ─── 关联关系 ────────────────────────────────────────────────────────────────
 export const errorGroupsRelations = relations(errorGroups, ({ many, one }) => ({
@@ -1921,4 +1925,97 @@ export const iotDeviceWhitelistRelations = relations(iotDeviceWhitelist, ({ one 
   product: one(iotProducts, { fields: [iotDeviceWhitelist.productId], references: [iotProducts.id] }),
   device: one(iotDevices, { fields: [iotDeviceWhitelist.deviceId], references: [iotDevices.id] }),
   tenant: one(tenants, { fields: [iotDeviceWhitelist.tenantId], references: [tenants.id] }),
+}));
+
+// ─── 企业网盘 ─────────────────────────────────────────────────────────────────
+export const driveSpacesRelations = relations(driveSpaces, ({ one, many }) => ({
+  owner: one(users, { fields: [driveSpaces.ownerId], references: [users.id] }),
+  department: one(departments, { fields: [driveSpaces.departmentId], references: [departments.id] }),
+  tenant: one(tenants, { fields: [driveSpaces.tenantId], references: [tenants.id] }),
+  members: many(driveSpaceMembers),
+  nodes: many(driveNodes),
+  tags: many(driveTags),
+}));
+
+export const driveSpaceMembersRelations = relations(driveSpaceMembers, ({ one }) => ({
+  space: one(driveSpaces, { fields: [driveSpaceMembers.spaceId], references: [driveSpaces.id] }),
+}));
+
+export const driveNodesRelations = relations(driveNodes, ({ one, many }) => ({
+  space: one(driveSpaces, { fields: [driveNodes.spaceId], references: [driveSpaces.id] }),
+  parent: one(driveNodes, { fields: [driveNodes.parentId], references: [driveNodes.id], relationName: 'driveNodeParent' }),
+  children: many(driveNodes, { relationName: 'driveNodeParent' }),
+  file: one(managedFiles, { fields: [driveNodes.fileId], references: [managedFiles.id], relationName: 'driveNodeFile' }),
+  thumbnail: one(managedFiles, { fields: [driveNodes.thumbnailFileId], references: [managedFiles.id], relationName: 'driveNodeThumbnail' }),
+  lockedByUser: one(users, { fields: [driveNodes.lockedBy], references: [users.id], relationName: 'driveNodeLockedBy' }),
+  deletedByUser: one(users, { fields: [driveNodes.deletedBy], references: [users.id], relationName: 'driveNodeDeletedBy' }),
+  createdByUser: one(users, { fields: [driveNodes.createdBy], references: [users.id], relationName: 'driveNodeCreatedBy' }),
+  updatedByUser: one(users, { fields: [driveNodes.updatedBy], references: [users.id], relationName: 'driveNodeUpdatedBy' }),
+  permissions: many(driveNodePermissions),
+  versions: many(driveFileVersions),
+  shareLinks: many(driveShareLinks),
+  nodeTags: many(driveNodeTags),
+  comments: many(driveNodeComments),
+  text: one(driveNodeTexts, { fields: [driveNodes.id], references: [driveNodeTexts.nodeId] }),
+}));
+
+export const driveNodePermissionsRelations = relations(driveNodePermissions, ({ one }) => ({
+  node: one(driveNodes, { fields: [driveNodePermissions.nodeId], references: [driveNodes.id] }),
+}));
+
+export const driveFileVersionsRelations = relations(driveFileVersions, ({ one }) => ({
+  node: one(driveNodes, { fields: [driveFileVersions.nodeId], references: [driveNodes.id] }),
+  file: one(managedFiles, { fields: [driveFileVersions.fileId], references: [managedFiles.id] }),
+  author: one(users, { fields: [driveFileVersions.authorId], references: [users.id] }),
+}));
+
+export const driveShareLinksRelations = relations(driveShareLinks, ({ one, many }) => ({
+  node: one(driveNodes, { fields: [driveShareLinks.nodeId], references: [driveNodes.id] }),
+  createdByUser: one(users, { fields: [driveShareLinks.createdBy], references: [users.id] }),
+  accessLogs: many(driveShareAccessLogs),
+}));
+
+export const driveShareAccessLogsRelations = relations(driveShareAccessLogs, ({ one }) => ({
+  share: one(driveShareLinks, { fields: [driveShareAccessLogs.shareId], references: [driveShareLinks.id] }),
+}));
+
+export const driveActivitiesRelations = relations(driveActivities, ({ one }) => ({
+  node: one(driveNodes, { fields: [driveActivities.nodeId], references: [driveNodes.id] }),
+  actor: one(users, { fields: [driveActivities.actorId], references: [users.id] }),
+}));
+
+export const driveNodeStarsRelations = relations(driveNodeStars, ({ one }) => ({
+  node: one(driveNodes, { fields: [driveNodeStars.nodeId], references: [driveNodes.id] }),
+  user: one(users, { fields: [driveNodeStars.userId], references: [users.id] }),
+}));
+
+export const driveRecentAccessRelations = relations(driveRecentAccess, ({ one }) => ({
+  node: one(driveNodes, { fields: [driveRecentAccess.nodeId], references: [driveNodes.id] }),
+  user: one(users, { fields: [driveRecentAccess.userId], references: [users.id] }),
+}));
+
+export const driveUploadBindingsRelations = relations(driveUploadBindings, ({ one }) => ({
+  space: one(driveSpaces, { fields: [driveUploadBindings.spaceId], references: [driveSpaces.id] }),
+  parent: one(driveNodes, { fields: [driveUploadBindings.parentId], references: [driveNodes.id] }),
+}));
+
+export const driveTagsRelations = relations(driveTags, ({ one, many }) => ({
+  space: one(driveSpaces, { fields: [driveTags.spaceId], references: [driveSpaces.id] }),
+  nodeTags: many(driveNodeTags),
+}));
+
+export const driveNodeTagsRelations = relations(driveNodeTags, ({ one }) => ({
+  node: one(driveNodes, { fields: [driveNodeTags.nodeId], references: [driveNodes.id] }),
+  tag: one(driveTags, { fields: [driveNodeTags.tagId], references: [driveTags.id] }),
+}));
+
+export const driveNodeCommentsRelations = relations(driveNodeComments, ({ one, many }) => ({
+  node: one(driveNodes, { fields: [driveNodeComments.nodeId], references: [driveNodes.id] }),
+  author: one(users, { fields: [driveNodeComments.authorId], references: [users.id] }),
+  parent: one(driveNodeComments, { fields: [driveNodeComments.parentId], references: [driveNodeComments.id], relationName: 'driveCommentParent' }),
+  replies: many(driveNodeComments, { relationName: 'driveCommentParent' }),
+}));
+
+export const driveNodeTextsRelations = relations(driveNodeTexts, ({ one }) => ({
+  node: one(driveNodes, { fields: [driveNodeTexts.nodeId], references: [driveNodes.id] }),
 }));

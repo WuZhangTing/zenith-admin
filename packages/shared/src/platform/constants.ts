@@ -34,6 +34,20 @@ export const FILE_OBJECT_ACL_SUPPORT: Partial<Record<(typeof FILE_STORAGE_PROVID
 /** 文件访问 URL 策略：proxy=服务端代理（兜底）；public=永久公开直链；presigned=临时签名直链 */
 export const FILE_URL_STRATEGIES = ['proxy', 'public', 'presigned'] as const;
 
+/**
+ * 托管文件可见性：public=持有文件 ID 即可经 /api/files/{id}/content 读取；
+ * restricted=仅归属模块（企业网盘等）经自身鉴权接口读取，通用内容接口一律 404。
+ */
+export const FILE_VISIBILITIES = ['public', 'restricted'] as const;
+
+export const FILE_VISIBILITY_LABELS: Record<(typeof FILE_VISIBILITIES)[number], string> = {
+  public: '公开读取',
+  restricted: '受控读取',
+};
+
+export const FILE_VISIBILITY_OPTIONS: Array<{ value: (typeof FILE_VISIBILITIES)[number]; label: string }> =
+  createLabelOptions(FILE_VISIBILITIES, FILE_VISIBILITY_LABELS);
+
 // ─── 接口限流 ─────────────────────────────────────────────────────────────────
 
 export const RATE_LIMIT_KEY_TYPES = ['ip', 'user', 'ip_path'] as const;

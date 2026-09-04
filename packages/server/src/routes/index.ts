@@ -26,6 +26,7 @@ import marketing from './marketing';
 import iot from './iot';
 import cms from './cms';
 import wiki from './wiki';
+import drive from './drive';
 
 export const ROUTE_DOMAINS = [
   ops,
@@ -49,4 +50,5 @@ export const ROUTE_DOMAINS = [
   iot,
   cms,
   wiki,
+  drive,
 ] as const;

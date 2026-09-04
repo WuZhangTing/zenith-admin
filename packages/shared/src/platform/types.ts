@@ -49,6 +49,9 @@ export type FileObjectAcl = 'default' | 'private' | 'public-read' | 'public-read
 /** 文件访问 URL 策略；proxy=服务端代理，public=永久公开直链，presigned=临时签名直链 */
 export type FileUrlStrategy = 'proxy' | 'public' | 'presigned';
 
+/** 托管文件可见性；public=持 ID 可读，restricted=仅归属模块鉴权接口可读 */
+export type FileVisibility = 'public' | 'restricted';
+
 /** access-url 接口返回的文件访问地址（presigned 每次返回新鲜签名，禁止长期缓存） */
 export interface FileAccessUrl {
   url: string;
@@ -135,6 +138,10 @@ export interface ManagedFile {
   size: number;
   mimeType?: string;
   extension?: string;
+  /** 可见性：restricted 文件不可经通用 /api/files/{id}/content 读取；缺省视为 public */
+  visibility?: FileVisibility;
+  /** 内容 SHA-256（hex）；未计算时为 null */
+  contentHash?: string | null;
   /** 稳定代理路径 /api/files/{id}/content：可持久化、永不失效 */
   url: string;
   /** public 策略的永久公开直链；仅渲染用，禁止持久化 */

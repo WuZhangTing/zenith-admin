@@ -840,6 +840,43 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     defaultDays: 90,
     description: 'IoT 设备计划任务的执行留痕（目标数/成功失败/错误明细）；计划列表的近 24h 执行计数只查最近窗口，超期记录可安全清理。',
   },
+  // ── 企业网盘 ───────────────────────────────────────────────────────────────
+  {
+    key: 'drive_activities',
+    title: '网盘文件动态',
+    module: '企业网盘',
+    tableName: 'drive_activities',
+    timeColumn: 'created_at',
+    defaultDays: 180,
+    description: '网盘上传 / 下载 / 预览 / 分享 / 授权等文件级动态（含外链匿名访问）；管理端审计与文件「动态」面板的数据源，超期记录可安全清理。',
+  },
+  {
+    key: 'drive_share_access_logs',
+    title: '网盘外链访问日志',
+    module: '企业网盘',
+    tableName: 'drive_share_access_logs',
+    timeColumn: 'created_at',
+    defaultDays: 180,
+    description: '外链匿名访问留痕（含密码错误 / 过期等被拒绝的尝试）；外链的累计访问次数存于外链行本身，不受清理影响。',
+  },
+  {
+    key: 'drive_nodes',
+    title: '网盘回收站到期清理',
+    module: '企业网盘',
+    tableName: 'drive_nodes',
+    timeColumn: 'deleted_at',
+    defaultDays: 30,
+    mode: 'custom',
+    run: async (days) => {
+      const { purgeExpiredRecycleNodes } = await import('../../services/drive/drive-nodes.service');
+      return purgeExpiredRecycleNodes(days);
+    },
+    previewPending: async (days) => {
+      const { countExpiredRecycleNodes } = await import('../../services/drive/drive-nodes.service');
+      return countExpiredRecycleNodes(days);
+    },
+    description: '回收站中删除时间早于保留期的项目彻底删除：删除节点、版本、授权与外链，释放空间配额并回收无引用的存储对象。天数与「网盘设置 → 回收站保留天数」独立维护，以本策略为准。',
+  },
 ];
 
 export function findPolicy(key: string): RetentionPolicyDefinition | undefined {

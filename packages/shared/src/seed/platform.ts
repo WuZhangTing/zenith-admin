@@ -119,6 +119,20 @@ export const SEED_SYSTEM_CONFIGS: SystemConfig[] = [
   { id: 42, configKey: 'rule_publish_approval', configName: '决策表发布审批',          configValue: 'false', configType: 'boolean', description: '决策表发布审批（四眼原则）：开启后发布需先提交申请，由具有「审批发布」权限的其他用户批准后生效', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 43, configKey: 'terminal_upload_max_size_mb', configName: '终端上传大小上限',    configValue: '200',   configType: 'number',  description: '文件管理器 / SFTP 单个文件上传大小上限（MB），0 表示不限制；该链路会把上传体整份读入内存，不限制可能导致服务内存耗尽', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 44, configKey: 'payment_transfer_approval_threshold', configName: '转账审批阈值', configValue: '100000', configType: 'number', description: '单笔转账达到该金额（分）时进入四眼审批；0 表示不启用审批', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  // ── 企业网盘 ──
+  { id: 45, configKey: 'drive_personal_quota_gb', configName: '网盘-个人空间默认配额(GB)', configValue: '10', configType: 'number', description: '个人空间默认配额（GB），0 表示不限；空间显式配额优先', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 46, configKey: 'drive_department_quota_gb', configName: '网盘-部门空间默认配额(GB)', configValue: '100', configType: 'number', description: '部门空间默认配额（GB），0 表示不限', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 47, configKey: 'drive_team_quota_gb', configName: '网盘-协作空间默认配额(GB)', configValue: '50', configType: 'number', description: '协作空间默认配额（GB），0 表示不限', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 48, configKey: 'drive_department_space_auto_create', configName: '网盘-部门空间自动创建', configValue: 'true', configType: 'boolean', description: '成员首次进入网盘时自动创建其直属部门的部门空间（部门及子部门成员默认可编辑，部门负责人为管理者）', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 49, configKey: 'drive_recycle_retention_days', configName: '网盘-回收站保留天数', configValue: '30', configType: 'number', description: '回收站项目保留天数（前端提示用；实际清理由「数据保留 → 网盘回收站到期清理」策略执行）', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 50, configKey: 'drive_max_versions', configName: '网盘-文件版本上限', configValue: '20', configType: 'number', description: '每个文件保留的历史版本数上限，超出自动修剪最旧版本；空间可单独设置', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 51, configKey: 'drive_quota_warning_percent', configName: '网盘-配额预警阈值(%)', configValue: '90', configType: 'number', description: '空间已用比例达到该值时通知空间管理者（每日一次）', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 52, configKey: 'drive_external_share_enabled', configName: '网盘-允许外链分享', configValue: 'true', configType: 'boolean', description: '关闭后任何人不能创建网盘外链（已有外链仍可撤销）', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 53, configKey: 'drive_external_share_max_days', configName: '网盘-外链最长有效期(天)', configValue: '30', configType: 'number', description: '外链必须设置且不超过该天数的有效期；0 表示允许永久外链', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 54, configKey: 'drive_external_share_require_password', configName: '网盘-外链强制密码', configValue: 'false', configType: 'boolean', description: '开启后创建外链必须设置访问密码', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 55, configKey: 'drive_blocked_extensions', configName: '网盘-禁止上传的扩展名', configValue: 'exe,bat,cmd,sh,msi,dll,scr,com,ps1,vbs', configType: 'string', description: '逗号分隔的扩展名黑名单；可执行文件另按内容魔数拦截', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 56, configKey: 'drive_thumbnail_enabled', configName: '网盘-生成图片缩略图', configValue: 'true', configType: 'boolean', description: '图片上传后异步生成 webp 缩略图供网格视图展示', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 57, configKey: 'drive_text_index_enabled', configName: '网盘-文本文件全文索引', configValue: 'true', configType: 'boolean', description: '文本类文件（≤ 2MB）上传后抽取正文建立全文索引，搜索可勾选「搜正文」', createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
 // ─── 限流规则 ─────────────────────────────────────────────────────────────────

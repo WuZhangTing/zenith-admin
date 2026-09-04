@@ -154,8 +154,10 @@ describe('认证契约：声明与运行时行为必须一致', () => {
   it('公开端点数量维持在小范围内', () => {
     // 公开端点是攻击面。数量本身不是错误，但增长必须是显式、有意识的决定，
     // 因此在这里设一道阈值：新增公开端点会让这条断言失败，迫使评审。
+    // 2026-09：企业网盘外链新增 4 个匿名端点（/api/drive/public/shares/*：换会话 / 元信息 / 子目录 / 内容），
+    // 均受路径绑定限流 drive_public_share 与 Redis 访问会话（sessionVersion 可整体吊销）约束。
     const publicOps = operations.filter((op) => op.isDeclaredPublic);
-    expect(publicOps.length).toBeLessThanOrEqual(60);
+    expect(publicOps.length).toBeLessThanOrEqual(64);
   });
 });
 

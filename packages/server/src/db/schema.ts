@@ -40,4 +40,5 @@ export * from './schema/wiki';
 export * from './schema/short-link';
 export * from './schema/marketing';
 export * from './schema/iot';
+export * from './schema/drive';
 export * from './schema/relations';
