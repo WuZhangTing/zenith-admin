@@ -118,7 +118,7 @@ packages/web/src/mocks/                 # 可选的 Demo API 替身
 主要能力群包括：
 
 - **基础治理**：`core`、`identity`、`platform`、`ops`、`licensing`
-- **协作与内容**：`messaging`、`chat`、`mp`、`cms`、`wiki`
+- **协作与内容**：`messaging`、`chat`、`mp`、`cms`、`wiki`、`drive`
 - **流程与自动化**：`workflow`、`rules`、`tasks`
 - **用户与交易**：`member`、`payment`、`biz`
 - **数据与智能**：`report`、`analytics`、`ai`

@@ -18,12 +18,14 @@
 | 表 | 说明 |
 | --- | --- |
 | `file_storage_configs` | 存储配置；provider、状态、默认标识、basePath、objectAcl、urlStrategy、publicBaseUrl、presignedExpirySeconds 与各 provider 专属字段 |
-| `managed_files` | 统一文件记录；UUID 主键、storageConfigId、storageName、provider、originalName、objectKey、bucketName、size、mimeType、extension、objectAcl、tenantId、审计字段 |
+| `managed_files` | 统一文件记录；UUID 主键、storageConfigId、storageName、provider、originalName、objectKey、bucketName、size（bigint）、mimeType、extension、objectAcl、visibility、contentHash、tenantId、审计字段 |
 | `upload_sessions` | 分片上传会话；uploadId、文件名/大小/MIME、chunkSize、totalChunks、存储配置快照、multipartUploadId、状态、租户、审计字段 |
 | `upload_chunks` | 已上传分片；uploadSessionId、index、size、etag；`uploadSessionId + index` 唯一保证重传幂等 |
 | `business_files` | 业务附件关联；`businessType + businessId + fileId` 唯一，当前枚举为 `announcement`、`wiki_doc` |
 
 `managed_files.bucketName` 与 `objectAcl` 是上传时快照，用于在存储配置后续切换 bucket 或 ACL 时继续读取旧文件并正确判断公开直链能力。
+
+`managed_files.visibility` 区分 `public`（默认，登录用户可经 `/api/files/{id}/content` 读取）与 `restricted`（业务域自管访问控制，通用内容接口返回 404，只能经业务域自己的内容接口读取，如企业网盘的 `/api/drive/nodes/{id}/content`）。文件管理列表默认只展示 `public` 文件。`contentHash` 为可选的 SHA-256，供业务域按内容去重 / 秒传。
 
 ## 存储后端
 

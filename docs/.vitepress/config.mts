@@ -71,6 +71,7 @@ export default withMermaid(defineConfig({
           { text: '会员中心', link: '/member/' },
           { text: '通知中心', link: '/notification/' },
           { text: '文件与存储', link: '/storage/' },
+          { text: '企业网盘', link: '/drive/' },
           { text: '知识中心', link: '/wiki/' },
           { text: 'CMS 内容管理', link: '/cms/' },
           { text: 'AI 能力', link: '/ai-platform/' },
@@ -165,6 +166,7 @@ export default withMermaid(defineConfig({
             ],
           },
           { text: '文件与存储', link: '/storage/' },
+          { text: '企业网盘', link: '/drive/' },
         ],
       },
       {

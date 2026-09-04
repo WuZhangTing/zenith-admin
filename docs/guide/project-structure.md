@@ -40,7 +40,7 @@ zenith-admin/
 `packages/server/src/routes/` 当前领域目录：
 
 ```text
-ai, analytics, biz-demo, chat, cms, files, identity, member,
+ai, analytics, biz-demo, chat, cms, drive, files, identity, member,
 messaging, mp, open-platform, ops, payment, platform, report,
 tasks, wiki, workflow
 ```
@@ -59,7 +59,7 @@ tasks, wiki, workflow
 
 | 目录 | 职责 |
 | --- | --- |
-| `src/pages/` | 后台页面，按业务域拆分（含 `rules`、`wiki`、`open-platform`、`system/app-releases` 等） |
+| `src/pages/` | 后台页面，按业务域拆分（含 `rules`、`wiki`、`drive`、`open-platform`、`system/app-releases` 等） |
 | `src/member/` | 会员前台独立应用 |
 | `src/approval/` | 移动审批入口 |
 | `src/layouts/` | 后台主布局、偏好面板、多账号切换、Electron 标题栏承载 |
@@ -75,7 +75,7 @@ tasks, wiki, workflow
 共享层按业务域拆分并通过 package exports 暴露子路径。当前目录：
 
 ```text
-ai, analytics, biz, chat, cms, core, identity, licensing, member,
+ai, analytics, biz, chat, cms, core, drive, identity, licensing, member,
 messaging, mp, open-platform, ops, payment, platform, report,
 rules, seed, tasks, wiki, workflow
 ```
@@ -111,7 +111,7 @@ Electron 桌面客户端：
 | `backend/` | API、安全、数据库、任务中心、支付、Mastra 等后端专题 |
 | `frontend/` | UI、认证、数据获取等前端专题 |
 | `ai/` | AGENTS.md 与 Zenith Skill 协作说明 |
-| 业务专题目录 | `/rules/`、`/wiki/`、`/open-platform/`、`/workflow/`、`/payment/`、`/cms/` 等 |
+| 业务专题目录 | `/rules/`、`/wiki/`、`/drive/`、`/open-platform/`、`/workflow/`、`/payment/`、`/cms/` 等 |
 | `changelog/` | 版本更新记录 |
 
 ## 分层原则
