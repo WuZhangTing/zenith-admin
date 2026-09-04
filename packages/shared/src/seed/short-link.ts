@@ -1,4 +1,4 @@
-import type { ShortLink } from '../short-link/types';
+import type { ShortLink } from '../short-link/contracts';
 import { SEED_DATE } from './_base';
 
 /**

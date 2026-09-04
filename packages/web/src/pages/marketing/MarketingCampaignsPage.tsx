@@ -17,10 +17,11 @@ import {
   marketingCampaignKeys, useDeleteMarketingCampaigns, useEndMarketingCampaign,
   useMarketingCampaignDetail, useMarketingCampaignList, usePublishMarketingCampaign, useSaveMarketingCampaign,
 } from '@/hooks/queries/marketing-campaigns';
+import { enumValueOf } from '@zenith/shared/core';
 import {
-  MARKETING_CAMPAIGN_STATUS_LABELS, MARKETING_CAMPAIGN_STATUS_OPTIONS,
+  MARKETING_CAMPAIGN_STATUSES, MARKETING_CAMPAIGN_STATUS_LABELS, MARKETING_CAMPAIGN_STATUS_OPTIONS,
 } from '@zenith/shared/marketing';
-import type { MarketingCampaign } from '@zenith/shared/marketing';
+import type { CreateMarketingCampaignInput, MarketingCampaign } from '@zenith/shared/marketing';
 import MarketingPrizesDrawer from './MarketingPrizesDrawer';
 import MarketingRecordsDrawer from './MarketingRecordsDrawer';
 
@@ -33,6 +34,12 @@ interface SearchParams {
 }
 
 const defaultSearchParams: SearchParams = { keyword: '', status: undefined, timeRange: null };
+
+/** 活动表单值：起止时间在表单里是 Date，提交前由 beforeSave 转成接口格式；记录里的 null 在表单中归一为空串 / 未填 */
+interface MarketingCampaignFormValues extends Partial<Omit<CreateMarketingCampaignInput, 'startAt' | 'endAt'>> {
+  startAt?: Date | string;
+  endAt?: Date | string;
+}
 
 const STATUS_COLORS = {
   draft: 'grey',
@@ -55,13 +62,13 @@ export default function MarketingCampaignsPage() {
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    status: submittedParams.status || undefined,
+    status: enumValueOf(MARKETING_CAMPAIGN_STATUSES, submittedParams.status),
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
-  const modal = useEditModal<MarketingCampaign, Record<string, unknown>, Partial<MarketingCampaign>>({
+  const modal = useEditModal<MarketingCampaign, MarketingCampaignFormValues, Partial<CreateMarketingCampaignInput>>({
     entityName: '营销活动',
     save: useSaveMarketingCampaign(),
     useDetail: useMarketingCampaignDetail,
@@ -76,13 +83,13 @@ export default function MarketingCampaignsPage() {
       description: r.description ?? '',
     }),
     beforeSave: (values) => ({
-      name: values.name as string,
-      startAt: values.startAt ? formatDateTimeForApi(values.startAt as Date | string) : '',
-      endAt: values.endAt ? formatDateTimeForApi(values.endAt as Date | string) : '',
+      name: values.name,
+      startAt: values.startAt ? formatDateTimeForApi(values.startAt) : '',
+      endAt: values.endAt ? formatDateTimeForApi(values.endAt) : '',
       perMemberLimit: typeof values.perMemberLimit === 'number' ? values.perMemberLimit : 1,
       dailyPerMemberLimit: typeof values.dailyPerMemberLimit === 'number' ? values.dailyPerMemberLimit : null,
-      landingUrl: (values.landingUrl as string) || null,
-      description: (values.description as string) || null,
+      landingUrl: values.landingUrl || null,
+      description: values.description || null,
     }),
     labelWidth: 110,
   });
@@ -101,7 +108,7 @@ export default function MarketingCampaignsPage() {
       title: '确认发布',
       content: `发布后活动「${record.name}」在时间窗内即可参与${record.landingUrl ? '，并自动生成分享短链' : ''}，确认发布？`,
       onOk: async () => {
-        await publishMutation.mutateAsync(record.id);
+        await publishMutation.mutateAsync({ params: { id: record.id } });
         Toast.success('发布成功');
       },
     });
@@ -113,7 +120,7 @@ export default function MarketingCampaignsPage() {
       content: `结束后会员将无法继续参与「${record.name}」，确认结束？`,
       okButtonProps: { type: 'warning', theme: 'solid' },
       onOk: async () => {
-        await endMutation.mutateAsync(record.id);
+        await endMutation.mutateAsync({ params: { id: record.id } });
         Toast.success('活动已结束');
       },
     });

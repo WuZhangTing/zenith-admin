@@ -1,18 +1,12 @@
 /**
  * 短链管理 API（/api/short-links）
  */
-import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { shortLinkContract } from '@zenith/shared/short-link';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
-import {
-  ErrorResponse, jsonContent, PaginationQuery, validationHook, commonErrorResponses,
-  ok, okPaginated, okMsg, IdParam, BatchIdsBody, okBody, errBody, dateRangeBound,
-} from '../../lib/openapi-schemas';
-import { ShortLinkDTO, ShortLinkStatsDTO } from '../../lib/openapi-dtos';
-import {
-  createShortLinkSchema, updateShortLinkSchema, batchUpdateShortLinkStatusSchema, ensureShortLinkSchema,
-  SHORT_LINK_BIZ_TYPES, SHORT_LINK_STATS_MAX_DAYS,
-} from '@zenith/shared/short-link';
+import { defineContractRoute } from '../../lib/contract-route';
+import { validationHook, okBody, errBody } from '../../lib/openapi-schemas';
 import {
   listShortLinks, getShortLink, createShortLink, updateShortLink,
   deleteShortLink, deleteShortLinks, batchUpdateShortLinkStatus, ensureShortLinkExists, ensureShortLink,
@@ -21,65 +15,32 @@ import { getShortLinkStats } from '../../services/short-link/short-link-stats.se
 
 const shortLinksRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-// ─── GET / — 分页列表 ─────────────────────────────────────────────────────────
-const listRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/',
-    tags: ['短链管理'], summary: '短链列表',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'shortlink:link:list' })] as const,
-    request: {
-      query: PaginationQuery.extend({
-        keyword: z.string().optional(),
-        status: z.enum(['enabled', 'disabled']).optional(),
-        bizType: z.enum(SHORT_LINK_BIZ_TYPES).optional(),
-        startTime: dateRangeBound('创建时间起'),
-        endTime: dateRangeBound('创建时间止'),
-      }),
-    },
-    responses: { ...commonErrorResponses, ...okPaginated(ShortLinkDTO, 'ok') },
-  }),
+const read = [authMiddleware, guard({ permission: 'shortlink:link:list' })] as const;
+
+const listRoute = defineContractRoute(shortLinkContract.list, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await listShortLinks(c.req.valid('query'))), 200),
 });
 
-// ─── DELETE /batch — 批量删除（静态路由须早于 /{id}）──────────────────────────
-const batchDeleteRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/batch',
-    tags: ['短链管理'], summary: '批量删除短链',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({
-      permission: 'shortlink:link:delete',
-      audit: { description: '批量删除短链', module: '短链管理' },
-    })] as const,
-    request: { body: { content: jsonContent(BatchIdsBody), required: true } },
-    responses: {
-      ...commonErrorResponses,
-      ...okMsg('批量删除成功'),
-      400: { content: jsonContent(ErrorResponse), description: '参数错误' },
-    },
-  }),
+// 静态 /batch 须早于 /{id} 注册
+const batchDeleteRoute = defineContractRoute(shortLinkContract.removeBatch, {
+  middleware: [authMiddleware, guard({
+    permission: 'shortlink:link:delete',
+    audit: { description: '批量删除短链', module: '短链管理' },
+  })],
   handler: async (c) => {
     const { ids } = c.req.valid('json');
-    if (!ids?.length) return c.json(errBody('请选择要删除的记录'), 400);
+    if (!ids.length) return c.json(errBody('请选择要删除的记录'), 400);
     const deleted = await deleteShortLinks(ids);
     return c.json(okBody(null, `已删除 ${deleted} 条记录`), 200);
   },
 });
 
-// ─── PUT /batch/status — 批量启用/禁用 ────────────────────────────────────────
-const batchStatusRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/batch/status',
-    tags: ['短链管理'], summary: '批量启用/禁用短链',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({
-      permission: 'shortlink:link:update',
-      audit: { description: '批量更新短链状态', module: '短链管理' },
-    })] as const,
-    request: { body: { content: jsonContent(batchUpdateShortLinkStatusSchema), required: true } },
-    responses: { ...commonErrorResponses, ...okMsg('批量更新成功') },
-  }),
+const batchStatusRoute = defineContractRoute(shortLinkContract.batchUpdateStatus, {
+  middleware: [authMiddleware, guard({
+    permission: 'shortlink:link:update',
+    audit: { description: '批量更新短链状态', module: '短链管理' },
+  })],
   handler: async (c) => {
     const { ids, status } = c.req.valid('json');
     const updated = await batchUpdateShortLinkStatus(ids, status);
@@ -87,46 +48,21 @@ const batchStatusRoute = defineOpenAPIRoute({
   },
 });
 
-// ─── GET /{id} — 详情 ─────────────────────────────────────────────────────────
-const getOneRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/{id}',
-    tags: ['短链管理'], summary: '获取短链详情',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'shortlink:link:list' })] as const,
-    request: { params: IdParam },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(ShortLinkDTO, '短链详情'),
-      404: { content: jsonContent(ErrorResponse), description: '不存在' },
-    },
-  }),
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    return c.json(okBody(await getShortLink(id)), 200);
-  },
+const ensureRoute = defineContractRoute(shortLinkContract.ensure, {
+  middleware: [authMiddleware, guard({
+    permission: 'shortlink:link:create',
+    audit: { description: '业务对象生成短链', module: '短链管理' },
+  })],
+  handler: async (c) => c.json(okBody(await ensureShortLink(c.req.valid('json'))), 200),
 });
 
-// ─── GET /{id}/stats — 访问统计 ───────────────────────────────────────────────
-const statsRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/{id}/stats',
-    tags: ['短链管理'], summary: '短链访问统计（趋势/设备/地域/来源）',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'shortlink:stats:view' })] as const,
-    request: {
-      params: IdParam,
-      query: z.object({
-        days: z.coerce.number().int().min(1).max(SHORT_LINK_STATS_MAX_DAYS).optional()
-          .openapi({ description: '统计窗口天数，默认 30' }),
-      }),
-    },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(ShortLinkStatsDTO, '访问统计'),
-      404: { content: jsonContent(ErrorResponse), description: '不存在' },
-    },
-  }),
+const detailRoute = defineContractRoute(shortLinkContract.detail, {
+  middleware: read,
+  handler: async (c) => c.json(okBody(await getShortLink(c.req.valid('param').id)), 200),
+});
+
+const statsRoute = defineContractRoute(shortLinkContract.stats, {
+  middleware: [authMiddleware, guard({ permission: 'shortlink:stats:view' })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { days } = c.req.valid('query');
@@ -134,86 +70,31 @@ const statsRoute = defineOpenAPIRoute({
   },
 });
 
-// ─── POST /ensure — 业务对象幂等取短链 ────────────────────────────────────────
-const ensureRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/ensure',
-    tags: ['短链管理'], summary: '为业务对象幂等获取短链（同 bizType+bizRef 复用）',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({
-      permission: 'shortlink:link:create',
-      audit: { description: '业务对象生成短链', module: '短链管理' },
-    })] as const,
-    request: { body: { content: jsonContent(ensureShortLinkSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(ShortLinkDTO, '短链') },
-  }),
-  handler: async (c) => {
-    const row = await ensureShortLink(c.req.valid('json'));
-    return c.json(okBody(row), 200);
-  },
+const createRouteDef = defineContractRoute(shortLinkContract.create, {
+  middleware: [authMiddleware, guard({
+    permission: 'shortlink:link:create',
+    audit: { description: '创建短链', module: '短链管理' },
+  })],
+  handler: async (c) => c.json(okBody(await createShortLink(c.req.valid('json')), '创建成功'), 200),
 });
 
-// ─── POST / — 创建 ────────────────────────────────────────────────────────────
-const createRoute_ = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/',
-    tags: ['短链管理'], summary: '创建短链',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({
-      permission: 'shortlink:link:create',
-      audit: { description: '创建短链', module: '短链管理' },
-    })] as const,
-    request: { body: { content: jsonContent(createShortLinkSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(ShortLinkDTO, '创建成功') },
-  }),
-  handler: async (c) => {
-    const row = await createShortLink(c.req.valid('json'));
-    return c.json(okBody(row, '创建成功'), 200);
-  },
-});
-
-// ─── PUT /{id} — 更新 ─────────────────────────────────────────────────────────
-const updateRoute_ = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/{id}',
-    tags: ['短链管理'], summary: '更新短链',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({
-      permission: 'shortlink:link:update',
-      audit: { description: '更新短链', module: '短链管理' },
-    })] as const,
-    request: { params: IdParam, body: { content: jsonContent(updateShortLinkSchema), required: true } },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(ShortLinkDTO, '更新成功'),
-      404: { content: jsonContent(ErrorResponse), description: '不存在' },
-    },
-  }),
+const updateRouteDef = defineContractRoute(shortLinkContract.update, {
+  middleware: [authMiddleware, guard({
+    permission: 'shortlink:link:update',
+    audit: { description: '更新短链', module: '短链管理' },
+  })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await ensureShortLinkExists(id));
-    const row = await updateShortLink(id, c.req.valid('json'));
-    return c.json(okBody(row, '更新成功'), 200);
+    return c.json(okBody(await updateShortLink(id, c.req.valid('json')), '更新成功'), 200);
   },
 });
 
-// ─── DELETE /{id} — 删除 ──────────────────────────────────────────────────────
-const deleteRoute_ = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/{id}',
-    tags: ['短链管理'], summary: '删除短链',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({
-      permission: 'shortlink:link:delete',
-      audit: { description: '删除短链', module: '短链管理' },
-    })] as const,
-    request: { params: IdParam },
-    responses: {
-      ...commonErrorResponses,
-      ...okMsg('删除成功'),
-      404: { content: jsonContent(ErrorResponse), description: '不存在' },
-    },
-  }),
+const deleteRouteDef = defineContractRoute(shortLinkContract.remove, {
+  middleware: [authMiddleware, guard({
+    permission: 'shortlink:link:delete',
+    audit: { description: '删除短链', module: '短链管理' },
+  })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await ensureShortLinkExists(id));
@@ -227,11 +108,11 @@ shortLinksRouter.openapiRoutes([
   batchDeleteRoute,
   batchStatusRoute,
   ensureRoute,
-  getOneRoute,
+  detailRoute,
   statsRoute,
-  createRoute_,
-  updateRoute_,
-  deleteRoute_,
+  createRouteDef,
+  updateRouteDef,
+  deleteRouteDef,
 ] as const);
 
 export default shortLinksRouter;

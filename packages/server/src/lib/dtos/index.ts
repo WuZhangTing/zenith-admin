@@ -77,8 +77,6 @@ export * from './cms';
 export * from './wiki';
 export * from './app-releases';
 export * from './push';
-export * from './short-links';
-export * from './marketing';
 export * from './iot';
 export * from './trace';
 export * from './import-jobs';
