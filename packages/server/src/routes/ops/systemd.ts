@@ -1,20 +1,20 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { stream } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
   validationHook, ok, commonErrorResponses, okBody, okMsg,
+  HostQuery,
 } from '../../lib/openapi-schemas';
 import {
   isSystemdAvailable, listServices, controlService, getServiceLogs, tailServiceLogs, getServiceDetail,
 } from '../../services/ops/systemd.service';
-import { assertRemoteHostAccess } from '../../lib/host-access';
+import { assertRemoteHostAccess, resolveHostIdQuery } from '../../lib/host-access';
+import { streamProcessOutput } from '../../lib/http-stream';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 const VIEW_PERM = 'system:service:view';
 const MANAGE_PERM = 'system:service:manage';
-const HostQuery = z.object({ hostId: z.coerce.number().int().positive().optional() });
 
 /** 验证服务名：只允许合法字符，防止命令注入 */
 function validateServiceName(name: string): void {
@@ -25,42 +25,9 @@ function validateServiceName(name: string): void {
 router.get('/:name/logs/stream', authMiddleware, guard({ permission: VIEW_PERM }), async (c) => {
   const name = c.req.param('name');
   validateServiceName(name);
-  const rawHostId = c.req.query('hostId');
-  const hostId = rawHostId ? Number(rawHostId) : undefined;
-  if (rawHostId && (!Number.isInteger(hostId) || (hostId ?? 0) <= 0)) {
-    throw new HTTPException(400, { message: '无效的 hostId' });
-  }
-  await assertRemoteHostAccess(c, hostId);
+  const hostId = await resolveHostIdQuery(c);
 
-  return stream(c, async (s) => {
-    let finish!: () => void;
-    const done = new Promise<void>((resolve) => { finish = resolve; });
-    let aborted = false;
-    let handle: { kill: () => void } | null = null;
-    let writes = Promise.resolve();
-    s.onAbort(() => {
-      aborted = true;
-      handle?.kill();
-      finish();
-    });
-    handle = await tailServiceLogs(
-      name,
-      (chunk) => {
-        writes = writes
-          .then(async () => { await s.write(chunk); })
-          .catch(() => { handle?.kill(); finish(); });
-      },
-      () => { void writes.finally(finish); },
-      hostId,
-    );
-    if (aborted) handle.kill();
-    try {
-      await done;
-      await writes;
-    } finally {
-      handle.kill();
-    }
-  });
+  return streamProcessOutput(c, (onData, onExit) => tailServiceLogs(name, onData, onExit, hostId));
 });
 
 // ─── OpenAPI 路由 ─────────────────────────────────────────────────────────────

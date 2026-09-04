@@ -8,6 +8,7 @@ import {
   jsonContent,
   validationHook,
   commonErrorResponses,
+  HostQuery,
 } from '../../lib/openapi-schemas';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
@@ -21,7 +22,6 @@ import {
 import { assertRemoteHostAccess } from '../../lib/host-access';
 
 const firewallRouter = new OpenAPIHono({ defaultHook: validationHook });
-const HostQuery = z.object({ hostId: z.coerce.number().int().positive().optional() });
 
 function assertLocalFirewallWrite(hostId?: number): void {
   if (hostId != null) {

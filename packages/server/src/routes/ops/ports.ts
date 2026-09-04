@@ -7,13 +7,13 @@ import {
   ok,
   okMsg,
   okBody,
+  HostQuery,
 } from '../../lib/openapi-schemas';
 import { getListeningPorts } from '../../services/ops/ports.service';
 import { getProcessDetail, killProcess } from '../../services/ops/processes.service';
 import { assertRemoteHostAccess } from '../../lib/host-access';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
-const HostQuery = z.object({ hostId: z.coerce.number().int().positive().optional() });
 
 const PortEntryDTO = z.object({
   protocol: z.string(),

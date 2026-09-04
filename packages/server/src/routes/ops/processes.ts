@@ -1,21 +1,20 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
-import { HTTPException } from 'hono/http-exception';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import {
   validationHook, commonErrorResponses, ok, okMsg,
   jsonContent, okBody,
+  HostQuery,
 } from '../../lib/openapi-schemas';
 import { ProcessInfoDTO, ProcessListResponseDTO } from '../../lib/openapi-dtos';
-import { assertRemoteHostAccess } from '../../lib/host-access';
+import { assertRemoteHostAccess, resolveHostIdQuery } from '../../lib/host-access';
 import {
   listProcesses, getProcessDetail, killProcess, setProcessPriority,
 } from '../../services/ops/processes.service';
 import { killProcessSchema, setProcessPrioritySchema } from '@zenith/shared/ops';
 
 const processesRouter = new OpenAPIHono({ defaultHook: validationHook });
-const HostQuery = z.object({ hostId: z.coerce.number().int().positive().optional() });
 
 /** pid 路径参数 */
 const PidParam = z.object({
@@ -129,12 +128,7 @@ processesRouter.get(
   authMiddleware,
   guard({ permission: 'system:process:view' }),
   async (c) => {
-    const rawHostId = c.req.query('hostId');
-    const hostId = rawHostId ? Number(rawHostId) : undefined;
-    if (rawHostId && (!Number.isInteger(hostId) || (hostId ?? 0) <= 0)) {
-      throw new HTTPException(400, { message: '无效的 hostId' });
-    }
-    await assertRemoteHostAccess(c, hostId);
+    const hostId = await resolveHostIdQuery(c);
     return streamSSE(c, async (stream) => {
       // 立即发送 ping 以确保 HTTP 响应头（200 + text/event-stream）即刻送达客户端
       // （@hono/node-server 在第一次写入时才真正刷新响应头）

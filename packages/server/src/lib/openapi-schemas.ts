@@ -168,6 +168,14 @@ export function jsonContent<T extends z.ZodTypeAny>(schema: T) {
   return { 'application/json': { schema } };
 }
 
+/** 运维主机选择：缺省为本机，传 hostId 时经 assertRemoteHostAccess 校验远端准入 */
+export const HostQuery = z.object({
+  hostId: z.coerce.number().int().positive().optional().openapi({
+    param: { name: 'hostId', in: 'query' },
+    description: '远端运维主机 ID；缺省为本机',
+  }),
+});
+
 /** 常用分页入参 */
 export const PaginationQuery = z.object({
   page: z.coerce
@@ -196,12 +204,11 @@ export const PaginationQuery = z.object({
 /**
  * 时间范围端点参数（`startTime` / `endTime` / `dateStart` 之类）。
  *
- * 同时接受 `YYYY-MM-DD` 与 `YYYY-MM-DD HH:mm:ss`——这与
+ * 同时接受 `YYYY-MM-DD` 与 `YYYY-MM-DD HH:mm:ss`——与
  * `lib/where-helpers.ts` 的 `dateRangeConditions()` 口径一致：
  * 传纯日期时起点取当天 00:00:00、终点取当天 23:59:59.999。
  *
- * **必须校验格式**：此前这些参数一律是裸 `z.string().optional()`，
- * `?endTime=abc` 会被静默当成「无筛选」，用户看到的是全量数据而非报错。
+ * 范围端点参数必须经此校验格式，非法输入直接 400，而不是被当成「无筛选」返回全量数据。
  *
  * @example
  * request: { query: PaginationQuery.extend({

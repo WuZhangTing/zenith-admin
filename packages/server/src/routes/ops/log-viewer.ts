@@ -4,10 +4,11 @@ import { HTTPException } from 'hono/http-exception';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import {
-  validationHook, ok, commonErrorResponses, okBody,
+  validationHook, ok, commonErrorResponses, okBody, HostQuery,
 } from '../../lib/openapi-schemas';
 import { readLastLines, spawnTailFollow, openLogForDownload, resolveAllowedLogPath, getLocalLogRoots, getRemoteLogRoots } from '../../services/ops/log-viewer.service';
-import { assertRemoteHostAccess } from '../../lib/host-access';
+import { assertRemoteHostAccess, resolveHostIdQuery } from '../../lib/host-access';
+import { streamProcessOutput } from '../../lib/http-stream';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 const LOG_PERM = 'system:log:view';
@@ -18,44 +19,11 @@ router.get('/stream', authMiddleware, guard({ permission: LOG_PERM }), async (c)
   if (!filePath) {
     throw new HTTPException(400, { message: '参数 path 不能为空' });
   }
-  const rawHostId = c.req.query('hostId');
-  const hostId = rawHostId ? Number(rawHostId) : undefined;
-  if (rawHostId && (!Number.isInteger(hostId) || (hostId ?? 0) <= 0)) {
-    throw new HTTPException(400, { message: '无效的 hostId' });
-  }
-  await assertRemoteHostAccess(c, hostId);
+  const hostId = await resolveHostIdQuery(c);
   // 白名单 / 存在性校验放在开流之前，错误以 JSON 状态码返回而不是流式正文
   await resolveAllowedLogPath(filePath, hostId);
 
-  return stream(c, async (s) => {
-    let finish!: () => void;
-    const done = new Promise<void>((resolve) => { finish = resolve; });
-    let aborted = false;
-    let handle: { kill: () => void } | null = null;
-    let writes = Promise.resolve();
-    s.onAbort(() => {
-      aborted = true;
-      handle?.kill();
-      finish();
-    });
-    handle = await spawnTailFollow(
-      filePath,
-      (chunk) => {
-        writes = writes
-          .then(async () => { await s.write(chunk); })
-          .catch(() => { handle?.kill(); finish(); });
-      },
-      () => { void writes.finally(finish); },
-      hostId,
-    );
-    if (aborted) handle.kill();
-    try {
-      await done;
-      await writes;
-    } finally {
-      handle.kill();
-    }
-  });
+  return streamProcessOutput(c, (onData, onExit) => spawnTailFollow(filePath, onData, onExit, hostId));
 });
 
 // ─── 下载日志文件 ────────────────────────────────────────────────────────────
@@ -64,12 +32,7 @@ router.get('/download', authMiddleware, guard({ permission: LOG_PERM }), async (
   if (!filePath) {
     throw new HTTPException(400, { message: '参数 path 不能为空' });
   }
-  const rawHostId = c.req.query('hostId');
-  const hostId = rawHostId ? Number(rawHostId) : undefined;
-  if (rawHostId && (!Number.isInteger(hostId) || (hostId ?? 0) <= 0)) {
-    throw new HTTPException(400, { message: '无效的 hostId' });
-  }
-  await assertRemoteHostAccess(c, hostId);
+  const hostId = await resolveHostIdQuery(c);
   let file: Awaited<ReturnType<typeof openLogForDownload>>;
   try {
     file = await openLogForDownload(filePath, 100 * 1024 * 1024, hostId);
@@ -99,10 +62,9 @@ const contentRoute = defineOpenAPIRoute({
     method: 'get', path: '/content', summary: '读取日志文件末尾内容', tags: ['LogViewer'],
     middleware: [authMiddleware, guard({ permission: LOG_PERM })] as const,
     request: {
-      query: z.object({
+      query: HostQuery.extend({
         path: z.string().min(1),
         lines: z.string().optional(),
-        hostId: z.coerce.number().int().positive().optional(),
       }),
     },
     responses: { ...commonErrorResponses, ...ok(z.object({ content: z.string() }), '日志内容') },
@@ -120,7 +82,7 @@ const rootsRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/roots', summary: '日志查看器允许读取的目录', tags: ['LogViewer'],
     middleware: [authMiddleware, guard({ permission: LOG_PERM })] as const,
-    request: { query: z.object({ hostId: z.coerce.number().int().positive().optional() }) },
+    request: { query: HostQuery },
     responses: { ...commonErrorResponses, ...ok(z.object({ roots: z.array(z.string()) }), '允许目录') },
   }),
   handler: async (c) => {
