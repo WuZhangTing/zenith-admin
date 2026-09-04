@@ -4,7 +4,8 @@ import { AppModal } from '@/components/AppModal';
 import { Button, Checkbox, DatePicker, Descriptions, Input, List, Pagination, Progress, Space, Spin, Tabs, TabPane, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { Plus, Search, Trash2, FolderDown, LayoutGrid, List as ListIcon, CheckCircle2, XCircle, X } from 'lucide-react';
 import type { ManagedFile } from '@zenith/shared/platform';
-import { FILE_STORAGE_PROVIDER_OPTIONS } from '@zenith/shared/platform';
+import { FILE_STORAGE_PROVIDERS, FILE_STORAGE_PROVIDER_OPTIONS, FILE_TYPE_FILTERS, FILE_TYPE_FILTER_OPTIONS, fileContract } from '@zenith/shared/platform';
+import { enumValueOf } from '@zenith/shared/core';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTime, formatDateTimeRangeForApi } from '@/utils/date';
 import { downloadBlob } from '@/utils/download';
@@ -24,7 +25,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { useDefaultFileStorageConfig } from '@/hooks/queries/file-storage-configs';
-import { fileKeys, useBatchDeleteFiles, useDeleteFile, useFileDetail, useFileList, useUploadFile } from '@/hooks/queries/files';
+import { fileKeys, useDeleteFiles, useFileDetail, useFileList, useUploadFile } from '@/hooks/queries/files';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
@@ -32,6 +33,7 @@ import { copyTextWithToast } from '@/utils/clipboard';
 import './FilesPage.css';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { urlOf } from '@/lib/contract-query';
 import { request } from '@/utils/request';
 import { formatBytes } from '@zenith/shared/core';
 import { FilterSelect } from '@/components/search-filters';
@@ -135,15 +137,15 @@ export default function FilesPage() {
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    provider: submittedParams.provider || undefined,
-    fileType: submittedParams.fileType || undefined,
+    provider: enumValueOf(FILE_STORAGE_PROVIDERS, submittedParams.provider),
+    fileType: enumValueOf(FILE_TYPE_FILTERS, submittedParams.fileType),
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
   });
   const data = listQuery.data ?? null;
   const preview = useFilePreview(() => data?.list ?? []);
   const uploadFileMutation = useUploadFile();
-  const deleteMutation = useDeleteFile();
-  const batchDeleteMutation = useBatchDeleteFiles();
+  const deleteMutation = useDeleteFiles();
+  const batchDeleteMutation = useDeleteFiles();
   const detailQuery = useFileDetail(detailFile?.id, !!detailFile);
   const displayedDetailFile = detailQuery.data ?? detailFile;
   const detailFileLoading = detailQuery.isFetching;
@@ -240,7 +242,7 @@ export default function FilesPage() {
   };
 
   const handleDelete = async (file: ManagedFile) => {
-    await deleteMutation.mutateAsync(file.id);
+    await deleteMutation.mutateAsync([file.id]);
     Toast.success('文件已删除');
   };
 
@@ -260,7 +262,7 @@ export default function FilesPage() {
     if (selectedRowKeys.length === 0) return;
     setBatchDownloadLoading(true);
     try {
-      const blob = await request.getBlob('/api/files/batch-download', { method: 'POST', body: JSON.stringify({ ids: selectedRowKeys }) });
+      const blob = await request.getBlob(urlOf(fileContract.batchDownload), { method: 'POST', body: JSON.stringify({ ids: selectedRowKeys }) });
       if (!blob) return;
       downloadBlob(blob, `files_${Date.now()}.zip`);
       Toast.success(`已打包 ${selectedRowKeys.length} 个文件`);
@@ -352,10 +354,7 @@ export default function FilesPage() {
   const renderFileTypeFilter = () => (
     <FilterSelect
       placeholder="全部文件类型"
-      items={[{ value: 'image', label: '图片' },
-        { value: 'video', label: '视频' },
-        { value: 'audio', label: '音频' },
-        { value: 'document', label: '文档' },]}
+      items={FILE_TYPE_FILTER_OPTIONS}
       value={draftParams.fileType}
       onChange={(value) => setDraftParams((prev) => ({ ...prev, fileType: value }))}
       width={140}

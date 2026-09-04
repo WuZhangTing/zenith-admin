@@ -1,7 +1,8 @@
 import { useRef } from 'react';
 import { Button, Empty, Spin, Toast, Typography } from '@douyinfe/semi-ui';
 import { Plus, X } from 'lucide-react';
-import { request } from '@/utils/request';
+import { fileContract, type ManagedFile } from '@zenith/shared/platform';
+import { api } from '@/lib/contract-query';
 import { useAddChatCustomEmoji, useChatCustomEmojis, useDeleteChatCustomEmoji } from '@/hooks/queries/chat';
 import type { ChatCustomEmoji } from '@zenith/shared/chat';
 
@@ -24,17 +25,18 @@ export function StickerPanel({
     if (file.size > 5 * 1024 * 1024) { Toast.warning('表情图片不能超过 5MB'); return; }
     const fd = new FormData();
     fd.append('file', file);
-    const uploadRes = await request.postForm<{ id: string; url: string; originalName: string; size: number }>(
-      '/api/files/upload-one',
-      fd,
-      { silent: true },
-    );
-    if (uploadRes.code !== 0 || !uploadRes.data) { Toast.error('上传失败'); return; }
+    let uploaded: ManagedFile;
+    try {
+      uploaded = await api(fileContract.uploadOne, { body: fd }, { silent: true });
+    } catch {
+      Toast.error('上传失败');
+      return;
+    }
     try {
       await addMutation.mutateAsync({
-        url: uploadRes.data.url,
-        fileId: uploadRes.data.id ?? null,
-        name: uploadRes.data.originalName,
+        url: uploaded.url,
+        fileId: uploaded.id,
+        name: uploaded.originalName,
       });
     } catch {
       return;

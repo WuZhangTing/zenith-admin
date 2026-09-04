@@ -48,6 +48,27 @@ export const FILE_VISIBILITY_LABELS: Record<(typeof FILE_VISIBILITIES)[number], 
 export const FILE_VISIBILITY_OPTIONS: Array<{ value: (typeof FILE_VISIBILITIES)[number]; label: string }> =
   createLabelOptions(FILE_VISIBILITIES, FILE_VISIBILITY_LABELS);
 
+/** 文件列表按 MIME 大类筛选 */
+export const FILE_TYPE_FILTERS = ['image', 'video', 'audio', 'document'] as const;
+export type FileTypeFilter = (typeof FILE_TYPE_FILTERS)[number];
+
+export const FILE_TYPE_FILTER_LABELS: Record<FileTypeFilter, string> = {
+  image: '图片',
+  video: '视频',
+  audio: '音频',
+  document: '文档',
+};
+
+export const FILE_TYPE_FILTER_OPTIONS: Array<{ value: FileTypeFilter; label: string }> =
+  createLabelOptions(FILE_TYPE_FILTERS, FILE_TYPE_FILTER_LABELS);
+
+/** 文件访问直链用途：download 时云直链附带 attachment disposition */
+export const FILE_ACCESS_PURPOSES = ['preview', 'download'] as const;
+export type FileAccessPurpose = (typeof FILE_ACCESS_PURPOSES)[number];
+
+/** 分片上传会话状态 */
+export const UPLOAD_SESSION_STATUSES = ['uploading', 'completed', 'aborted'] as const;
+
 // ─── 接口限流 ─────────────────────────────────────────────────────────────────
 
 export const RATE_LIMIT_KEY_TYPES = ['ip', 'user', 'ip_path'] as const;

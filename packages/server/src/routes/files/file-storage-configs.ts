@@ -1,9 +1,9 @@
-import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { fileStorageConfigContract } from '@zenith/shared/platform';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
-import { createFileStorageConfigSchema, updateFileStorageConfigSchema } from '@zenith/shared/platform';
-import { ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
-import { FileStorageConfigDTO } from '../../lib/openapi-dtos';
+import { defineContractRoute } from '../../lib/contract-route';
+import { ErrorResponse, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
   listFileStorageConfigs,
   getDefaultFileStorageConfig,
@@ -19,68 +19,37 @@ import {
 
 const fileStorageConfigsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const listRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/', tags: ['FileStorageConfigs'], summary: '存储配置列表',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:config' })] as const,
-    request: { query: PaginationQuery.extend({ status: z.string().optional(), startTime: dateRangeBound('起始时间'), endTime: dateRangeBound('结束时间') }) },
-    responses: { ...commonErrorResponses, ...okPaginated(FileStorageConfigDTO, 'ok') },
-  }),
+const read = [authMiddleware, guard({ permission: 'system:file:config' })] as const;
+
+const testFailedResponse = { 400: { content: jsonContent(ErrorResponse), description: '测试失败' } } as const;
+
+const listRoute = defineContractRoute(fileStorageConfigContract.list, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await listFileStorageConfigs(c.req.valid('query'))), 200),
 });
 
-const defaultRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/default', tags: ['FileStorageConfigs'], summary: '默认配置',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:config' })] as const,
-    responses: { ...commonErrorResponses, ...ok(FileStorageConfigDTO.nullable(), 'ok') },
-  }),
+const defaultRoute = defineContractRoute(fileStorageConfigContract.defaultConfig, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await getDefaultFileStorageConfig()), 200),
 });
 
-const getOneRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/{id}', tags: ['FileStorageConfigs'], summary: '存储配置详情',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:config' })] as const,
-    request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...ok(FileStorageConfigDTO, '存储配置详情') },
-  }),
+const getOneRoute = defineContractRoute(fileStorageConfigContract.detail, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await getFileStorageConfig(c.req.valid('param').id)), 200),
 });
 
-const testRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/test', tags: ['FileStorageConfigs'], summary: '测试存储配置连接',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:config', audit: { description: '测试文件存储连接', module: '文件存储配置', recordBody: false } })] as const,
-    request: { body: { content: jsonContent(createFileStorageConfigSchema), required: true } },
-    responses: {
-      ...commonErrorResponses,
-      ...okMsg('测试通过'),
-      400: { content: jsonContent(ErrorResponse), description: '测试失败' },
-    },
-  }),
+const testRoute = defineContractRoute(fileStorageConfigContract.test, {
+  middleware: [authMiddleware, guard({ permission: 'system:file:config', audit: { description: '测试文件存储连接', module: '文件存储配置', recordBody: false } })],
+  responses: testFailedResponse,
   handler: async (c) => {
     const result = await testFileStorageConfig(c.req.valid('json'));
     return c.json(okBody(null, result.message), 200);
   },
 });
 
-const testExistingRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/{id}/test', tags: ['FileStorageConfigs'], summary: '测试已保存存储配置连接',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:config', audit: { description: '测试文件存储连接', module: '文件存储配置', recordBody: false } })] as const,
-    request: { params: IdParam, body: { content: jsonContent(updateFileStorageConfigSchema), required: true } },
-    responses: {
-      ...commonErrorResponses,
-      ...okMsg('测试通过'),
-      400: { content: jsonContent(ErrorResponse), description: '测试失败' },
-    },
-  }),
+const testExistingRoute = defineContractRoute(fileStorageConfigContract.testExisting, {
+  middleware: [authMiddleware, guard({ permission: 'system:file:config', audit: { description: '测试文件存储连接', module: '文件存储配置', recordBody: false } })],
+  responses: testFailedResponse,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const result = await testExistingFileStorageConfig(id, c.req.valid('json'));
@@ -88,25 +57,13 @@ const testExistingRoute = defineOpenAPIRoute({
   },
 });
 
-const createRouteDef = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/', tags: ['FileStorageConfigs'], summary: '创建配置',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:config:create', audit: { description: '创建文件存储配置', module: '文件存储配置' } })] as const,
-    request: { body: { content: jsonContent(createFileStorageConfigSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(FileStorageConfigDTO, '创建成功') },
-  }),
+const createRouteDef = defineContractRoute(fileStorageConfigContract.create, {
+  middleware: [authMiddleware, guard({ permission: 'system:file:config:create', audit: { description: '创建文件存储配置', module: '文件存储配置' } })],
   handler: async (c) => c.json(okBody(await createFileStorageConfig(c.req.valid('json')), '创建成功'), 200),
 });
 
-const updateRouteDef = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/{id}', tags: ['FileStorageConfigs'], summary: '更新配置',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:config:update', audit: { description: '更新文件存储配置', module: '文件存储配置' } })] as const,
-    request: { params: IdParam, body: { content: jsonContent(updateFileStorageConfigSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(FileStorageConfigDTO, '更新成功') },
-  }),
+const updateRouteDef = defineContractRoute(fileStorageConfigContract.update, {
+  middleware: [authMiddleware, guard({ permission: 'system:file:config:update', audit: { description: '更新文件存储配置', module: '文件存储配置' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getFileStorageConfigBeforeAudit(id);
@@ -115,14 +72,8 @@ const updateRouteDef = defineOpenAPIRoute({
   },
 });
 
-const setDefaultRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/{id}/default', tags: ['FileStorageConfigs'], summary: '设为默认',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:config:default', audit: { description: '设置默认文件存储', module: '文件存储配置', recordBody: false } })] as const,
-    request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...ok(FileStorageConfigDTO, 'ok') },
-  }),
+const setDefaultRoute = defineContractRoute(fileStorageConfigContract.setDefault, {
+  middleware: [authMiddleware, guard({ permission: 'system:file:config:default', audit: { description: '设置默认文件存储', module: '文件存储配置', recordBody: false } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getFileStorageConfigBeforeAudit(id);
@@ -131,14 +82,8 @@ const setDefaultRoute = defineOpenAPIRoute({
   },
 });
 
-const deleteRouteDef = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/{id}', tags: ['FileStorageConfigs'], summary: '删除配置',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:config:delete', audit: { description: '删除文件存储配置', module: '文件存储配置' } })] as const,
-    request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...okMsg('删除成功') },
-  }),
+const deleteRouteDef = defineContractRoute(fileStorageConfigContract.remove, {
+  middleware: [authMiddleware, guard({ permission: 'system:file:config:delete', audit: { description: '删除文件存储配置', module: '文件存储配置' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getFileStorageConfigBeforeAudit(id);

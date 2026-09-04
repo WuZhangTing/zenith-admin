@@ -28,7 +28,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { FileGridCard } from '../files/components/FileGridCard';
 import { FileNameCell } from '@/components/FileNameCell';
-import { useDeleteFile, useFileDetail } from '@/hooks/queries/files';
+import { useDeleteFiles, useFileDetail } from '@/hooks/queries/files';
 import { useStorageBrowse } from '@/hooks/queries/file-storage-configs';
 import { formatBytes } from '@zenith/shared/core';
 import './StorageFileBrowser.css';
@@ -49,7 +49,7 @@ export default function StorageFileBrowser({ config, onClose }: Readonly<Storage
   const browseQuery = useStorageBrowse(config?.id, currentPath, !!config);
   const browseData = browseQuery.data ?? null;
   const loading = browseQuery.isFetching;
-  const deleteMutation = useDeleteFile();
+  const deleteMutation = useDeleteFiles();
 
   // Navigation history for back/forward
   const [historyStack, setHistoryStack] = useState<string[]>(['']);
@@ -115,7 +115,7 @@ export default function StorageFileBrowser({ config, onClose }: Readonly<Storage
   const breadcrumbSegments = currentPath ? currentPath.split('/') : [];
 
   const handleDelete = async (file: ManagedFile) => {
-    await deleteMutation.mutateAsync(file.id);
+    await deleteMutation.mutateAsync([file.id]);
     Toast.success('文件已删除');
     void browseQuery.refetch();
   };

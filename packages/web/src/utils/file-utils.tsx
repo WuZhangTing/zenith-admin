@@ -1,4 +1,6 @@
 import { Icon } from '@iconify/react';
+import { escapeRegExp } from '@zenith/shared/core';
+import { fileContract } from '@zenith/shared/platform';
 import { config } from '@/config';
 import { getFileIcon } from '@/utils/fileIcons';
 import { resolveFileMimeType } from '@/utils/file-mime';
@@ -374,9 +376,15 @@ export async function fetchProtectedFile(url: string): Promise<Blob> {
   return response.blob();
 }
 
-/** 从 `/api/files/{id}/content` 形态的 URL 中解析文件 ID；非该形态返回 null */
+/** 由契约路径 `fileContract.content`（`/api/files/{id}/content`）派生的匹配器；捕获组 1 为文件 ID（UUID） */
+const MANAGED_FILE_CONTENT_URL = (() => {
+  const [prefix, suffix] = fileContract.content.fullPath.split('{id}');
+  return new RegExp(`${escapeRegExp(prefix)}([0-9a-f-]{36})${escapeRegExp(suffix)}`, 'i');
+})();
+
+/** 从托管文件内容 URL 中解析文件 ID；非该形态返回 null */
 export function extractManagedFileId(url: string): string | null {
-  const matched = /\/api\/files\/([0-9a-f-]{36})\/content/i.exec(url);
+  const matched = MANAGED_FILE_CONTENT_URL.exec(url);
   return matched?.[1] ?? null;
 }
 

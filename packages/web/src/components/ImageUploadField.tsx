@@ -1,10 +1,12 @@
 /** 单图上传字段（受控）：已上传时展示预览缩略图 + 悬浮删除按钮，未上传时展示上传按钮。 */
 import { Button, Space, Toast, Upload } from '@douyinfe/semi-ui';
 import { ImagePlus, Trash2 } from 'lucide-react';
+import { fileContract } from '@zenith/shared/platform';
 import { config } from '@/config';
+import { urlOf } from '@/lib/contract-query';
 import { request } from '@/utils/request';
 
-const UPLOAD_ACTION = `${config.apiBaseUrl}/api/files/upload-one`;
+const UPLOAD_ACTION = `${config.apiBaseUrl}${urlOf(fileContract.uploadOne)}`;
 
 /** 从统一响应包络中取出上传后的文件 URL；失败返回 null */
 function extractUploadUrl(res: unknown): string | null {

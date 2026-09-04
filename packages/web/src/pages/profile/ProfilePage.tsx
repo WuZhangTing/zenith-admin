@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-import { useMutation } from '@tanstack/react-query';
 import {
   Form, Button, Typography, Toast, Tag, Space, Spin, Avatar,
   Modal, Tabs, List as SemiList, Descriptions, Divider, PinCode,
@@ -11,7 +10,8 @@ import { QRCodeSVG } from 'qrcode.react';
 import { OAUTH_PROVIDERS, OAUTH_PROVIDER_LABELS } from '@zenith/shared/identity';
 import type { User as UserType, OAuthProviderType, UserSession, UserApiTokenCreated } from '@zenith/shared/identity';
 import type { MfaFactor, TotpSetupResult } from '@zenith/shared/platform';
-import { request } from '@/utils/request';
+import { fileContract } from '@zenith/shared/platform';
+import { useApiMutation } from '@/lib/contract-query';
 import { AppModal } from '@/components/AppModal';
 import { AvatarCropperModal } from '@/components/AvatarCropperModal';
 import { PresetAvatarPickerModal } from '@/components/PresetAvatarPickerModal';
@@ -208,9 +208,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 
   const updateProfileMutation = useUpdateProfile();
   const updateAvatarMutation = useUpdateProfile();
-  const uploadAvatarMutation = useMutation({
-    mutationFn: (formData: FormData) => request.post<{ url: string }>('/api/files/upload-one', formData, { silent: true }),
-  });
+  const uploadAvatarMutation = useApiMutation(fileContract.uploadOne, { requestOptions: { silent: true } });
   const changePasswordMutation = useChangeProfilePassword();
   const oauthBindUrlMutation = useProfileOAuthBindUrl();
   const oauthUnbindMutation = useUnbindProfileOAuth();
@@ -299,15 +297,16 @@ export default function ProfilePage({ user }: ProfilePageProps) {
   async function handleCropConfirm(blob: Blob) {
     const formData = new FormData();
     formData.append('file', blob, 'avatar.jpg');
-    const uploadRes = await uploadAvatarMutation.mutateAsync(formData);
-    const uploadedUrl = uploadRes.data?.url;
-    if (uploadRes.code === 0 && uploadedUrl) {
-      await updateAvatarMutation.mutateAsync({ avatar: uploadedUrl });
-      Toast.success('头像已更新');
-      setCropFile(null);
-    } else {
-      Toast.error(uploadRes.message ?? '上传失败');
+    let uploadedUrl: string;
+    try {
+      uploadedUrl = (await uploadAvatarMutation.mutateAsync({ body: formData })).url;
+    } catch (err) {
+      Toast.error(err instanceof Error && err.message ? err.message : '上传失败');
+      return;
     }
+    await updateAvatarMutation.mutateAsync({ avatar: uploadedUrl });
+    Toast.success('头像已更新');
+    setCropFile(null);
   }
 
   async function handleKickOthers() {

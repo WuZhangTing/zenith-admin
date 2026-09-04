@@ -1,9 +1,9 @@
-import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono, z } from '@hono/zod-openapi';
+import { fileContract } from '@zenith/shared/platform';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
-import { ErrorResponse, PaginationQuery, commonErrorResponses, dateRangeBound, errBody, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
-import { ManagedFileDTO, StorageBrowseResultDTO, FileStatsDTO, UploadSessionInitDTO, UploadChunkResultDTO, UploadSessionStatusDTO, FileAccessUrlDTO } from '../../lib/openapi-dtos';
-import { initChunkUploadSchema, completeChunkUploadSchema } from '@zenith/shared/platform';
+import { defineContractRoute } from '../../lib/contract-route';
+import { ErrorResponse, errBody, jsonContent, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
   getStoredFileForRead, listManagedFiles, getManagedFile, uploadManagedFileFromBody, deleteManagedFile, batchDeleteFiles, getManagedFileBeforeAudit, getManagedFilesBeforeAudit, batchDownloadFilesAsZip, browseStorageFiles, getFileStats, getFileAccessUrl,
 } from '../../services/files/files.service';
@@ -13,13 +13,7 @@ import { parseRangeHeader, rangeContentHeaders, rangeNotSatisfiable, supportsRan
 
 const filesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const FileIdParam = z.object({
-  id: z.uuid().openapi({ param: { name: 'id', in: 'path' }, example: '018f6f8a-5f76-7d8c-9a1b-2c3d4e5f6789' }),
-});
-
-const FileBatchIdsBody = z.object({
-  ids: z.array(z.uuid()).min(1),
-});
+const read = [authMiddleware, guard({ permission: 'system:file:list' })] as const;
 
 /**
  * 可安全内联渲染的 MIME 类型白名单。
@@ -39,18 +33,13 @@ function resolveContentDisposition(mimeType: string, fileName: string): string {
   return `${disposition}; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }
 
-const contentRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/{id}/content', tags: ['Files'], summary: '公开访问文件内容', security: [],
-    request: { params: FileIdParam },
-    responses: {
-      ...commonErrorResponses,
-      200: { content: { 'application/octet-stream': { schema: z.string() } }, description: '文件内容' },
-      206: { content: { 'application/octet-stream': { schema: z.string() } }, description: '文件内容分片' },
-      416: { content: jsonContent(ErrorResponse), description: 'Range 不合法' },
-      404: { content: jsonContent(ErrorResponse), description: '文件不存在' },
-    },
-  }),
+const contentRoute = defineContractRoute(fileContract.content, {
+  middleware: [],
+  responses: {
+    206: { content: { 'application/octet-stream': { schema: z.string() } }, description: '文件内容分片' },
+    404: { content: jsonContent(ErrorResponse), description: '文件不存在' },
+    416: { content: jsonContent(ErrorResponse), description: 'Range 不合法' },
+  },
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { file, storageConfig } = await getStoredFileForRead(id);
@@ -87,21 +76,9 @@ const contentRoute = defineOpenAPIRoute({
   },
 });
 
-const accessUrlRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/{id}/access-url', tags: ['Files'], summary: '解析文件访问直链（按存储配置策略，presigned 每次签发新鲜 URL）',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware] as const,
-    request: {
-      params: FileIdParam,
-      query: z.object({ purpose: z.enum(['preview', 'download']).optional() }),
-    },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(FileAccessUrlDTO, '文件访问地址'),
-      404: { content: jsonContent(ErrorResponse), description: '文件不存在' },
-    },
-  }),
+const accessUrlRoute = defineContractRoute(fileContract.accessUrl, {
+  middleware: [authMiddleware],
+  responses: { 404: { content: jsonContent(ErrorResponse), description: '文件不存在' } },
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { purpose } = c.req.valid('query');
@@ -111,89 +88,30 @@ const accessUrlRoute = defineOpenAPIRoute({
   },
 });
 
-const browseRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/browse', tags: ['Files'], summary: '按存储配置浏览文件目录',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:list' })] as const,
-    request: {
-      query: z.object({
-        storageConfigId: z.coerce.number().int().positive(),
-        path: z.string().optional(),
-      }),
-    },
-    responses: { ...commonErrorResponses, ...ok(StorageBrowseResultDTO, '浏览结果') },
-  }),
+const browseRoute = defineContractRoute(fileContract.browse, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await browseStorageFiles(c.req.valid('query'))), 200),
 });
 
-const getOneRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/{id}', tags: ['Files'], summary: '获取文件详情',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:list' })] as const,
-    request: { params: FileIdParam },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(ManagedFileDTO, '文件详情'),
-      404: { content: jsonContent(ErrorResponse), description: '文件不存在' },
-    },
-  }),
+const getOneRoute = defineContractRoute(fileContract.detail, {
+  middleware: read,
+  responses: { 404: { content: jsonContent(ErrorResponse), description: '文件不存在' } },
   handler: async (c) => c.json(okBody(await getManagedFile(c.req.valid('param').id)), 200),
 });
 
-const statsRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/stats', tags: ['Files'], summary: '文件统计分析',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:list' })] as const,
-    responses: { ...commonErrorResponses, ...ok(FileStatsDTO, '统计结果') },
-  }),
+const statsRoute = defineContractRoute(fileContract.stats, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await getFileStats()), 200),
 });
 
-const listRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/', tags: ['Files'], summary: '文件分页列表',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:list' })] as const,
-    request: {
-      query: PaginationQuery.extend({
-        keyword: z.string().optional(),
-        provider: z.enum(['local', 'oss', 's3', 'cos', 'obs', 'kodo', 'bos', 'azure', 'sftp']).optional(),
-        fileType: z.enum(['image', 'video', 'audio', 'document']).optional(),
-        startTime: dateRangeBound('起始时间'),
-        endTime: dateRangeBound('结束时间'),
-      }),
-    },
-    responses: { ...commonErrorResponses, ...okPaginated(ManagedFileDTO, '文件列表') },
-  }),
+const listRoute = defineContractRoute(fileContract.list, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await listManagedFiles(c.req.valid('query'))), 200),
 });
 
-const uploadRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/upload', tags: ['Files'], summary: '上传文件',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:upload', audit: { description: '上传文件', module: '文件管理', recordBody: false } })] as const,
-    request: {
-      body: {
-        content: {
-          'multipart/form-data': {
-            schema: z.object({
-              file: z.any().openapi({ type: 'array', items: { type: 'string', format: 'binary' } }),
-            }),
-          },
-        },
-        required: true,
-      },
-    },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(z.array(ManagedFileDTO), '上传成功'),
-      400: { content: jsonContent(ErrorResponse), description: '未选择文件或无可用存储' },
-    },
-  }),
+const uploadRoute = defineContractRoute(fileContract.upload, {
+  middleware: [authMiddleware, guard({ permission: 'system:file:upload', audit: { description: '上传文件', module: '文件管理', recordBody: false } })],
+  responses: { 400: { content: jsonContent(ErrorResponse), description: '未选择文件或无可用存储' } },
   handler: async (c) => {
     const body = await c.req.parseBody({ all: true });
     const fileValues = Array.isArray(body.file) ? body.file : [body.file];
@@ -202,18 +120,9 @@ const uploadRoute = defineOpenAPIRoute({
   },
 });
 
-const deleteRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/{id}', tags: ['Files'], summary: '删除文件',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:delete', audit: { description: '删除文件', module: '文件管理', recordBody: false } })] as const,
-    request: { params: FileIdParam },
-    responses: {
-      ...commonErrorResponses,
-      ...okMsg('删除成功'),
-      404: { content: jsonContent(ErrorResponse), description: '文件不存在' },
-    },
-  }),
+const deleteRoute = defineContractRoute(fileContract.remove, {
+  middleware: [authMiddleware, guard({ permission: 'system:file:delete', audit: { description: '删除文件', module: '文件管理', recordBody: false } })],
+  responses: { 404: { content: jsonContent(ErrorResponse), description: '文件不存在' } },
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getManagedFileBeforeAudit(id);
@@ -223,18 +132,8 @@ const deleteRoute = defineOpenAPIRoute({
   },
 });
 
-const batchDeleteRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/batch', tags: ['Files'], summary: '批量删除文件',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:delete', audit: { description: '批量删除文件', module: '文件管理', recordBody: false } })] as const,
-    request: { body: { content: jsonContent(FileBatchIdsBody), required: true } },
-    responses: {
-      ...commonErrorResponses,
-      ...okMsg('删除成功'),
-      400: { content: jsonContent(ErrorResponse), description: '参数错误' },
-    },
-  }),
+const batchDeleteRoute = defineContractRoute(fileContract.removeBatch, {
+  middleware: [authMiddleware, guard({ permission: 'system:file:delete', audit: { description: '批量删除文件', module: '文件管理', recordBody: false } })],
   handler: async (c) => {
     const { ids } = c.req.valid('json');
     const before = await getManagedFilesBeforeAudit(ids);
@@ -244,29 +143,9 @@ const batchDeleteRoute = defineOpenAPIRoute({
   },
 });
 
-const uploadOneRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/upload-one', tags: ['Files'], summary: '上传单个文件',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:upload', audit: { description: '上传单个文件', module: '文件管理', recordBody: false } })] as const,
-    request: {
-      body: {
-        content: {
-          'multipart/form-data': {
-            schema: z.object({
-              file: z.any().openapi({ type: 'string', format: 'binary' }),
-            }),
-          },
-        },
-        required: true,
-      },
-    },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(ManagedFileDTO, '上传成功'),
-      400: { content: jsonContent(ErrorResponse), description: '未选择文件或无可用存储' },
-    },
-  }),
+const uploadOneRoute = defineContractRoute(fileContract.uploadOne, {
+  middleware: [authMiddleware, guard({ permission: 'system:file:upload', audit: { description: '上传单个文件', module: '文件管理', recordBody: false } })],
+  responses: { 400: { content: jsonContent(ErrorResponse), description: '未选择文件或无可用存储' } },
   handler: async (c) => {
     const body = await c.req.parseBody();
     const result = await uploadManagedFileFromBody(body.file);
@@ -274,46 +153,14 @@ const uploadOneRoute = defineOpenAPIRoute({
   },
 });
 
-const uploadInitRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/upload/init', tags: ['Files'], summary: '初始化分片上传',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:upload', audit: { description: '初始化分片上传', module: '文件管理' } })] as const,
-    request: { body: { content: jsonContent(initChunkUploadSchema), required: true } },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(UploadSessionInitDTO, '初始化成功'),
-      400: { content: jsonContent(ErrorResponse), description: '无可用存储或超过大小上限' },
-    },
-  }),
+const uploadInitRoute = defineContractRoute(fileContract.uploadInit, {
+  middleware: [authMiddleware, guard({ permission: 'system:file:upload', audit: { description: '初始化分片上传', module: '文件管理' } })],
+  responses: { 400: { content: jsonContent(ErrorResponse), description: '无可用存储或超过大小上限' } },
   handler: async (c) => c.json(okBody(await initChunkUpload(c.req.valid('json'))), 200),
 });
 
-const uploadChunkRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/upload/chunk', tags: ['Files'], summary: '上传单个分片',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:upload' })] as const,
-    request: {
-      body: {
-        content: {
-          'multipart/form-data': {
-            schema: z.object({
-              uploadId: z.string(),
-              index: z.string(),
-              chunk: z.any().openapi({ type: 'string', format: 'binary' }),
-            }),
-          },
-        },
-        required: true,
-      },
-    },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(UploadChunkResultDTO, '分片已接收'),
-      400: { content: jsonContent(ErrorResponse), description: '参数错误' },
-    },
-  }),
+const uploadChunkRoute = defineContractRoute(fileContract.uploadChunk, {
+  middleware: [authMiddleware, guard({ permission: 'system:file:upload' })],
   handler: async (c) => {
     const body = await c.req.parseBody();
     const uploadId = String(body.uploadId ?? '');
@@ -326,44 +173,20 @@ const uploadChunkRoute = defineOpenAPIRoute({
   },
 });
 
-const uploadCompleteRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/upload/complete', tags: ['Files'], summary: '完成分片上传',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:upload', audit: { description: '完成分片上传', module: '文件管理' } })] as const,
-    request: { body: { content: jsonContent(completeChunkUploadSchema), required: true } },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(ManagedFileDTO, '上传完成'),
-      400: { content: jsonContent(ErrorResponse), description: '分片不完整或类型不允许' },
-    },
-  }),
+const uploadCompleteRoute = defineContractRoute(fileContract.uploadComplete, {
+  middleware: [authMiddleware, guard({ permission: 'system:file:upload', audit: { description: '完成分片上传', module: '文件管理' } })],
+  responses: { 400: { content: jsonContent(ErrorResponse), description: '分片不完整或类型不允许' } },
   handler: async (c) => c.json(okBody(await completeChunkUpload(c.req.valid('json').uploadId), '上传成功'), 200),
 });
 
-const uploadStatusRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/upload/{uploadId}/status', tags: ['Files'], summary: '查询分片上传进度',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware] as const,
-    request: { params: z.object({ uploadId: z.string() }) },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(UploadSessionStatusDTO, '上传进度'),
-      404: { content: jsonContent(ErrorResponse), description: '会话不存在' },
-    },
-  }),
+const uploadStatusRoute = defineContractRoute(fileContract.uploadStatus, {
+  middleware: [authMiddleware],
+  responses: { 404: { content: jsonContent(ErrorResponse), description: '会话不存在' } },
   handler: async (c) => c.json(okBody(await getUploadStatus(c.req.valid('param').uploadId)), 200),
 });
 
-const uploadAbortRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/upload/{uploadId}', tags: ['Files'], summary: '中止分片上传',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:file:upload', audit: { description: '中止分片上传', module: '文件管理' } })] as const,
-    request: { params: z.object({ uploadId: z.string() }) },
-    responses: { ...commonErrorResponses, ...okMsg('已中止') },
-  }),
+const uploadAbortRoute = defineContractRoute(fileContract.uploadAbort, {
+  middleware: [authMiddleware, guard({ permission: 'system:file:upload', audit: { description: '中止分片上传', module: '文件管理' } })],
   handler: async (c) => {
     const { uploadId } = c.req.valid('param');
     const before = await getUploadStatus(uploadId);
@@ -374,19 +197,25 @@ const uploadAbortRoute = defineOpenAPIRoute({
   },
 });
 
-filesRouter.openapiRoutes([contentRoute, accessUrlRoute, statsRoute, listRoute, browseRoute, uploadInitRoute, uploadChunkRoute, uploadCompleteRoute, uploadStatusRoute, uploadAbortRoute, getOneRoute, uploadRoute, uploadOneRoute, batchDeleteRoute, deleteRoute] as const);
-
-// 非 OpenAPI 路由：批量下载打包为 zip 流式响应
-filesRouter.post('/batch-download', authMiddleware, guard({ permission: 'system:file:list' }), async (c) => {
-  const body = await c.req.json<{ ids?: unknown }>().catch(() => ({ ids: [] }));
-  const ids = Array.isArray(body?.ids) ? (body.ids as unknown[]).filter((n): n is string => typeof n === 'string') : [];
-  const { stream, filename } = await batchDownloadFilesAsZip(ids);
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
-    },
-  });
+// 批量下载打包为 zip 流式响应
+const batchDownloadRoute = defineContractRoute(fileContract.batchDownload, {
+  middleware: read,
+  handler: async (c) => {
+    const { ids } = c.req.valid('json');
+    const { stream, filename } = await batchDownloadFilesAsZip(ids);
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'application/zip',
+        'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
+      },
+    });
+  },
 });
+
+filesRouter.openapiRoutes([
+  contentRoute, accessUrlRoute, statsRoute, listRoute, browseRoute,
+  uploadInitRoute, uploadChunkRoute, uploadCompleteRoute, uploadStatusRoute, uploadAbortRoute,
+  getOneRoute, uploadRoute, uploadOneRoute, batchDownloadRoute, batchDeleteRoute, deleteRoute,
+] as const);
 
 export default filesRouter;

@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi';
+import { businessFileSchema } from '@zenith/shared/platform';
 import {
   WIKI_COMMENT_STATUSES,
   WIKI_DOC_STATUSES,
@@ -7,7 +8,6 @@ import {
   WIKI_SPACE_VISIBILITIES,
 } from '@zenith/shared/wiki';
 import { auditFields } from './_audit';
-import { BusinessFileDTO } from './business-files';
 
 // ─── 知识空间 ─────────────────────────────────────────────────────────────────
 
@@ -77,7 +77,7 @@ export const WikiDocDTO = z
     deletedAt: z.string().nullable().optional(),
     tags: z.array(WikiTagDTO).optional(),
     tagIds: z.array(z.number().int()).optional(),
-    attachments: z.array(BusinessFileDTO).optional(),
+    attachments: z.array(businessFileSchema).optional(),
     snippet: z.string().optional(),
     favorited: z.boolean().optional(),
     favoriteCount: z.number().int().optional(),

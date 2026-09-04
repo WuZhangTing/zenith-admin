@@ -1,3 +1,4 @@
+import { businessFileContract, fileContract, fileStorageConfigContract } from '@zenith/shared/platform';
 import { defineRouteDomain } from '../_kit';
 import businessFilesRoutes from './business-files';
 import fileStorageConfigsRoutes from './file-storage-configs';
@@ -6,8 +7,8 @@ import filesRoutes from './files';
 export default defineRouteDomain({
   name: 'files',
   mounts: () => [
-    ['/api/file-storage-configs', fileStorageConfigsRoutes],
-    ['/api/files', filesRoutes],
-    ['/api/business-files', businessFilesRoutes],
+    [fileStorageConfigContract.basePath, fileStorageConfigsRoutes],
+    [fileContract.basePath, filesRoutes],
+    [businessFileContract.basePath, businessFilesRoutes],
   ],
 });

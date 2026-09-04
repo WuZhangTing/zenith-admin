@@ -4,7 +4,9 @@ import { Button, Form, Space, Tag, Toast, Typography, Upload } from '@douyinfe/s
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ImagePlus, Trash2 } from 'lucide-react';
 import type { ChannelAdmin } from '@zenith/shared/messaging';
+import { fileContract } from '@zenith/shared/platform';
 import { config } from '@/config';
+import { urlOf } from '@/lib/contract-query';
 import { request } from '@/utils/request';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -245,7 +247,7 @@ export default function ChannelsPage() {
                 )
                 : (
                   <Upload
-                    action={`${config.apiBaseUrl}/api/files/upload-one`}
+                    action={`${config.apiBaseUrl}${urlOf(fileContract.uploadOne)}`}
                     headers={() => request.authHeaders()}
                     name="file"
                     accept="image/*"

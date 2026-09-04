@@ -5,6 +5,8 @@ import { AppModal } from '@/components/AppModal';
 import { AvatarCropperModal } from '@/components/AvatarCropperModal';
 import { PresetAvatarPickerModal } from '@/components/PresetAvatarPickerModal';
 import type { User } from '@zenith/shared/identity';
+import { fileContract } from '@zenith/shared/platform';
+import { useApiMutation } from '@/lib/contract-query';
 import { request } from '@/utils/request';
 import { UserAvatar } from '@/components/UserAvatar';
 import { confirmDelete } from '@/utils/confirm';
@@ -21,9 +23,7 @@ export function UserAvatarModal({ visible, user, onClose, onUpdated }: UserAvata
 
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [presetVisible, setPresetVisible] = useState(false);
-  const uploadAvatarMutation = useMutation({
-    mutationFn: (formData: FormData) => request.post<{ url: string }>('/api/files/upload-one', formData, { silent: true }),
-  });
+  const uploadAvatarMutation = useApiMutation(fileContract.uploadOne, { requestOptions: { silent: true } });
   const updateAvatarMutation = useMutation({
     mutationFn: (avatar: string | null) => request.put<User>(`/api/users/${user.id}`, { avatar }, { silent: true }),
   });
@@ -39,20 +39,21 @@ export function UserAvatarModal({ visible, user, onClose, onUpdated }: UserAvata
   async function handleCropConfirm(blob: Blob) {
     const formData = new FormData();
     formData.append('file', blob, 'avatar.jpg');
-    const uploadRes = await uploadAvatarMutation.mutateAsync(formData);
-    const uploadedUrl = uploadRes.data?.url;
-    if (uploadRes.code === 0 && uploadedUrl) {
-      const updateRes = await updateAvatarMutation.mutateAsync(uploadedUrl);
-      if (updateRes.code === 0) {
-        onUpdated(updateRes.data);
-        Toast.success('头像已更新');
-        setCropFile(null);
-        onClose();
-      } else {
-        Toast.error(updateRes.message ?? '头像更新失败');
-      }
+    let uploadedUrl: string;
+    try {
+      uploadedUrl = (await uploadAvatarMutation.mutateAsync({ body: formData })).url;
+    } catch (err) {
+      Toast.error(err instanceof Error && err.message ? err.message : '上传失败');
+      return;
+    }
+    const updateRes = await updateAvatarMutation.mutateAsync(uploadedUrl);
+    if (updateRes.code === 0) {
+      onUpdated(updateRes.data);
+      Toast.success('头像已更新');
+      setCropFile(null);
+      onClose();
     } else {
-      Toast.error(uploadRes.message ?? '上传失败');
+      Toast.error(updateRes.message ?? '头像更新失败');
     }
   }
 

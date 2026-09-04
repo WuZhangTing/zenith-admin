@@ -11,7 +11,9 @@ import {
 import type { CSSProperties } from 'react';
 import type { FileItem, RenderFileItemProps } from '@douyinfe/semi-ui/lib/es/upload';
 import { Plus, Download, X, Eye, RotateCcw } from 'lucide-react';
+import { fileContract, type ManagedFile } from '@zenith/shared/platform';
 import { config } from '@/config';
+import { urlOf } from '@/lib/contract-query';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import {
@@ -74,19 +76,9 @@ interface FileAttachmentProps {
   style?: CSSProperties;
   /** 是否禁用 */
   disabled?: boolean;
-  /** 上传接口路径（相对 apiBaseUrl），默认 /api/files/upload-one；审批表单等场景可指向按业务权限放行的专用端点 */
+  /** 上传接口路径（相对 apiBaseUrl），默认通用单文件上传 `fileContract.uploadOne`；审批表单等场景可指向按业务权限放行的专用端点 */
   uploadPath?: string;
 }
-
-type ManagedFileResponse = {
-  id: string;
-  url: string;
-  originalName: string;
-  size: number;
-  mimeType?: string | null;
-  extension?: string | null;
-  createdAt?: string;
-};
 
 /** 将 AttachmentItem 转换为 Semi Upload FileItem */
 function toUploadFileItem(item: AttachmentItem): FileItem {
@@ -107,7 +99,7 @@ function isAttachmentFileItem(item: FileItem | RenderFileItemProps | null | unde
   return typeof maybeAttachment.fileId === 'string' && maybeAttachment.file?.originalName != null;
 }
 
-function toAttachmentFromManagedFile(file: ManagedFileResponse, sortOrder: number): AttachmentItem {
+function toAttachmentFromManagedFile(file: ManagedFile, sortOrder: number): AttachmentItem {
   return {
     id: -Date.now(),
     fileId: file.id,
@@ -120,12 +112,12 @@ function toAttachmentFromManagedFile(file: ManagedFileResponse, sortOrder: numbe
       url: file.url,
     },
     sortOrder,
-    createdAt: file.createdAt ?? formatDateTime(new Date()),
+    createdAt: file.createdAt || formatDateTime(new Date()),
   };
 }
 
-function toManagedFileResponse(res: unknown): ManagedFileResponse | null {
-  const r = res as { code?: number; data?: ManagedFileResponse } | undefined;
+function toManagedFileResponse(res: unknown): ManagedFile | null {
+  const r = res as { code?: number; data?: ManagedFile } | undefined;
   return r?.code === 0 && r.data ? r.data : null;
 }
 
@@ -153,7 +145,7 @@ export default function FileAttachment({
   uploadTip,
   style,
   disabled = false,
-  uploadPath = '/api/files/upload-one',
+  uploadPath = urlOf(fileContract.uploadOne),
 }: FileAttachmentProps = {}) {
   const isEditMode = mode === 'edit' && !disabled;
 
@@ -437,7 +429,7 @@ export default function FileAttachment({
       const r = res as {
         code?: number;
         message?: string;
-        data?: ManagedFileResponse;
+        data?: ManagedFile;
       };
       if (r?.code !== 0 || !r.data) {
         const uid = (_file as File & { uid?: string }).uid;

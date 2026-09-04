@@ -179,7 +179,8 @@ export default function WorkflowCompensationsView() {
                         fd.append('file', file.fileInstance as File);
                         const res = await uploadOneMutation.mutateAsync({ formData: fd });
                         if (res?.url) {
-                          setPendingAtt((prev) => [...prev, { id: res.id ?? Date.now(), name: res.originalName ?? (file.name || '附件'), url: res.url }]);
+                          // 补偿备注附件的 id 是本地序号（服务端要求整数），与托管文件的 UUID 无关
+                          setPendingAtt((prev) => [...prev, { id: Date.now(), name: res.originalName || file.name || '附件', url: res.url }]);
                           onSuccess?.({}, file as never);
                         } else { onError?.({ status: 0 } as never, file as never); }
                       } catch { onError?.({ status: 0 } as never, file as never); }

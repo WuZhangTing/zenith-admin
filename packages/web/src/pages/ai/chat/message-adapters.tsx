@@ -1,6 +1,8 @@
 import type { Message as AIChatMessage } from '@douyinfe/semi-ui/lib/es/aiChatDialogue';
 import type { AiMessage } from '@zenith/shared/ai';
+import { fileContract } from '@zenith/shared/platform';
 import { config } from '@/config';
+import { urlOf } from '@/lib/contract-query';
 
 /**
  * AI 消息 → Semi AIChatDialogue Message 适配层。
@@ -79,7 +81,7 @@ export function convertApiMessage(m: AiMessage): ChatMessage {
     role: m.role,
     content: m.role === 'assistant'
       ? buildAssistantContent(m.content, m.reasoning, true, m.toolCalls ?? undefined, m.references ?? undefined)
-      : buildUserContent(m.content, (m.images ?? []).map((id) => `${config.apiBaseUrl}/api/files/${id}/content`)),
+      : buildUserContent(m.content, (m.images ?? []).map((id) => `${config.apiBaseUrl}${urlOf(fileContract.content, { params: { id } })}`)),
     // ⚠️ 不能设 output_text:Semi 对数组 content 优先渲染 output_text 纯文本,
     // 会整体短路 reasoning / 工具调用 / 引用等块(复制与朗读经 extractPlainText 提取)
     ...(m.role === 'assistant' && m.model && { model: m.model }),
