@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react';
-import { request } from '@/utils/request';
+import { chatContract } from '@zenith/shared/chat';
 import type { ChatMessage } from '@zenith/shared/chat';
+import { api } from '@/lib/contract-query';
 import { VIRTUOSO_FIRST_INDEX_BUFFER } from '../utils-state';
 import type { Setter } from '../types';
 
@@ -27,14 +28,13 @@ export function useMessagesLoader({
 
   const fetchMessages = useCallback(async (convId: number, beforeId?: number): Promise<ChatMessage[] | null> => {
     setLoadingMsgs(true);
-    const qs = beforeId ? `beforeId=${beforeId}&limit=30` : 'limit=30';
-    const res = await request.get<{ list: ChatMessage[]; hasMore: boolean }>(
-      `/api/chat/conversations/${convId}/messages?${qs}`,
-      { silent: true },
-    );
+    const page = await api(chatContract.messages, {
+      params: { id: convId },
+      query: { limit: 30, ...(beforeId ? { beforeId } : {}) },
+    }, { silent: true }).catch(() => null);
     setLoadingMsgs(false);
-    if (res.code === 0 && res.data) {
-      const newMsgs = [...res.data.list].reverse(); // backend returns newest-first, reverse to oldest-first
+    if (page) {
+      const newMsgs = [...page.list].reverse(); // backend returns newest-first, reverse to oldest-first
       if (beforeId) {
         setMessages((prev) => [...newMsgs, ...prev]);
         setOldestMsgId(newMsgs[0]?.id ?? null);
@@ -47,7 +47,7 @@ export function useMessagesLoader({
         setContextMode(null);
         setFirstItemIndex(VIRTUOSO_FIRST_INDEX_BUFFER);
       }
-      setHasMore(res.data.hasMore);
+      setHasMore(page.hasMore);
       return newMsgs;
     }
     return null;

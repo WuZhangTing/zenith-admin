@@ -73,9 +73,8 @@ export function ComposerExtras({
     if (!scheduleAt) { Toast.warning('请选择发送时间'); return; }
     try {
       await createScheduledMutation.mutateAsync({
-        conversationId,
-        content,
-        scheduledAt: formatDateTimeForApi(scheduleAt),
+        params: { id: conversationId },
+        body: { content, scheduledAt: formatDateTimeForApi(scheduleAt) },
       });
     } catch {
       return;
@@ -179,7 +178,7 @@ export function ComposerExtras({
               extra={(
                 <Space spacing={4}>
                   <Button theme="borderless" size="small" onClick={() => { setEditingId(q.id); setEditContent(q.content); }}>编辑</Button>
-                  <Popconfirm title="确定要删除吗？" onConfirm={() => { void deleteQuickMutation.mutateAsync(q.id).then(() => Toast.success('已删除')).catch(() => undefined); }}>
+                  <Popconfirm title="确定要删除吗？" onConfirm={() => { void deleteQuickMutation.mutateAsync({ params: { id: q.id } }).then(() => Toast.success('已删除')).catch(() => undefined); }}>
                     <Button theme="borderless" type="danger" size="small">删除</Button>
                   </Popconfirm>
                 </Space>
@@ -252,7 +251,7 @@ export function ComposerExtras({
                   </div>
                 )}
                 extra={item.status === 'pending' && (
-                  <Popconfirm title="确定取消该定时消息？" onConfirm={() => { void cancelScheduledMutation.mutateAsync(item.id).then(() => Toast.success('已取消')).catch(() => undefined); }}>
+                  <Popconfirm title="确定取消该定时消息？" onConfirm={() => { void cancelScheduledMutation.mutateAsync({ params: { id: item.id } }).then(() => Toast.success('已取消')).catch(() => undefined); }}>
                     <Button theme="borderless" type="danger" size="small">取消</Button>
                   </Popconfirm>
                 )}

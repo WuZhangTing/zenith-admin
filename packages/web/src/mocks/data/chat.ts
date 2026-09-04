@@ -1,4 +1,4 @@
-import type { ChatConversation, ChatMessage } from '@zenith/shared/chat';
+import type { ChatConversation, ChatGroupMember, ChatMessage } from '@zenith/shared/chat';
 
 // Demo 会话与消息数据，基于 mock 用户 id=1（admin）和 id=2（张三）
 
@@ -130,7 +130,7 @@ export const mockChatConversations: ChatConversation[] = [
 ];
 
 // 群聊成员 Map: conversationId -> 成员列表
-export const mockGroupMembers: Record<number, { id: number; nickname: string; username: string; avatar: null; role: 'owner' | 'admin' | 'member'; mutedUntil: string | null }[]> = {
+export const mockGroupMembers: Record<number, ChatGroupMember[]> = {
   2: [
     { id: 1, nickname: '管理员', username: 'admin', avatar: null, role: 'owner', mutedUntil: null },
     { id: 2, nickname: '张三', username: 'zhangsan', avatar: null, role: 'admin', mutedUntil: null },

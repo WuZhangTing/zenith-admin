@@ -24,7 +24,7 @@ export function JoinInviteModal({
     if (!info) return;
     let result: { joined: boolean };
     try {
-      result = await joinMutation.mutateAsync({ token, message: message.trim() || undefined });
+      result = await joinMutation.mutateAsync({ params: { token }, body: { message: message.trim() || undefined } });
     } catch {
       return;
     }

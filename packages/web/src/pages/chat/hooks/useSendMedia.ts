@@ -1,6 +1,8 @@
 import { useCallback } from 'react';
 import { useThrottledCallback } from '@tanstack/react-pacer';
 import { Toast } from '@douyinfe/semi-ui';
+import { chatContract } from '@zenith/shared/chat';
+import { api } from '@/lib/contract-query';
 import { request } from '@/utils/request';
 import { sendWsMessage } from '@/hooks/useWebSocket';
 import { useAddChatCustomEmoji } from '@/hooks/queries/chat';
@@ -42,13 +44,12 @@ export function useSendMedia({
       extension: getFileExtension(originalName),
       fileId,
     };
-    const msgRes = await request.post<ChatMessage>(`/api/chat/conversations/${activeConvId}/messages`, {
-      content: url,
-      type: isVideo ? 'video' : 'file',
-      extra: { asset },
-    }, { silent: true });
-    if (msgRes.code === 0 && msgRes.data) appendMessageOnce(msgRes.data);
-    return msgRes.code === 0 && Boolean(msgRes.data);
+    const msg = await api(chatContract.sendMessage, {
+      params: { id: activeConvId },
+      body: { content: url, type: isVideo ? 'video' : 'file', extra: { asset } },
+    }, { silent: true }).catch(() => null);
+    if (msg) appendMessageOnce(msg);
+    return Boolean(msg);
   }, [activeConvId, appendMessageOnce]);
 
   // 发送收藏表情（作为图片消息）
@@ -65,12 +66,11 @@ export function useSendMedia({
       height: emoji.height,
       thumbnailUrl: emoji.url,
     };
-    const res = await request.post<ChatMessage>(`/api/chat/conversations/${activeConvId}/messages`, {
-      content: emoji.url,
-      type: 'image',
-      extra: { asset },
-    });
-    if (res.code === 0 && res.data) appendMessageOnce(res.data);
+    const msg = await api(chatContract.sendMessage, {
+      params: { id: activeConvId },
+      body: { content: emoji.url, type: 'image', extra: { asset } },
+    }).catch(() => null);
+    if (msg) appendMessageOnce(msg);
     setEmojiVisible(false);
   }, [activeConvId, appendMessageOnce]);
 
@@ -78,11 +78,13 @@ export function useSendMedia({
   const handleSaveAsEmoji = useCallback((msg: ChatMessage) => {
     const asset = msg.extra?.asset;
     void addEmojiMutation.mutateAsync({
-      url: msg.content,
-      fileId: asset?.fileId ?? null,
-      name: asset?.name ?? null,
-      width: asset?.width ?? null,
-      height: asset?.height ?? null,
+      body: {
+        url: msg.content,
+        fileId: asset?.fileId ?? null,
+        name: asset?.name ?? null,
+        width: asset?.width ?? null,
+        height: asset?.height ?? null,
+      },
     }).then(() => Toast.success('已收藏为表情')).catch(() => undefined);
   }, [addEmojiMutation]);
 
@@ -120,13 +122,12 @@ export function useSendMedia({
       height: dimensions?.height ?? null,
       thumbnailUrl: url,
     };
-    const msgRes = await request.post<ChatMessage>(`/api/chat/conversations/${activeConvId}/messages`, {
-      content: url,
-      type: 'image',
-      extra: { asset },
-    }, { silent: true });
-    if (msgRes.code === 0 && msgRes.data) appendMessageOnce(msgRes.data);
-    return msgRes.code === 0 && Boolean(msgRes.data);
+    const msg = await api(chatContract.sendMessage, {
+      params: { id: activeConvId },
+      body: { content: url, type: 'image', extra: { asset } },
+    }, { silent: true }).catch(() => null);
+    if (msg) appendMessageOnce(msg);
+    return Boolean(msg);
   }, [activeConvId, appendMessageOnce]);
 
   const sendVoiceMessage = useCallback(async (blob: Blob, durationSec: number, mimeType: string) => {
@@ -151,13 +152,14 @@ export function useSendMedia({
       fileId,
       duration: Math.max(1, Math.round(durationSec)),
     };
-    const msgRes = await request.post<ChatMessage>(`/api/chat/conversations/${activeConvId}/messages`, {
-      content: url,
-      type: 'voice',
-      extra: { asset },
-    }, { silent: true });
-    if (msgRes.code === 0 && msgRes.data) appendMessageOnce(msgRes.data);
-    else Toast.error(msgRes.code === 0 ? '语音发送失败' : (msgRes.message || '语音发送失败'));
+    try {
+      appendMessageOnce(await api(chatContract.sendMessage, {
+        params: { id: activeConvId },
+        body: { content: url, type: 'voice', extra: { asset } },
+      }, { silent: true }));
+    } catch (err) {
+      Toast.error(err instanceof Error && err.message ? err.message : '语音发送失败');
+    }
   }, [activeConvId, appendMessageOnce]);
 
   const voiceRecorder = useVoiceRecorder({
@@ -167,9 +169,7 @@ export function useSendMedia({
   });
 
   const fetchLinkPreview = useCallback(async (url: string): Promise<ChatLinkPreview | null> => {
-    const res = await request.get<ChatLinkPreview>(`/api/chat/link-preview?url=${encodeURIComponent(url)}`, { silent: true });
-    if (res.code === 0 && res.data) return res.data;
-    return null;
+    return api(chatContract.linkPreview, { query: { url } }, { silent: true }).catch(() => null);
   }, []);
 
   return {

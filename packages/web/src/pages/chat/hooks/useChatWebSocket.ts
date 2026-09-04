@@ -2,10 +2,11 @@ import { useCallback, useEffect } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import type { VirtuosoHandle } from 'react-virtuoso';
 import type { QueryClient } from '@tanstack/react-query';
-import { request } from '@/utils/request';
+import { chatContract } from '@zenith/shared/chat';
+import { api } from '@/lib/contract-query';
 import { useWebSocket, useWsConnected } from '@/hooks/useWebSocket';
 import { chatKeys } from '@/hooks/queries/chat';
-import type { ChatConversation, ChatMessage, ChatGroupMember, ChatReadState } from '@zenith/shared/chat';
+import type { ChatConversation, ChatMessage, ChatReadState } from '@zenith/shared/chat';
 import type { Channel } from '@zenith/shared/messaging';
 import type { WsMessage } from '@zenith/shared/platform';
 import { getNextMentionUnread, markConversationReadById, recallMessageById, removeConversationById, removeMessageById, setMessageReactions, setMessageVoteData } from '../utils-state';
@@ -52,11 +53,11 @@ export function useChatWebSocket({
   setTypingUsers: Setter<TypingUsersMap>;
 }) {
   const refreshGroupAvatarMembers = useCallback(async (conversationId: number) => {
-    const res = await request.get<ChatGroupMember[]>(`/api/chat/conversations/${conversationId}/members`, { silent: true });
-    if (res.code !== 0 || !res.data) return;
+    const members = await api(chatContract.groupMembers, { params: { id: conversationId } }, { silent: true }).catch(() => null);
+    if (!members) return;
     setGroupAvatarMap((prev) => ({
       ...prev,
-      [conversationId]: res.data.slice(0, 9).map((m) => ({ id: m.id, nickname: m.nickname, avatar: m.avatar })),
+      [conversationId]: members.slice(0, 9).map((m) => ({ id: m.id, nickname: m.nickname, avatar: m.avatar })),
     }));
   }, []);
 
@@ -83,7 +84,7 @@ export function useChatWebSocket({
         appendMessageOnce(msg);
         if (shouldAutoRead) {
           setTimeout(() => virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' }), 80);
-          request.post(`/api/chat/conversations/${msg.conversationId}/read`, {}, { silent: true }).catch(() => {});
+          api(chatContract.markRead, { params: { id: msg.conversationId } }, { silent: true }).catch(() => {});
           setPendingNewMsgCount(0);
         } else if (!isOwnMsg) {
           setPendingNewMsgCount((v) => v + 1);
@@ -229,7 +230,7 @@ export function useChatWebSocket({
       return;
     }
     if (pendingNewMsgCount > 0) setPendingNewMsgCount(0);
-    request.post(`/api/chat/conversations/${activeConvId}/read`, {}, { silent: true }).catch(() => {});
+    api(chatContract.markRead, { params: { id: activeConvId } }, { silent: true }).catch(() => {});
     setConversations(markConversationReadById(activeConvId));
   }, [activeConvId, contextMode, pendingNewMsgCount, restoreLatestMessages]);
 
@@ -264,7 +265,7 @@ export function useChatWebSocket({
         await fetchMessages(activeConvId);
         if (shouldStickToBottom) {
           requestAnimationFrame(() => virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' }));
-          request.post(`/api/chat/conversations/${activeConvId}/read`, {}, { silent: true }).catch(() => {});
+          api(chatContract.markRead, { params: { id: activeConvId } }, { silent: true }).catch(() => {});
           setConversations(markConversationReadById(activeConvId));
         }
       }

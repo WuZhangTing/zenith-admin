@@ -32,9 +32,11 @@ export function StickerPanel({
     if (uploadRes.code !== 0 || !uploadRes.data) { Toast.error('上传失败'); return; }
     try {
       await addMutation.mutateAsync({
-        url: uploadRes.data.url,
-        fileId: uploadRes.data.id ?? null,
-        name: uploadRes.data.originalName,
+        body: {
+          url: uploadRes.data.url,
+          fileId: uploadRes.data.id ?? null,
+          name: uploadRes.data.originalName,
+        },
       });
     } catch {
       return;
@@ -91,7 +93,7 @@ export function StickerPanel({
             <button
               type="button"
               aria-label="删除表情"
-              onClick={() => { void deleteMutation.mutateAsync(emoji.id).then(() => Toast.success('已删除')).catch(() => undefined); }}
+              onClick={() => { void deleteMutation.mutateAsync({ params: { id: emoji.id } }).then(() => Toast.success('已删除')).catch(() => undefined); }}
               style={{
                 position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%',
                 border: 'none', background: 'var(--semi-color-danger)', color: '#fff', cursor: 'pointer',

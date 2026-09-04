@@ -1,6 +1,10 @@
-import { http } from 'msw';
-import { ok, badRequest, forbidden, notFound, pageParams } from '@/mocks/utils/handlers';
-import type { ChatMessage, ChatMessageExtra, ChatReplySnapshot } from '@zenith/shared/chat';
+import { chatContract } from '@zenith/shared/chat';
+import type {
+  ChatConversation, ChatCustomEmoji, ChatGroupInvite, ChatGroupJoinRequest, ChatGroupMember,
+  ChatMessage, ChatQuickReply, ChatReadState, ChatReplySnapshot, ChatScheduledMessage,
+} from '@zenith/shared/chat';
+import { mock } from '@/mocks/utils/contract';
+import { badRequest, forbidden, notFound } from '@/mocks/utils/handlers';
 import {
   mockChatConversations, mockChatUsers, getMockConvMessages,
   addMockMessage, getNextMsgId, mockChatMessages, mockGroupMembers,
@@ -14,8 +18,7 @@ const CURRENT_USER_ID = 1;
 const CURRENT_USER_NICKNAME = '管理员';
 
 // ── 常用语（内存态） ──
-interface MockQuickReply { id: number; content: string; sort: number; createdAt: string; updatedAt: string }
-const mockQuickReplies: MockQuickReply[] = [
+const mockQuickReplies: ChatQuickReply[] = [
   { id: 1, content: '收到，我马上处理。', sort: 0, createdAt: mockDateTime(), updatedAt: mockDateTime() },
   { id: 2, content: '好的，稍后同步进展。', sort: 1, createdAt: mockDateTime(), updatedAt: mockDateTime() },
   { id: 3, content: '这个问题我确认一下再回复你。', sort: 2, createdAt: mockDateTime(), updatedAt: mockDateTime() },
@@ -23,26 +26,17 @@ const mockQuickReplies: MockQuickReply[] = [
 let nextQuickReplyId = 4;
 
 // ── 定时消息（内存态） ──
-interface MockScheduled {
-  id: number; conversationId: number; conversationName: string | null;
-  type: 'text'; content: string; extra: null;
-  scheduledAt: string; status: 'pending' | 'sent' | 'canceled' | 'failed';
-  failReason: string | null; sentMessageId: number | null;
-  createdAt: string; updatedAt: string;
-}
-const mockScheduledMessages: MockScheduled[] = [];
+const mockScheduledMessages: ChatScheduledMessage[] = [];
 let nextScheduledId = 1;
 
 // ── 自定义表情（内存态） ──
-interface MockCustomEmoji { id: number; url: string; fileId: string | null; name: string | null; width: number | null; height: number | null; createdAt: string }
-const mockCustomEmojis: MockCustomEmoji[] = [];
+const mockCustomEmojis: ChatCustomEmoji[] = [];
 let nextEmojiId = 1;
 
 // ── 群邀请 / 入群申请（内存态） ──
-const mockInvites: Record<number, { id: number; conversationId: number; token: string; expiresAt: string; maxUses: null; usedCount: number; enabled: boolean; createdAt: string }> = {};
+const mockInvites: Record<number, ChatGroupInvite> = {};
 let nextInviteId = 1;
-interface MockJoinRequest { id: number; conversationId: number; userId: number; nickname: string; avatar: null; message: string | null; status: 'pending' | 'approved' | 'rejected'; createdAt: string }
-const mockJoinRequests: MockJoinRequest[] = [];
+const mockJoinRequests: ChatGroupJoinRequest[] = [];
 let nextJoinRequestId = 1;
 
 function convDisplayName(convId: number): string | null {
@@ -51,7 +45,20 @@ function convDisplayName(convId: number): string | null {
   return conv.type === 'group' ? (conv.name ?? null) : (conv.targetUser?.nickname ?? null);
 }
 
-function addSystemMessage(conversationId: number, content: string) {
+function newInvite(conversationId: number): ChatGroupInvite {
+  return {
+    id: nextInviteId++,
+    conversationId,
+    token: `mock-invite-${conversationId}-${Math.random().toString(16).slice(2, 10)}`,
+    expiresAt: mockDateTimeOffset(7 * 24 * 3600 * 1000),
+    maxUses: null,
+    usedCount: 0,
+    enabled: true,
+    createdAt: mockDateTime(),
+  };
+}
+
+function addSystemMessage(conversationId: number, content: string, extra: ChatMessage['extra'] = null) {
   const newMsg: ChatMessage = {
     id: getNextMsgId(),
     conversationId,
@@ -64,7 +71,7 @@ function addSystemMessage(conversationId: number, content: string) {
     replyToMessage: null,
     isRecalled: false,
     isEdited: false,
-    extra: null,
+    extra,
     reactions: [],
     createdAt: mockDateTime(),
     updatedAt: mockDateTime(),
@@ -72,24 +79,16 @@ function addSystemMessage(conversationId: number, content: string) {
   addMockMessage(newMsg);
 }
 
+function buildSearchSnippet(msg: ChatMessage): string {
+  if (msg.type === 'image') return `[图片] ${msg.extra?.asset?.name ?? ''}`.trim();
+  if (msg.type === 'file') return `[文件] ${msg.extra?.asset?.name ?? ''}`.trim();
+  return msg.content;
+}
+
 export const chatHandlers = [
   // 链接预览
-  http.get('/api/chat/link-preview', ({ request }) => {
-    const url = new URL(request.url);
-    const raw = url.searchParams.get('url');
-    if (!raw) return badRequest('url 不能为空', { status: 400 });
-
-    let parsed: URL;
-    try {
-      parsed = new URL(raw);
-    } catch {
-      return badRequest('链接格式无效', { status: 400 });
-    }
-
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
-      return badRequest('仅支持 http/https 链接', { status: 400 });
-    }
-
+  mock(chatContract.linkPreview, ({ query, ok }) => {
+    const parsed = new URL(query.url);
     const isImageUrl = /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(parsed.pathname);
 
     return ok({
@@ -103,9 +102,8 @@ export const chatHandlers = [
   }),
 
   // 可聊天用户搜索
-  http.get('/api/chat/users', ({ request }) => {
-    const url = new URL(request.url);
-    const keyword = url.searchParams.get('keyword') ?? '';
+  mock(chatContract.users, ({ query, ok }) => {
+    const keyword = query.keyword ?? '';
     const filtered = keyword
       ? mockChatUsers.filter((u) =>
           u.nickname.includes(keyword) || u.username.includes(keyword),
@@ -115,7 +113,7 @@ export const chatHandlers = [
   }),
 
   // 组织架构选人数据（部门 + 用户）
-  http.get('/api/chat/org-users', () => {
+  mock(chatContract.orgUsers, ({ ok }) => {
     return ok({
       departments: mockDepartments
         .filter((d) => d.status === 'enabled')
@@ -130,7 +128,7 @@ export const chatHandlers = [
   }),
 
   // 会话列表
-  http.get('/api/chat/conversations', () => {
+  mock(chatContract.conversations, ({ ok }) => {
     const data = [...mockChatConversations].sort((a, b) => {
       if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
       return (b.lastMessage?.createdAt ?? b.updatedAt).localeCompare(a.lastMessage?.createdAt ?? a.updatedAt);
@@ -138,33 +136,22 @@ export const chatHandlers = [
     return ok(data);
   }),
 
-  http.get('/api/chat/favorite-messages', ({ request }) => {
-    const url = new URL(request.url);
-    const { page, pageSize } = pageParams(url, 100);
+  mock(chatContract.globalFavoriteMessages, ({ ok, paginate }) => {
     const all = mockChatMessages.filter((m) => m.extra?.isFavorited).slice().reverse();
-    const start = (page - 1) * pageSize;
-    const list = all.slice(start, start + pageSize);
-    return ok({ list, total: all.length, page, pageSize });
+    return ok(paginate(all));
   }),
 
   // 全局消息搜索
-  http.get('/api/chat/messages/global-search', ({ request }) => {
-    const url = new URL(request.url);
-    const keyword = (url.searchParams.get('keyword') ?? '').toLowerCase();
-    const { page, pageSize } = pageParams(url, 20);
-    if (!keyword) {
-      return ok({ list: [], total: 0, page, pageSize, conversationNames: {} });
-    }
+  mock(chatContract.globalSearch, ({ query, ok, paginate }) => {
+    const keyword = query.keyword.toLowerCase();
     const all = mockChatMessages.filter((m) => {
       if (m.isRecalled) return false;
       return (m.content ?? '').toLowerCase().includes(keyword)
         || (m.extra?.asset?.name ?? '').toLowerCase().includes(keyword);
     });
-    const total = all.length;
-    const start = (page - 1) * pageSize;
-    const sliced = all.slice(start, start + pageSize);
+    const page = paginate(all);
     const conversationNames: Record<string, string> = {};
-    for (const msg of sliced) {
+    for (const msg of page.list) {
       const conv = mockChatConversations.find((c) => c.id === msg.conversationId);
       if (conv) {
         conversationNames[String(msg.conversationId)] = conv.type === 'direct'
@@ -172,18 +159,15 @@ export const chatHandlers = [
           : (conv.name ?? '群聊');
       }
     }
-    const list = sliced.map((msg) => {
-      let snippet = msg.content;
-      if (msg.type === 'image') snippet = `[图片] ${msg.extra?.asset?.name ?? ''}`.trim();
-      else if (msg.type === 'file') snippet = `[文件] ${msg.extra?.asset?.name ?? ''}`.trim();
-      return { message: msg, snippet };
+    return ok({
+      ...page,
+      list: page.list.map((msg) => ({ message: msg, snippet: buildSearchSnippet(msg) })),
+      conversationNames,
     });
-    return ok({ list, total, page, pageSize, conversationNames });
   }),
 
   // 创建/获取单聊
-  http.post('/api/chat/conversations/direct', async ({ request }) => {
-    const body = await request.json() as { targetUserId: number };
+  mock(chatContract.createDirect, ({ body, ok }) => {
     const targetUser = mockChatUsers.find((u) => u.id === body.targetUserId);
     if (!targetUser) return notFound('用户不存在', { status: 404 });
 
@@ -192,9 +176,9 @@ export const chatHandlers = [
     );
     if (existing) return ok(existing);
 
-    const newConv = {
+    const newConv: ChatConversation = {
       id: mockChatConversations.length + 100,
-      type: 'direct' as const,
+      type: 'direct',
       name: null,
       targetUser,
       lastMessage: null,
@@ -211,14 +195,10 @@ export const chatHandlers = [
   }),
 
   // 消息列表（游标分页，最新在前）
-  http.get('/api/chat/conversations/:id/messages', ({ params, request }) => {
-    const convId = Number(params.id);
-    const url = new URL(request.url);
-    const beforeId = url.searchParams.get('beforeId') ? Number(url.searchParams.get('beforeId')) : null;
-    const limit = Number(url.searchParams.get('limit') ?? '30');
-
-    const all = getMockConvMessages(convId).slice().sort((a, b) => b.id - a.id); // 最新在前（按 id 降序）
-    const filtered = beforeId === null ? all : all.filter((m) => m.id < beforeId);
+  mock(chatContract.messages, ({ params, query, ok }) => {
+    const { beforeId, limit = 30 } = query;
+    const all = getMockConvMessages(params.id).slice().sort((a, b) => b.id - a.id); // 最新在前（按 id 降序）
+    const filtered = beforeId === undefined ? all : all.filter((m) => m.id < beforeId);
     const batch = filtered.slice(0, limit);
     const hasMore = filtered.length > limit;
 
@@ -226,22 +206,14 @@ export const chatHandlers = [
   }),
 
   // 发送消息
-  http.post('/api/chat/conversations/:id/messages', async ({ params, request }) => {
-    const convId = Number(params.id);
-    const body = await request.json() as {
-      content: string;
-      type?: string;
-      replyToId?: number;
-      extra?: ChatMessageExtra | null;
-    };
-
+  mock(chatContract.sendMessage, ({ params, body, ok }) => {
     const newMsg: ChatMessage = {
       id: getNextMsgId(),
-      conversationId: convId,
+      conversationId: params.id,
       senderId: CURRENT_USER_ID,
       senderName: CURRENT_USER_NICKNAME,
       senderAvatar: null,
-      type: (body.type ?? 'text') as ChatMessage['type'],
+      type: body.type,
       content: body.content,
       replyToId: body.replyToId ?? null,
       replyToMessage: body.replyToId
@@ -252,7 +224,7 @@ export const chatHandlers = [
           })()
         : null,
       isRecalled: false,
-    isEdited: false,
+      isEdited: false,
       extra: body.extra ?? null,
       reactions: [],
       createdAt: mockDateTime(),
@@ -264,9 +236,8 @@ export const chatHandlers = [
   }),
 
   // 撤回消息
-  http.patch('/api/chat/messages/:id/recall', ({ params }) => {
-    const msgId = Number(params.id);
-    const msg = mockChatMessages.find((m) => m.id === msgId);
+  mock(chatContract.recallMessage, ({ params, ok }) => {
+    const msg = mockChatMessages.find((m) => m.id === params.id);
     if (!msg) return notFound('消息不存在', { status: 404 });
     if (msg.senderId !== CURRENT_USER_ID) {
       return forbidden('只能撤回自己的消息', { status: 403 });
@@ -276,20 +247,16 @@ export const chatHandlers = [
     return ok(null);
   }),
 
-  http.patch('/api/chat/messages/:id/favorite', async ({ params, request }) => {
-    const msgId = Number(params.id);
-    const body = await request.json() as { favorite: boolean };
-    const msg = mockChatMessages.find((m) => m.id === msgId);
+  mock(chatContract.favoriteMessage, ({ params, body, ok }) => {
+    const msg = mockChatMessages.find((m) => m.id === params.id);
     if (!msg) return notFound('消息不存在', { status: 404 });
     msg.extra = { ...(msg.extra || {}), isFavorited: body.favorite };
     msg.updatedAt = mockDateTime();
     return ok(msg);
   }),
 
-  http.patch('/api/chat/messages/:id/pin', async ({ params, request }) => {
-    const msgId = Number(params.id);
-    const body = await request.json() as { pin: boolean };
-    const msg = mockChatMessages.find((m) => m.id === msgId);
+  mock(chatContract.pinMessage, ({ params, body, ok }) => {
+    const msg = mockChatMessages.find((m) => m.id === params.id);
     if (!msg) return notFound('消息不存在', { status: 404 });
     msg.extra = { ...(msg.extra || {}), isPinned: body.pin };
     msg.updatedAt = mockDateTime();
@@ -297,10 +264,8 @@ export const chatHandlers = [
   }),
 
   // 投票
-  http.post('/api/chat/messages/:id/vote', async ({ params, request }) => {
-    const msgId = Number(params.id);
-    const body = await request.json() as { optionIds: string[] };
-    const msg = mockChatMessages.find((m) => m.id === msgId);
+  mock(chatContract.vote, ({ params, body, ok }) => {
+    const msg = mockChatMessages.find((m) => m.id === params.id);
     if (!msg) return notFound('消息不存在', { status: 404 });
     if (msg.type !== 'vote') return badRequest('该消息不是投票类型', { status: 400 });
 
@@ -309,7 +274,7 @@ export const chatHandlers = [
     if (voteData.isClosed) return badRequest('投票已关闭', { status: 400 });
 
     const validIds = new Set(voteData.options.map((o) => o.id));
-    const selected = (body.optionIds ?? []).filter((id) => validIds.has(id));
+    const selected = body.optionIds.filter((id) => validIds.has(id));
     if (selected.length === 0) {
       return badRequest('请选择有效选项', { status: 400 });
     }
@@ -325,9 +290,8 @@ export const chatHandlers = [
     return ok(msg);
   }),
 
-  http.get('/api/chat/conversations/:id/pinned-messages', ({ params }) => {
-    const convId = Number(params.id);
-    const data = getMockConvMessages(convId)
+  mock(chatContract.pinnedMessages, ({ params, ok }) => {
+    const data = getMockConvMessages(params.id)
       .filter((m) => m.extra?.isPinned)
       .slice()
       .reverse()
@@ -335,20 +299,14 @@ export const chatHandlers = [
     return ok(data);
   }),
 
-  http.get('/api/chat/conversations/:id/favorite-messages', ({ params, request }) => {
-    const convId = Number(params.id);
-    const url = new URL(request.url);
-    const { page, pageSize } = pageParams(url, 100);
-    const all = getMockConvMessages(convId).filter((m) => m.extra?.isFavorited).slice().reverse();
-    const start = (page - 1) * pageSize;
-    const list = all.slice(start, start + pageSize);
-    return ok({ list, total: all.length, page, pageSize });
+  mock(chatContract.favoriteMessages, ({ params, ok, paginate }) => {
+    const all = getMockConvMessages(params.id).filter((m) => m.extra?.isFavorited).slice().reverse();
+    return ok(paginate(all));
   }),
 
   // 标记已读
-  http.post('/api/chat/conversations/:id/read', ({ params }) => {
-    const convId = Number(params.id);
-    const conv = mockChatConversations.find((c) => c.id === convId);
+  mock(chatContract.markRead, ({ params, ok }) => {
+    const conv = mockChatConversations.find((c) => c.id === params.id);
     if (conv) {
       conv.unreadCount = 0;
       conv.hasMentionUnread = false;
@@ -357,12 +315,11 @@ export const chatHandlers = [
   }),
 
   // 会话成员已读状态（已读回执）
-  http.get('/api/chat/conversations/:id/read-states', ({ params }) => {
-    const convId = Number(params.id);
-    const conv = mockChatConversations.find((c) => c.id === convId);
-    let states: Array<{ userId: number; nickname: string; avatar: string | null; lastReadAt: string | null }> = [];
+  mock(chatContract.readStates, ({ params, ok }) => {
+    const conv = mockChatConversations.find((c) => c.id === params.id);
+    let states: ChatReadState[] = [];
     if (conv?.type === 'group') {
-      states = (mockGroupMembers[convId] ?? [])
+      states = (mockGroupMembers[params.id] ?? [])
         .filter((m) => m.id !== CURRENT_USER_ID)
         .map((m) => ({ userId: m.id, nickname: m.nickname, avatar: m.avatar ?? null, lastReadAt: mockDateTime() }));
     } else if (conv?.targetUser) {
@@ -372,9 +329,8 @@ export const chatHandlers = [
   }),
 
   // 批量在线状态（演示：偶数 ID 在线，奇数离线）
-  http.get('/api/chat/presence', ({ request }) => {
-    const url = new URL(request.url);
-    const ids = (url.searchParams.get('userIds') ?? '')
+  mock(chatContract.presence, ({ query, ok }) => {
+    const ids = (query.userIds ?? '')
       .split(',')
       .map((s) => Number.parseInt(s.trim(), 10))
       .filter((n) => Number.isInteger(n) && n > 0);
@@ -386,14 +342,13 @@ export const chatHandlers = [
   }),
 
   // 创建群聊
-  http.post('/api/chat/conversations/group', async ({ request }) => {
-    const body = await request.json() as { name: string; memberIds?: number[] };
-    if (!body.name?.trim()) {
+  mock(chatContract.createGroup, ({ body, ok }) => {
+    if (!body.name.trim()) {
       return badRequest('群聊名称不能为空', { status: 400 });
     }
-    const newConv = {
+    const newConv: ChatConversation = {
       id: mockChatConversations.length + 200,
-      type: 'group' as const,
+      type: 'group',
       name: body.name.trim(),
       announcement: null,
       targetUser: null,
@@ -404,16 +359,16 @@ export const chatHandlers = [
       isStarred: false,
       isMuted: false,
       muteAll: false,
-      myRole: 'owner' as const,
+      myRole: 'owner',
       myMutedUntil: null,
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),
     };
     mockChatConversations.unshift(newConv);
-    const initialMembers = (body.memberIds ?? [])
+    const initialMembers: ChatGroupMember[] = (body.memberIds ?? [])
       .map((id) => mockUsers.find((u) => u.id === id))
       .filter((u): u is NonNullable<typeof u> => !!u && u.id !== CURRENT_USER_ID)
-      .map((u) => ({ id: u.id, nickname: u.nickname, username: u.username, avatar: null, role: 'member' as const, mutedUntil: null }));
+      .map((u) => ({ id: u.id, nickname: u.nickname, username: u.username, avatar: null, role: 'member', mutedUntil: null }));
     mockGroupMembers[newConv.id] = [
       { id: 1, nickname: '管理员', username: 'admin', avatar: null, role: 'owner', mutedUntil: null },
       ...initialMembers,
@@ -426,10 +381,9 @@ export const chatHandlers = [
   }),
 
   // 群成员列表
-  http.get('/api/chat/conversations/:id/members', ({ params }) => {
-    const convId = Number(params.id);
-    const members = [...(mockGroupMembers[convId] ?? [])].sort((a, b) => {
-      const rank = (m: { role: 'owner' | 'admin' | 'member' }) => {
+  mock(chatContract.groupMembers, ({ params, ok }) => {
+    const members = [...(mockGroupMembers[params.id] ?? [])].sort((a, b) => {
+      const rank = (m: ChatGroupMember) => {
         if (m.role === 'owner') return 0;
         if (m.role === 'admin') return 1;
         return 2;
@@ -442,106 +396,87 @@ export const chatHandlers = [
   }),
 
   // 设置/取消群管理员
-  http.patch('/api/chat/conversations/:id/members/:userId/role', async ({ params, request }) => {
-    const convId = Number(params.id);
-    const targetId = Number(params.userId);
-    const body = await request.json() as { role: 'admin' | 'member' };
-    const target = mockGroupMembers[convId]?.find((m) => m.id === targetId);
+  mock(chatContract.setMemberRole, ({ params, body, ok }) => {
+    const target = mockGroupMembers[params.id]?.find((m) => m.id === params.userId);
     if (!target) return notFound('该用户不在群聊中', { status: 404 });
     if (target.role === 'owner') return badRequest('不能修改群主角色', { status: 400 });
     target.role = body.role;
-    addSystemMessage(convId, body.role === 'admin'
+    addSystemMessage(params.id, body.role === 'admin'
       ? `${CURRENT_USER_NICKNAME} 将 ${target.nickname} 设为管理员`
       : `${CURRENT_USER_NICKNAME} 取消了 ${target.nickname} 的管理员身份`);
     return ok(null);
   }),
 
   // 禁言/解除禁言群成员
-  http.patch('/api/chat/conversations/:id/members/:userId/mute', async ({ params, request }) => {
-    const convId = Number(params.id);
-    const targetId = Number(params.userId);
-    const body = await request.json() as { mute: boolean; durationMinutes?: number };
-    const target = mockGroupMembers[convId]?.find((m) => m.id === targetId);
+  mock(chatContract.muteMember, ({ params, body, ok }) => {
+    const target = mockGroupMembers[params.id]?.find((m) => m.id === params.userId);
     if (!target) return notFound('该用户不在群聊中', { status: 404 });
     if (target.role === 'owner') return badRequest('不能禁言群主', { status: 400 });
     if (body.mute) {
       target.mutedUntil = body.durationMinutes
         ? mockDateTimeOffset(body.durationMinutes * 60 * 1000)
         : '9999-12-31 00:00:00';
-      addSystemMessage(convId, `${target.nickname} 已被 ${CURRENT_USER_NICKNAME} 禁言${body.durationMinutes ? '' : '（永久）'}`);
+      addSystemMessage(params.id, `${target.nickname} 已被 ${CURRENT_USER_NICKNAME} 禁言${body.durationMinutes ? '' : '（永久）'}`);
     } else {
       target.mutedUntil = null;
-      addSystemMessage(convId, `${target.nickname} 已被 ${CURRENT_USER_NICKNAME} 解除禁言`);
+      addSystemMessage(params.id, `${target.nickname} 已被 ${CURRENT_USER_NICKNAME} 解除禁言`);
     }
     return ok(null);
   }),
 
   // 全员禁言开关
-  http.patch('/api/chat/conversations/:id/mute-all', async ({ params, request }) => {
-    const convId = Number(params.id);
-    const body = await request.json() as { muteAll: boolean };
-    const conv = mockChatConversations.find((c) => c.id === convId);
+  mock(chatContract.setMuteAll, ({ params, body, ok }) => {
+    const conv = mockChatConversations.find((c) => c.id === params.id);
     if (!conv) return notFound('会话不存在', { status: 404 });
     conv.muteAll = body.muteAll;
-    addSystemMessage(convId, body.muteAll
+    addSystemMessage(params.id, body.muteAll
       ? `${CURRENT_USER_NICKNAME} 开启了全员禁言`
       : `${CURRENT_USER_NICKNAME} 解除了全员禁言`);
     return ok(null);
   }),
 
   // 置顶 / 取消置顶
-  http.patch('/api/chat/conversations/:id/pin', async ({ params, request }) => {
-    const convId = Number(params.id);
-    const body = await request.json() as { pin: boolean };
-    const conv = mockChatConversations.find((c) => c.id === convId);
+  mock(chatContract.pinConversation, ({ params, body, ok }) => {
+    const conv = mockChatConversations.find((c) => c.id === params.id);
     if (conv) conv.isPinned = body.pin;
     return ok(null);
   }),
 
   // 星标 / 取消星标
-  http.patch('/api/chat/conversations/:id/star', async ({ params, request }) => {
-    const convId = Number(params.id);
-    const body = await request.json() as { star: boolean };
-    const conv = mockChatConversations.find((c) => c.id === convId);
+  mock(chatContract.starConversation, ({ params, body, ok }) => {
+    const conv = mockChatConversations.find((c) => c.id === params.id);
     if (conv) conv.isStarred = body.star;
     return ok(null);
   }),
 
   // 免打扰 / 取消免打扰
-  http.patch('/api/chat/conversations/:id/mute', async ({ params, request }) => {
-    const convId = Number(params.id);
-    const body = await request.json() as { mute: boolean };
-    const conv = mockChatConversations.find((c) => c.id === convId);
+  mock(chatContract.muteConversation, ({ params, body, ok }) => {
+    const conv = mockChatConversations.find((c) => c.id === params.id);
     if (conv) conv.isMuted = body.mute;
     return ok(null);
   }),
 
   // 归档 / 取消归档
-  http.patch('/api/chat/conversations/:id/archive', async ({ params, request }) => {
-    const convId = Number(params.id);
-    const body = await request.json() as { archive: boolean };
-    const conv = mockChatConversations.find((c) => c.id === convId);
+  mock(chatContract.archiveConversation, ({ params, body, ok }) => {
+    const conv = mockChatConversations.find((c) => c.id === params.id);
     if (conv) conv.isArchived = body.archive;
     return ok(null);
   }),
 
   // ── 常用语 ──
-  http.get('/api/chat/quick-replies', () =>
+  mock(chatContract.quickReplies, ({ ok }) =>
     ok([...mockQuickReplies].sort((a, b) => a.sort - b.sort || a.id - b.id)),
   ),
 
-  http.post('/api/chat/quick-replies', async ({ request }) => {
-    const body = await request.json() as { content: string; sort?: number };
-    if (!body.content?.trim()) return badRequest('内容不能为空', { status: 400 });
-    const item: MockQuickReply = { id: nextQuickReplyId++, content: body.content.trim(), sort: body.sort ?? 0, createdAt: mockDateTime(), updatedAt: mockDateTime() };
+  mock(chatContract.createQuickReply, ({ body, ok }) => {
+    if (!body.content.trim()) return badRequest('内容不能为空', { status: 400 });
+    const item: ChatQuickReply = { id: nextQuickReplyId++, content: body.content.trim(), sort: body.sort ?? 0, createdAt: mockDateTime(), updatedAt: mockDateTime() };
     mockQuickReplies.push(item);
     return ok(item);
   }),
 
-  http.put('/api/chat/quick-replies/:id', async ({ params, request }) => {
-    const id = Number(params.id);
-    const body = await request.json() as { content?: string; sort?: number };
-    const item = mockQuickReplies.find((q) => q.id === id);
+  mock(chatContract.updateQuickReply, ({ params, body, ok }) => {
+    const item = mockQuickReplies.find((q) => q.id === params.id);
     if (!item) return notFound('常用语不存在', { status: 404 });
     if (body.content !== undefined) item.content = body.content;
     if (body.sort !== undefined) item.sort = body.sort;
@@ -549,23 +484,20 @@ export const chatHandlers = [
     return ok(item);
   }),
 
-  http.delete('/api/chat/quick-replies/:id', ({ params }) => {
-    const id = Number(params.id);
-    const idx = mockQuickReplies.findIndex((q) => q.id === id);
+  mock(chatContract.removeQuickReply, ({ params, ok }) => {
+    const idx = mockQuickReplies.findIndex((q) => q.id === params.id);
     if (idx === -1) return notFound('常用语不存在', { status: 404 });
     mockQuickReplies.splice(idx, 1);
     return ok(null);
   }),
 
   // ── 定时消息 ──
-  http.post('/api/chat/conversations/:id/scheduled-messages', async ({ params, request }) => {
-    const convId = Number(params.id);
-    const body = await request.json() as { content: string; scheduledAt: string };
-    if (!body.content?.trim()) return badRequest('内容不能为空', { status: 400 });
-    const item: MockScheduled = {
+  mock(chatContract.createScheduledMessage, ({ params, body, ok }) => {
+    if (!body.content.trim()) return badRequest('内容不能为空', { status: 400 });
+    const item: ChatScheduledMessage = {
       id: nextScheduledId++,
-      conversationId: convId,
-      conversationName: convDisplayName(convId),
+      conversationId: params.id,
+      conversationName: convDisplayName(params.id),
       type: 'text',
       content: body.content,
       extra: null,
@@ -580,18 +512,15 @@ export const chatHandlers = [
     return ok(item);
   }),
 
-  http.get('/api/chat/scheduled-messages', ({ request }) => {
-    const url = new URL(request.url);
-    const status = url.searchParams.get('status');
+  mock(chatContract.scheduledMessages, ({ query, ok }) => {
     const list = mockScheduledMessages
-      .filter((m) => !status || m.status === status)
+      .filter((m) => !query.status || m.status === query.status)
       .sort((a, b) => b.scheduledAt.localeCompare(a.scheduledAt));
     return ok(list);
   }),
 
-  http.patch('/api/chat/scheduled-messages/:id/cancel', ({ params }) => {
-    const id = Number(params.id);
-    const item = mockScheduledMessages.find((m) => m.id === id);
+  mock(chatContract.cancelScheduledMessage, ({ params, ok }) => {
+    const item = mockScheduledMessages.find((m) => m.id === params.id);
     if (!item) return notFound('定时消息不存在', { status: 404 });
     if (item.status !== 'pending') return badRequest('仅待发送的定时消息可取消', { status: 400 });
     item.status = 'canceled';
@@ -600,15 +529,14 @@ export const chatHandlers = [
   }),
 
   // ── 自定义表情 ──
-  http.get('/api/chat/custom-emojis', () =>
+  mock(chatContract.customEmojis, ({ ok }) =>
     ok([...mockCustomEmojis].sort((a, b) => b.id - a.id)),
   ),
 
-  http.post('/api/chat/custom-emojis', async ({ request }) => {
-    const body = await request.json() as { url: string; fileId?: string | null; name?: string | null; width?: number | null; height?: number | null };
+  mock(chatContract.addCustomEmoji, ({ body, ok }) => {
     const dup = mockCustomEmojis.find((e) => e.url === body.url);
     if (dup) return ok(dup);
-    const item: MockCustomEmoji = {
+    const item: ChatCustomEmoji = {
       id: nextEmojiId++, url: body.url, fileId: body.fileId ?? null, name: body.name ?? null,
       width: body.width ?? null, height: body.height ?? null, createdAt: mockDateTime(),
     };
@@ -616,67 +544,51 @@ export const chatHandlers = [
     return ok(item);
   }),
 
-  http.delete('/api/chat/custom-emojis/:id', ({ params }) => {
-    const id = Number(params.id);
-    const idx = mockCustomEmojis.findIndex((e) => e.id === id);
+  mock(chatContract.removeCustomEmoji, ({ params, ok }) => {
+    const idx = mockCustomEmojis.findIndex((e) => e.id === params.id);
     if (idx === -1) return notFound('表情不存在', { status: 404 });
     mockCustomEmojis.splice(idx, 1);
     return ok(null);
   }),
 
   // ── 群邀请链接 ──
-  http.post('/api/chat/conversations/:id/invite', ({ params }) => {
-    const convId = Number(params.id);
-    let invite = mockInvites[convId];
+  mock(chatContract.createInvite, ({ params, ok }) => {
+    let invite = mockInvites[params.id];
     if (!invite?.enabled) {
-      invite = {
-        id: nextInviteId++, conversationId: convId,
-        token: `mock-invite-${convId}-${Math.random().toString(16).slice(2, 10)}`,
-        expiresAt: mockDateTimeOffset(7 * 24 * 3600 * 1000), maxUses: null, usedCount: 0, enabled: true,
-        createdAt: mockDateTime(),
-      };
-      mockInvites[convId] = invite;
+      invite = newInvite(params.id);
+      mockInvites[params.id] = invite;
     }
     return ok(invite);
   }),
 
-  http.post('/api/chat/conversations/:id/invite/reset', ({ params }) => {
-    const convId = Number(params.id);
-    const invite = {
-      id: nextInviteId++, conversationId: convId,
-      token: `mock-invite-${convId}-${Math.random().toString(16).slice(2, 10)}`,
-      expiresAt: mockDateTimeOffset(7 * 24 * 3600 * 1000), maxUses: null, usedCount: 0, enabled: true,
-      createdAt: mockDateTime(),
-    };
-    mockInvites[convId] = invite;
+  mock(chatContract.resetInvite, ({ params, ok }) => {
+    const invite = newInvite(params.id);
+    mockInvites[params.id] = invite;
     return ok(invite);
   }),
 
-  http.get('/api/chat/invites/:token', ({ params }) => {
-    const token = String(params.token);
-    const invite = Object.values(mockInvites).find((i) => i.token === token && i.enabled);
+  mock(chatContract.inviteInfo, ({ params, ok }) => {
+    const invite = Object.values(mockInvites).find((i) => i.token === params.token && i.enabled);
     if (!invite) return notFound('邀请链接不存在或已失效', { status: 404 });
     const conv = mockChatConversations.find((c) => c.id === invite.conversationId);
     return ok({
       conversationId: invite.conversationId,
       groupName: conv?.name ?? '群聊',
       memberCount: (mockGroupMembers[invite.conversationId] ?? []).length,
-      joinApproval: (conv as { joinApproval?: boolean } | undefined)?.joinApproval ?? false,
+      joinApproval: conv?.joinApproval ?? false,
       alreadyMember: (mockGroupMembers[invite.conversationId] ?? []).some((m) => m.id === CURRENT_USER_ID),
     });
   }),
 
-  http.post('/api/chat/invites/:token/join', async ({ params, request }) => {
-    const token = String(params.token);
-    const body = await request.json() as { message?: string };
-    const invite = Object.values(mockInvites).find((i) => i.token === token && i.enabled);
+  mock(chatContract.joinByInvite, ({ params, body, ok }) => {
+    const invite = Object.values(mockInvites).find((i) => i.token === params.token && i.enabled);
     if (!invite) return notFound('邀请链接不存在或已失效', { status: 404 });
     const conv = mockChatConversations.find((c) => c.id === invite.conversationId);
     const members = mockGroupMembers[invite.conversationId] ?? [];
     if (members.some((m) => m.id === CURRENT_USER_ID)) {
       return badRequest('你已在该群聊中', { status: 400 });
     }
-    if ((conv as { joinApproval?: boolean } | undefined)?.joinApproval) {
+    if (conv?.joinApproval) {
       mockJoinRequests.push({
         id: nextJoinRequestId++, conversationId: invite.conversationId, userId: CURRENT_USER_ID,
         nickname: CURRENT_USER_NICKNAME, avatar: null, message: body.message ?? null,
@@ -690,16 +602,13 @@ export const chatHandlers = [
     return ok({ joined: true });
   }),
 
-  http.get('/api/chat/conversations/:id/join-requests', ({ params }) => {
-    const convId = Number(params.id);
-    const list = mockJoinRequests.filter((r) => r.conversationId === convId && r.status === 'pending');
+  mock(chatContract.joinRequests, ({ params, ok }) => {
+    const list = mockJoinRequests.filter((r) => r.conversationId === params.id && r.status === 'pending');
     return ok(list);
   }),
 
-  http.patch('/api/chat/join-requests/:id', async ({ params, request }) => {
-    const id = Number(params.id);
-    const body = await request.json() as { approve: boolean };
-    const req = mockJoinRequests.find((r) => r.id === id);
+  mock(chatContract.handleJoinRequest, ({ params, body, ok }) => {
+    const req = mockJoinRequests.find((r) => r.id === params.id);
     if (!req) return notFound('申请不存在', { status: 404 });
     if (req.status !== 'pending') return badRequest('该申请已处理', { status: 400 });
     req.status = body.approve ? 'approved' : 'rejected';
@@ -713,124 +622,90 @@ export const chatHandlers = [
     return ok(null);
   }),
 
-  http.patch('/api/chat/conversations/:id/join-approval', async ({ params, request }) => {
-    const convId = Number(params.id);
-    const body = await request.json() as { enabled: boolean };
-    const conv = mockChatConversations.find((c) => c.id === convId);
+  mock(chatContract.setJoinApproval, ({ params, body, ok }) => {
+    const conv = mockChatConversations.find((c) => c.id === params.id);
     if (!conv) return notFound('会话不存在', { status: 404 });
-    (conv as { joinApproval?: boolean }).joinApproval = body.enabled;
+    conv.joinApproval = body.enabled;
     return ok(null);
   }),
 
   // 删除/退出会话
-  http.delete('/api/chat/conversations/:id', ({ params }) => {
-    const convId = Number(params.id);
-    const idx = mockChatConversations.findIndex((c) => c.id === convId);
+  mock(chatContract.removeConversation, ({ params, ok }) => {
+    const idx = mockChatConversations.findIndex((c) => c.id === params.id);
     if (idx === -1) return notFound('会话不存在', { status: 404 });
     mockChatConversations.splice(idx, 1);
     return ok(null);
   }),
 
   // 添加群成员
-  http.post('/api/chat/conversations/:id/members', async ({ params, request }) => {
-    const convId = Number(params.id);
-    const body = await request.json() as { userId: number };
+  mock(chatContract.addGroupMember, ({ params, body, ok }) => {
     const user = mockChatUsers.find((u) => u.id === body.userId);
     if (!user) return notFound('用户不存在', { status: 404 });
-    if (!mockGroupMembers[convId]) mockGroupMembers[convId] = [];
-    const already = mockGroupMembers[convId].some((m) => m.id === body.userId);
+    if (!mockGroupMembers[params.id]) mockGroupMembers[params.id] = [];
+    const already = mockGroupMembers[params.id].some((m) => m.id === body.userId);
     if (already) return badRequest('已是群成员', { status: 400 });
-    mockGroupMembers[convId].push({ ...user, avatar: null, role: 'member', mutedUntil: null });
-    addSystemMessage(convId, `${user.nickname} 加入了群聊`);
+    mockGroupMembers[params.id].push({ id: user.id, nickname: user.nickname, username: user.username, avatar: null, role: 'member', mutedUntil: null });
+    addSystemMessage(params.id, `${user.nickname} 加入了群聊`);
     return ok(null);
   }),
 
   // 移除群成员
-  http.delete('/api/chat/conversations/:id/members/:userId', ({ params }) => {
-    const convId = Number(params.id);
-    const targetId = Number(params.userId);
-    if (!mockGroupMembers[convId]) return notFound('群聊不存在', { status: 404 });
-    const idx = mockGroupMembers[convId].findIndex((m) => m.id === targetId);
+  mock(chatContract.removeGroupMember, ({ params, ok }) => {
+    if (!mockGroupMembers[params.id]) return notFound('群聊不存在', { status: 404 });
+    const idx = mockGroupMembers[params.id].findIndex((m) => m.id === params.userId);
     if (idx === -1) return notFound('该用户不在群聊中', { status: 404 });
-    const target = mockGroupMembers[convId][idx];
-    mockGroupMembers[convId].splice(idx, 1);
-    addSystemMessage(convId, `${target.nickname} 被 ${CURRENT_USER_NICKNAME} 移出群聊`);
+    const target = mockGroupMembers[params.id][idx];
+    mockGroupMembers[params.id].splice(idx, 1);
+    addSystemMessage(params.id, `${target.nickname} 被 ${CURRENT_USER_NICKNAME} 移出群聊`);
     return ok(null);
   }),
 
   // 更新群聊信息（群名/公告）
-  http.patch('/api/chat/conversations/:id/group-info', async ({ params, request }) => {
-    const convId = Number(params.id);
-    const body = await request.json() as { name?: string; announcement?: string | null };
-    const conv = mockChatConversations.find((c) => c.id === convId);
+  mock(chatContract.updateGroupInfo, ({ params, body, ok }) => {
+    const conv = mockChatConversations.find((c) => c.id === params.id);
     if (!conv) return notFound('会话不存在', { status: 404 });
     const oldName = conv.name ?? null;
-    const oldAnnouncement = (conv as unknown as { announcement?: string | null }).announcement ?? null;
+    const oldAnnouncement = conv.announcement ?? null;
     if (body.name !== undefined) conv.name = body.name || null;
-    if ('announcement' in body) (conv as unknown as Record<string, unknown>).announcement = body.announcement ?? null;
+    if ('announcement' in body) conv.announcement = body.announcement ?? null;
 
     if (body.name !== undefined && (conv.name ?? null) !== oldName) {
-      addSystemMessage(convId, `${CURRENT_USER_NICKNAME} 将群聊名称修改为「${conv.name ?? '未命名群聊'}」`);
+      addSystemMessage(params.id, `${CURRENT_USER_NICKNAME} 将群聊名称修改为「${conv.name ?? '未命名群聊'}」`);
     }
     if ('announcement' in body) {
-      const nextAnnouncement = (conv as unknown as { announcement?: string | null }).announcement ?? null;
+      const nextAnnouncement = conv.announcement ?? null;
       if (nextAnnouncement !== oldAnnouncement) {
-        const newMsg: ChatMessage = {
-          id: getNextMsgId(),
-          conversationId: convId,
-          senderId: null,
-          senderName: null,
-          senderAvatar: null,
-          type: 'system',
-          content: `${CURRENT_USER_NICKNAME} 更新了群公告`,
-          replyToId: null,
-          replyToMessage: null,
-          isRecalled: false,
-    isEdited: false,
-          extra: {
-            announcementHistory: {
-              announcement: nextAnnouncement,
-              operatorName: CURRENT_USER_NICKNAME,
-            },
-          },
-          reactions: [],
-          createdAt: mockDateTime(),
-          updatedAt: mockDateTime(),
-        };
-        addMockMessage(newMsg);
+        addSystemMessage(params.id, `${CURRENT_USER_NICKNAME} 更新了群公告`, {
+          announcementHistory: { announcement: nextAnnouncement, operatorName: CURRENT_USER_NICKNAME },
+        });
       }
     }
     return ok(null);
   }),
 
-  http.get('/api/chat/conversations/:id/announcement-history', ({ params }) => {
-    const convId = Number(params.id);
-    const data = getMockConvMessages(convId)
+  mock(chatContract.announcementHistory, ({ params, ok }) => {
+    const data = getMockConvMessages(params.id)
       .filter((m) => m.type === 'system' && m.extra?.announcementHistory)
       .slice()
       .reverse();
     return ok(data);
   }),
 
-  http.delete('/api/chat/conversations/:id/announcement-history/:messageId', ({ params }) => {
-    const convId = Number(params.id);
-    const messageId = Number(params.messageId);
-    const idx = mockChatMessages.findIndex((m) => m.id === messageId && m.conversationId === convId && m.type === 'system' && m.extra?.announcementHistory);
+  mock(chatContract.removeAnnouncementHistory, ({ params, ok }) => {
+    const idx = mockChatMessages.findIndex((m) => m.id === params.messageId && m.conversationId === params.id && m.type === 'system' && m.extra?.announcementHistory);
     if (idx < 0) return notFound('公告历史不存在', { status: 404 });
     mockChatMessages.splice(idx, 1);
     return ok(null);
   }),
 
   // 转让群主
-  http.post('/api/chat/conversations/:id/transfer', async ({ params, request }) => {
-    const convId = Number(params.id);
-    const body = await request.json() as { newOwnerId: number };
-    const members = mockGroupMembers[convId];
+  mock(chatContract.transferGroup, ({ params, body, ok }) => {
+    const members = mockGroupMembers[params.id];
     if (!members) return notFound('群聊不存在', { status: 404 });
     const target = members.find((m) => m.id === body.newOwnerId);
     if (!target) return notFound('目标用户不在群聊中', { status: 404 });
     members.forEach((m) => { m.role = m.id === body.newOwnerId ? 'owner' : 'member'; });
-    addSystemMessage(convId, `${CURRENT_USER_NICKNAME} 将群主转让给 ${target.nickname}`);
+    addSystemMessage(params.id, `${CURRENT_USER_NICKNAME} 将群主转让给 ${target.nickname}`);
     return ok(null);
   }),
 ];

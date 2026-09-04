@@ -1,8 +1,9 @@
 import { Button, Empty, Input, Spin, Typography, List as SemiList } from '@douyinfe/semi-ui';
 import { Search } from 'lucide-react';
-import { request } from '@/utils/request';
-import { formatConvTime } from '@/utils/date';
+import { chatContract } from '@zenith/shared/chat';
 import type { ChatMessageSearchItem } from '@zenith/shared/chat';
+import { api } from '@/lib/contract-query';
+import { formatConvTime } from '@/utils/date';
 import type { Setter } from '../types';
 
 const { Text } = Typography;
@@ -51,19 +52,13 @@ export function GlobalSearchPane({
                     const kw = globalSearchKeyword.trim();
                     if (!kw) return;
                     setGlobalSearchLoading(true);
-                    const res = await request.get<{
-                      list: import('@zenith/shared').ChatMessageSearchItem[];
-                      total: number;
-                      page: number;
-                      pageSize: number;
-                      conversationNames: Record<string, string>;
-                    }>(`/api/chat/messages/global-search?keyword=${encodeURIComponent(kw)}&page=1&pageSize=20`, { silent: true });
+                    const result = await api(chatContract.globalSearch, { query: { keyword: kw, page: 1, pageSize: 20 } }, { silent: true }).catch(() => null);
                     setGlobalSearchLoading(false);
-                    if (res.code === 0 && res.data) {
-                      setGlobalSearchResults(res.data.list);
-                      setGlobalSearchTotal(res.data.total);
+                    if (result) {
+                      setGlobalSearchResults(result.list);
+                      setGlobalSearchTotal(result.total);
                       setGlobalSearchPage(1);
-                      setGlobalSearchConvNames(res.data.conversationNames);
+                      setGlobalSearchConvNames(result.conversationNames);
                       setGlobalSearchHasSearched(true);
                     }
                   }}
@@ -127,18 +122,12 @@ export function GlobalSearchPane({
                     if (!kw) return;
                     const nextPage = globalSearchPage + 1;
                     setGlobalSearchLoading(true);
-                    const res = await request.get<{
-                      list: import('@zenith/shared').ChatMessageSearchItem[];
-                      total: number;
-                      page: number;
-                      pageSize: number;
-                      conversationNames: Record<string, string>;
-                    }>(`/api/chat/messages/global-search?keyword=${encodeURIComponent(kw)}&page=${nextPage}&pageSize=20`, { silent: true });
+                    const result = await api(chatContract.globalSearch, { query: { keyword: kw, page: nextPage, pageSize: 20 } }, { silent: true }).catch(() => null);
                     setGlobalSearchLoading(false);
-                    if (res.code === 0 && res.data) {
-                      setGlobalSearchResults((prev) => [...prev, ...res.data.list]);
+                    if (result) {
+                      setGlobalSearchResults((prev) => [...prev, ...result.list]);
                       setGlobalSearchPage(nextPage);
-                      setGlobalSearchConvNames((prev) => ({ ...prev, ...res.data.conversationNames }));
+                      setGlobalSearchConvNames((prev) => ({ ...prev, ...result.conversationNames }));
                     }
                   }}
                 >

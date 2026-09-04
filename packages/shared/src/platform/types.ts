@@ -1,5 +1,6 @@
 import type { AnalyticsDeviceType, AnalyticsEnvironment, AnalyticsEventSource } from '../analytics/types';
-import type { ChatMessage, ChatReactionGroup, ChatVoteData, RtcIceCandidateInit, RtcInvitePayload, RtcPeerInfo, SystemSchedulerAlertChannel } from '../chat/types';
+import type { ChatMessage, ChatReactionGroup, ChatVoteData } from '../chat/contracts';
+import type { RtcIceCandidateInit, RtcInvitePayload, RtcPeerInfo, SystemSchedulerAlertChannel } from '../chat/types';
 import type { EntityStatus } from '../core/types';
 import type { UserBehaviorEventType } from '../identity/types';
 import type { Announcement, ChannelMessage, InAppMessage } from '../messaging/types';
