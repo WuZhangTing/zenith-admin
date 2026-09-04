@@ -12,6 +12,10 @@
 // uncaughtException / unhandledRejection 兜底，后续模块图（config / 路由 / 服务）
 // 在加载阶段抛错同样会被兜住。详见 lib/fatal-handlers.ts。
 import { isFatalShutdownInProgress } from './lib/fatal-handlers';
+// ⚠ 必须是第二条 import：@hono/zod-openapi 在加载时把 .openapi() 补丁到 ZodType 原型，
+// 而 zod v4 实例只在构造时拷贝原型方法。@zenith/shared 的 schema 在各自模块加载时构造，
+// 必须晚于此补丁，lib/dtos 对它们调 .openapi('Name') 才成立。
+import '@hono/zod-openapi';
 import { serve } from '@hono/node-server';
 import { WebSocketServer } from 'ws';
 import { WS_AUTH_SUBPROTOCOL } from '@zenith/shared/platform';

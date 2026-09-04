@@ -125,6 +125,10 @@
 - **薄路由**：**禁止在路由 handler 中直接调用 `db.*`**；DB 访问与业务逻辑全部在 service
 - **DTO 中心化**：实体 DTO 必须定义在 `lib/dtos/` 对应子文件，经 `lib/openapi-dtos.ts` 统一导出；
   **严禁**在路由文件内本地声明带 `.openapi('EntityName')` 的实体 DTO（Swagger Components 会冲突）
+- **shared schema 命名为 DTO**：`@zenith/shared` 的 schema 直接 `xxxSchema.openapi('Name')` 即可。
+  `.openapi()` 由 `@hono/zod-openapi` 加载时补丁到 `ZodType` 原型，zod v4 实例只在构造时拷贝原型方法，
+  因此 `src/index.ts` 第二条 import 与 `src/test-setup.ts` 首条 import 固定为 `import '@hono/zod-openapi'`
+  （`index.import-order.test.ts` 锁定），保证 shared 的 schema 一律晚于补丁构造；新增进程入口同样如此
 - **响应辅助函数**：`responses:` 的 200 统一用展开语法 `...ok(DTO, desc)` / `...okPaginated(DTO, desc)` /
   `...okMsg(desc)`；**禁止**直接写 `200: { content: jsonContent(apiResponse(DTO)), description }`
 - **响应体构造**：统一 `okBody(data, msg?)` / `errBody(msg, code?)`（`lib/openapi-schemas`），
@@ -252,7 +256,7 @@ server 启动时加载全部路由 / 服务模块图，任何模块顶层静态 
 - **fire-and-forget 必须自带 catch**：`void promise.catch((err) => logger.error(...))`；
   **禁止**裸悬空 Promise——unhandledRejection 会触发进程级 fatal 兜底并 exit(1)
 - **禁止在 uncaughtException / unhandledRejection 后继续运行**：进程级兜底
-  （`lib/fatal-handlers.ts`，index.ts 第一条 import 自装）只负责崩溃可观测
+  （`lib/fatal-handlers.ts`，index.ts 第一条 import 自装；第二条固定为 `@hono/zod-openapi`，见 Route 层）只负责崩溃可观测
   （stderr + 崩溃哨兵 + 尽力 flush 日志/遥测）后 exit(1)；崩溃告警由下次启动补投
   （`services/platform/crash-report.service`），恢复语义靠 outbox 补投与启动 reconcile，
   **不得**在业务代码中自行注册这两个 process 事件
