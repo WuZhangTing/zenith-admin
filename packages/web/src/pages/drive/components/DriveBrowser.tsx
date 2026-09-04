@@ -296,11 +296,11 @@ export function DriveBrowser({ spaceId, folderId, onNavigate, onOpenDetail, onUp
               onContextMenu: (e: React.MouseEvent) => { if (!record) return; e.preventDefault(); setCtx({ node: record, point: { x: e.clientX, y: e.clientY } }); },
               onDoubleClick: () => { if (record) openNode(record); },
             })}
-            empty={<Empty description={submittedParams.keyword ? '没有匹配的项目' : (canUpload ? '空文件夹，拖拽文件到此处即可上传' : '空文件夹')} />}
+            empty={dirQuery.isPending ? <span /> : <Empty description={submittedParams.keyword ? '没有匹配的项目' : (canUpload ? '空文件夹，拖拽文件到此处即可上传' : '空文件夹')} />}
           />
         ) : (
           <>
-            {list.length === 0 && !dirQuery.isFetching ? (
+            {list.length === 0 && !dirQuery.isPending && !dirQuery.isFetching ? (
               <Empty description={submittedParams.keyword ? '没有匹配的项目' : (canUpload ? '空文件夹，拖拽文件到此处即可上传' : '空文件夹')} style={{ padding: 48 }} />
             ) : (
               <div className="drive-grid">

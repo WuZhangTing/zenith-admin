@@ -51,6 +51,7 @@ import { cmsStage4Handlers } from './cms-stage4';
 import { cmsStage5Handlers } from './cms-stage5';
 import { cmsWidgetsHandlers } from './cms-widgets';
 import { wikiHandlers } from './wiki';
+import { driveHandlers } from './drive';
 import { appReleasesHandlers } from './app-releases';
 import { pushHandlers } from './push';
 import { broadcastHandlers } from './broadcasts';
@@ -280,6 +281,7 @@ export const handlers = [
   ...cmsHandlers,
   ...cmsWidgetsHandlers,
   ...wikiHandlers,
+  ...driveHandlers,
   ...appReleasesHandlers,
   ...pushHandlers,
   ...broadcastHandlers,

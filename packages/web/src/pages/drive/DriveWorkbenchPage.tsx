@@ -51,7 +51,7 @@ export default function DriveWorkbenchPage() {
   const [showDetailOnNarrow, setShowDetailOnNarrow] = useState(false);
 
   const spacesQuery = useMyDriveSpaces();
-  const settingsQuery = useDriveSettings(hasPermission('drive:admin:settings:view'));
+  const settingsQuery = useDriveSettings(hasPermission('drive:setting:view'));
   const uploader = useDriveUploader();
 
   const spaces = useMemo(() => spacesQuery.data ?? [], [spacesQuery.data]);
@@ -107,7 +107,7 @@ export default function DriveWorkbenchPage() {
           spaces.map((s) => <SpaceItem key={s.id} space={s} active={view === 'space' && !searching && s.id === spaceId} onClick={() => openSpace(s.id)} />)
         )}
         <div className="drive-nav__section">个人视图</div>
-        {VIEW_ORDER.filter((v) => v !== 'links' || hasPermission('drive:link:view')).map((v) => {
+        {VIEW_ORDER.filter((v) => (v !== 'links' || hasPermission('drive:link:create')) && (v !== 'recycle' || hasPermission('drive:recycle:list'))).map((v) => {
           const Icon = VIEW_ICONS[v];
           const active = view === v && !searching;
           return (

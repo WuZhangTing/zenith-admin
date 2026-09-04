@@ -94,8 +94,8 @@ export function DriveViews({ view, onOpenFolder, onOpenDetail }: DriveViewsProps
   const nodeActions = (node: AnyNode): ResponsiveTableAction[] => {
     if (view === 'recycle') {
       return [
-        { key: 'restore', label: '还原', onClick: async () => { await restore.mutateAsync({ ids: [node.id] }); Toast.success('已还原'); } },
-        { key: 'purge', label: '彻底删除', danger: true, hidden: !hasPermission('drive:node:purge'), onClick: () => { confirmDanger({
+        { key: 'restore', label: '还原', hidden: !hasPermission('drive:recycle:restore'), onClick: async () => { await restore.mutateAsync({ ids: [node.id] }); Toast.success('已还原'); } },
+        { key: 'purge', label: '彻底删除', danger: true, hidden: !hasPermission('drive:recycle:purge'), onClick: () => { confirmDanger({
           title: `彻底删除「${node.name}」？`, content: '文件将被永久删除且不可恢复。', okText: '彻底删除',
           onOk: () => purge.mutateAsync({ ids: [node.id] }).then(() => Toast.success('已彻底删除')),
         }); } },
@@ -170,7 +170,7 @@ export function DriveViews({ view, onOpenFolder, onOpenDetail }: DriveViewsProps
   const recycleBatch = view === 'recycle' && selectedIds.length > 0 && (
     <Space>
       <Button size="small" icon={<RotateCcw size={14} />} onClick={() => restore.mutateAsync({ ids: selectedIds }).then(() => { Toast.success('已还原'); setSelectedIds([]); })}>还原所选</Button>
-      {hasPermission('drive:node:purge') && (
+      {hasPermission('drive:recycle:purge') && (
         <Button size="small" type="danger" icon={<Trash2 size={14} />} onClick={() => confirmDanger({
           title: `彻底删除选中的 ${selectedIds.length} 项？`, content: '永久删除且不可恢复。', okText: '彻底删除',
           onOk: () => purge.mutateAsync({ ids: selectedIds }).then(() => { Toast.success('已彻底删除'); setSelectedIds([]); }),
@@ -183,7 +183,7 @@ export function DriveViews({ view, onOpenFolder, onOpenDetail }: DriveViewsProps
     <div className="drive-views">
       <div className="drive-views__header">
         <Typography.Title heading={5} style={{ margin: 0 }}>{VIEW_TITLES[view]}</Typography.Title>
-        {view === 'recycle' && hasPermission('drive:node:purge') && total > 0 && (
+        {view === 'recycle' && hasPermission('drive:recycle:purge') && total > 0 && (
           <Button size="small" type="danger" theme="borderless" onClick={() => confirmDanger({
             title: '清空回收站？', content: submittedParams.spaceId ? '将永久删除该空间回收站中的全部项目。' : '将永久删除你可管理的全部回收站项目。', okText: '清空',
             onOk: () => purge.mutateAsync({ ids: [], spaceId: submittedParams.spaceId }).then(() => Toast.success('回收站已清空')),

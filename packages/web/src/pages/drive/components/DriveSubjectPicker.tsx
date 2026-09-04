@@ -142,9 +142,9 @@ export function DriveSubjectPicker({ value, onChange, disabled, subjectTypes, em
                 role="option"
                 aria-selected={item.selected}
                 className={`semi-select-option drive-subject-picker__role-option${item.selected ? ' semi-select-option-selected' : ''}${item.focused ? ' semi-select-option-focused' : ''}`}
-                onClick={() => item.onClick()}
-                onMouseEnter={() => item.onMouseEnter()}
-                onKeyDown={(e) => { if (e.key === 'Enter') item.onClick(); }}
+                onClick={(e) => item.onClick?.(e)}
+                onMouseEnter={(e) => item.onMouseEnter?.(e)}
+                onKeyDown={(e) => { if (e.key === 'Enter') item.onClick?.(e as unknown as React.MouseEvent); }}
                 tabIndex={-1}
               >
                 <div>{item.label}</div>

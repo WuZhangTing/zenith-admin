@@ -32,7 +32,7 @@ const DEFAULTS: DriveSettings = {
 
 export default function DriveAdminSettingsPage() {
   const { hasPermission } = usePermission();
-  const canEdit = hasPermission('drive:admin:settings:edit');
+  const canEdit = hasPermission('drive:setting:edit');
   const query = useDriveSettings();
   const save = useSaveDriveSettings();
   const [form, setForm] = useState<DriveSettings>(DEFAULTS);
