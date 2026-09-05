@@ -19,6 +19,17 @@ export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 /** 响应载荷的传输形态；非 `json` 时 `response` 被忽略，客户端走下载 / 流式通道 */
 export type ResponseKind = 'json' | 'excel' | 'csv' | 'file' | 'sse';
 
+/**
+ * 操作要求的凭证类型，进入 OpenAPI `security`：
+ * - `none`：公开接口，无需任何凭证（由 `public: true` 声明）
+ * - `bearer`：登录令牌（默认；后台 / 会员 / 审批端均为 Bearer）
+ * - `device-signature`：IoT 设备 HMAC 签名头（`X-IoT-Sn` / `X-IoT-Timestamp` / `X-IoT-Sign`）
+ * - `open-gateway`：开放平台网关，OAuth2 令牌或 AppKey + HMAC 签名头二选一
+ *
+ * 凭证的**校验**仍由路由 `middleware` 完成；这里只描述契约，让文档与运行时一致。
+ */
+export type SecurityScheme = 'none' | 'bearer' | 'device-signature' | 'open-gateway';
+
 /** 路径参数 / 查询参数 schema 的形态约束 */
 export type ParamsSchema = z.ZodObject<z.ZodRawShape>;
 
@@ -61,8 +72,10 @@ export interface OperationConfig<
   readonly body?: TBody;
   /** `data` 载荷 schema；省略 = `z.null()` */
   readonly response?: TResponse;
-  /** 公开接口（无需登录）；默认要求 Bearer 认证 */
+  /** 公开接口（无需任何凭证）；与 `security` 互斥。默认要求登录令牌 */
   readonly public?: boolean;
+  /** 非登录令牌的凭证类型（设备签名 / 开放网关）；省略 = `bearer` */
+  readonly security?: Exclude<SecurityScheme, 'none'>;
   /** 默认 `json` */
   readonly kind?: TKind;
   /** 覆盖契约组的 tags */
@@ -89,7 +102,9 @@ export interface UnboundOperation<
   readonly query: TQuery;
   readonly body: TBody;
   readonly response: TResponse;
+  /** `security === 'none'` 的便捷读法 */
   readonly public: boolean;
+  readonly security: SecurityScheme;
   readonly kind: TKind;
   readonly tags?: readonly string[];
   readonly deprecated: boolean;
@@ -171,6 +186,8 @@ function createOperation<
   config: OperationConfig<TParams, TQuery, TBody, TResponse, TKind>,
 ): UnboundOperation<TMethod, TPath, TParams, TQuery, TBody, TResponse, TKind> {
   if (!path.startsWith('/')) throw new Error(`契约路径必须以 / 开头：${path}`);
+  if (config.public && config.security) throw new Error(`公开操作不能同时声明 security：${path}`);
+  const security: SecurityScheme = config.public ? 'none' : (config.security ?? 'bearer');
   return {
     method,
     path,
@@ -180,7 +197,8 @@ function createOperation<
     query: config.query as TQuery,
     body: config.body as TBody,
     response: (config.response ?? z.null()) as TResponse,
-    public: config.public ?? false,
+    public: security === 'none',
+    security,
     kind: (config.kind ?? 'json') as TKind,
     tags: config.tags,
     deprecated: config.deprecated ?? false,

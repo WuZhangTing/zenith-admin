@@ -149,7 +149,8 @@ export const xxxContract = defineContract('/api/xxxs', {
 
 - `contracts/index.ts` 里 `export * from './xxxs'`；域 `index.ts` 已 `export * from './contracts'`
 - 非 JSON 响应：`kind: 'excel' | 'csv' | 'file' | 'sse'`（此时 `response` 忽略）；上传：`body: multipart(z.object({ file: fileField() }))`
-- 公开接口：`public: true`；额外文档说明：`description`
+- 公开接口：`public: true`；设备签名 / 开放网关鉴权的接口：`security: 'device-signature' | 'open-gateway'`
+  （默认 Bearer 登录令牌；凭证校验仍由 `middleware` 完成）；额外文档说明：`description`
 - 自定义路径参数：`params: z.object({ code: z.string().meta({ description: '编码', example: 'demo' }) })`
 
 ---

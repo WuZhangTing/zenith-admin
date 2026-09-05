@@ -142,7 +142,9 @@
 - **响应体构造**：统一 `okBody(data, msg?)` / `errBody(msg, code?)`（`lib/openapi-schemas`），
   **禁止内联** `{ code: 0 as const, message, data }` 字面量；每个 `c.json(...)` 必须显式带状态码
 - **中间件在路由侧声明**：`authMiddleware` / `guard({ permission, audit })` / `platformAdminOnly` 等只出现在
-  `middleware:`，公开接口在契约上标 `public: true`；**禁止**在路由器上 `use('*', authMiddleware)`
+  `middleware:`；公开接口在契约上标 `public: true`，设备签名 / 开放网关鉴权的接口标
+  `security: 'device-signature' | 'open-gateway'`（文档 security 随之变化，校验仍由中间件完成）；
+  **禁止**在路由器上 `use('*', authMiddleware)`
 - **进程入口导入顺序**：`src/index.ts` 第二条 import 与 `src/test-setup.ts` 首条 import 固定为
   `import '@hono/zod-openapi'`（`index.import-order.test.ts` 锁定）；新增进程入口同样如此
 - **批量路由顺序**：`DELETE /batch` 必须注册在 `DELETE /{id}` **之前**，否则 `/batch` 被匹配为 `id="batch"`；
