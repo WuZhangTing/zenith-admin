@@ -1,9 +1,7 @@
 export * from './dict';
 export * from './logs';
-export * from './announcements';
 export * from './system-configs';
 export * from './retention';
-export * from './email-config';
 export * from './cache';
 export * from './db-backups';
 export * from './db-admin';
@@ -16,11 +14,6 @@ export * from './workflow-trace';
 export * from './workflow-health';
 export * from './biz-pay-demo';
 export * from './region';
-export * from './sms';
-export * from './email';
-export * from './in-app';
-export * from './notifications';
-export * from './channel';
 export * from './tags';
 export * from './rate-limit';
 
@@ -49,5 +42,4 @@ export * from './rules';
 export * from './user-feedbacks';
 export * from './cms';
 export * from './app-releases';
-export * from './push';
 export * from './trace';
