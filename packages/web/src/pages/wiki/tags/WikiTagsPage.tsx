@@ -1,6 +1,6 @@
 import { Form, Spin, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { WikiTag } from '@zenith/shared/wiki';
+import type { CreateWikiTagInput, WikiTag } from '@zenith/shared/wiki';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -39,10 +39,11 @@ export default function WikiTagsPage() {
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
-  const modal = useEditModal<WikiTag>({
+  const modal = useEditModal<WikiTag, Partial<CreateWikiTagInput>>({
     entityName: '标签',
     save: useSaveWikiTag(),
     defaults: {},
+    // 记录里的 null 在表单中归一为未填
     toValues: (r) => ({ name: r.name, color: r.color ?? undefined }),
     labelWidth: 72,
   });

@@ -2,8 +2,9 @@ import { useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Col, Form, Modal, Row, Select, SideSheet, Spin, Switch, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { WikiSpace, WikiSpaceMemberRole } from '@zenith/shared/wiki';
-import { WIKI_SPACE_MEMBER_ROLE_LABELS, WIKI_SPACE_MEMBER_ROLE_OPTIONS, WIKI_SPACE_VISIBILITY_LABELS, WIKI_SPACE_VISIBILITY_OPTIONS } from '@zenith/shared/wiki';
+import type { CreateWikiSpaceInput, WikiSpace, WikiSpaceMemberRole } from '@zenith/shared/wiki';
+import { WIKI_SPACE_MEMBER_ROLE_LABELS, WIKI_SPACE_MEMBER_ROLE_OPTIONS, WIKI_SPACE_VISIBILITIES, WIKI_SPACE_VISIBILITY_LABELS, WIKI_SPACE_VISIBILITY_OPTIONS } from '@zenith/shared/wiki';
+import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -47,17 +48,18 @@ export default function WikiSpacesPage() {
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    visibility: submittedParams.visibility || undefined,
-    status: submittedParams.status || undefined,
+    visibility: enumValueOf(WIKI_SPACE_VISIBILITIES, submittedParams.visibility),
+    status: enumValueOf(USER_STATUSES, submittedParams.status),
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
-  const modal = useEditModal<WikiSpace>({
+  const modal = useEditModal<WikiSpace, Partial<CreateWikiSpaceInput>>({
     entityName: '知识空间',
     save: useSaveWikiSpace(),
     useDetail: useWikiSpaceDetail,
     defaults: { visibility: 'public', status: 'enabled', sort: 0, aiSyncEnabled: false },
+    // 记录里的 null 在表单中归一为未填
     toValues: (r) => ({
       name: r.name,
       description: r.description ?? undefined,
@@ -99,7 +101,7 @@ export default function WikiSpacesPage() {
   function handleSaveMembers() {
     if (!memberSpace) return;
     saveMembersMutation.mutate(
-      { spaceId: memberSpace.id, members: memberDraft },
+      { params: { id: memberSpace.id }, body: { members: memberDraft } },
       { onSuccess: () => { Toast.success('成员保存成功'); setMemberSpace(null); } },
     );
   }

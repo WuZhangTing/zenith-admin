@@ -33,9 +33,9 @@ flowchart LR
 
 | 层 | 位置 | 职责 |
 | --- | --- | --- |
-| 共享契约 | `packages\shared\src\wiki\` | 枚举、类型、Zod 入参、设置键 |
+| 共享契约 | `packages\shared\src\wiki\` | 实体 schema 与 API 契约（`contracts/`）、枚举、Zod 入参、设置键 |
 | 数据模型 | `packages\server\src\db\schema\wiki.ts` | 空间、成员、文档、版本、标签、评论、互动、审核、搜索日志 |
-| API 路由 | `packages\server\src\routes\wiki\` | `/api/wiki/*` OpenAPI 路由与权限门控 |
+| API 路由 | `packages\server\src\routes\wiki\` | 由契约派生的 `/api/wiki/*` 路由与权限门控 |
 | 业务服务 | `packages\server\src\services\wiki\` | 权限校验、状态机、树重排、版本、治理、通知、AI 同步 |
 | 前端页面 | `packages\web\src\pages\wiki\` | 文档中心、空间、审核、模板、标签、评论、回收站、统计、设置、治理 |
 | 菜单权限 | `packages\shared\src\seed\menus\wiki.ts` | `16000` 段知识中心菜单与 `wiki:*` 权限 |

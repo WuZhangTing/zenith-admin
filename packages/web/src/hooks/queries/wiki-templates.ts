@@ -1,10 +1,8 @@
-import type { WikiTemplate } from '@zenith/shared/wiki';
-import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
+import type { QueryOf } from '@zenith/shared/core';
+import { wikiTemplateContract } from '@zenith/shared/wiki';
+import { createResourceQueries } from '@/lib/contract-query';
 
-export interface WikiTemplateListParams extends CrudListParams {
-  keyword?: string;
-  status?: string;
-}
+export type WikiTemplateListParams = NonNullable<QueryOf<typeof wikiTemplateContract.list>>;
 
 export const {
   keys: wikiTemplateKeys,
@@ -13,9 +11,4 @@ export const {
   useSave: useSaveWikiTemplate,
   useDelete: useDeleteWikiTemplates,
   useLookup: useAllWikiTemplates,
-} = createCrudQueries<WikiTemplate, WikiTemplateListParams>({
-  resource: 'wiki-templates',
-  path: '/api/wiki/templates',
-  deleteMode: 'single',
-  lookup: true,
-});
+} = createResourceQueries(wikiTemplateContract);

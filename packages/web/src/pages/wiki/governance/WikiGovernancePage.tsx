@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button, Checkbox, DatePicker, InputNumber, Select, Switch, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Archive, ArchiveRestore, BellRing, UserRoundCog } from 'lucide-react';
-import type { WikiDocStatus, WikiGovernanceKind } from '@zenith/shared/wiki';
+import type { WikiDocStatus, WikiGovernanceDoc, WikiGovernanceKind, WikiNoResultKeyword } from '@zenith/shared/wiki';
 import { WIKI_DOC_STATUS_LABELS, WIKI_GOVERNANCE_KIND_LABELS, WIKI_GOVERNANCE_KINDS } from '@zenith/shared/wiki';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import AppModal from '@/components/AppModal';
@@ -11,12 +11,11 @@ import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { formatDateTimeForApi } from '@/utils/date';
-import { useAllUsers } from '@/hooks/queries/users';
+import { useAllUsers } from '@/hooks/queries/users';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import {
   useArchiveGovernanceDocs, useRemindGovernanceOwners, useSetGovernanceOwner,
   useSetGovernanceReview, useWikiGovernanceDocs, useWikiNoResultKeywords,
-  type WikiGovernanceDoc,
 } from '@/hooks/queries/wiki-governance';
 
 const { Text } = Typography;
@@ -93,7 +92,7 @@ function GovernancePane({ kind }: { kind: WikiGovernanceKind }) {
               <Button
                 icon={<BellRing size={14} />}
                 loading={remindMutation.isPending}
-                onClick={() => remindMutation.mutate(selectedRowKeys, { onSuccess: () => afterBatch('已发送提醒') })}
+                onClick={() => remindMutation.mutate({ body: { ids: selectedRowKeys } }, { onSuccess: () => afterBatch('已发送提醒') })}
               >
                 提醒负责人 ({selectedRowKeys.length})
               </Button>
@@ -112,7 +111,7 @@ function GovernancePane({ kind }: { kind: WikiGovernanceKind }) {
                   icon={<ArchiveRestore size={14} />}
                   loading={archiveMutation.isPending}
                   onClick={() => archiveMutation.mutate(
-                    { ids: selectedRowKeys, archived: false },
+                    { body: { ids: selectedRowKeys, archived: false } },
                     { onSuccess: () => afterBatch('已取消归档') },
                   )}
                 >
@@ -123,7 +122,7 @@ function GovernancePane({ kind }: { kind: WikiGovernanceKind }) {
                   icon={<Archive size={14} />}
                   loading={archiveMutation.isPending}
                   onClick={() => archiveMutation.mutate(
-                    { ids: selectedRowKeys, archived: true },
+                    { body: { ids: selectedRowKeys, archived: true } },
                     { onSuccess: () => afterBatch('已归档') },
                   )}
                 >
@@ -163,7 +162,7 @@ function GovernancePane({ kind }: { kind: WikiGovernanceKind }) {
             return;
           }
           ownerMutation.mutate(
-            { ids: selectedRowKeys, ownerId },
+            { body: { ids: selectedRowKeys, ownerId } },
             { onSuccess: () => { afterBatch('已指定负责人'); setOwnerModalVisible(false); } },
           );
         }}
@@ -189,9 +188,11 @@ function GovernancePane({ kind }: { kind: WikiGovernanceKind }) {
         onOk={() => {
           reviewMutation.mutate(
             {
-              ids: selectedRowKeys,
-              reviewCycleDays: reviewEnabled ? reviewCycleDays : null,
-              expireAt: clearExpireAt ? null : expireAt ? formatDateTimeForApi(expireAt) : undefined,
+              body: {
+                ids: selectedRowKeys,
+                reviewCycleDays: reviewEnabled ? reviewCycleDays : null,
+                expireAt: clearExpireAt ? null : expireAt ? formatDateTimeForApi(expireAt) : undefined,
+              },
             },
             { onSuccess: () => { afterBatch('治理设置已更新'); setReviewModalVisible(false); } },
           );
@@ -253,7 +254,7 @@ function GovernancePane({ kind }: { kind: WikiGovernanceKind }) {
 function NoResultPane() {
   const listQuery = useWikiNoResultKeywords();
 
-  const columns: ColumnProps<{ keyword: string; searchCount: number; lastSearchedAt: string }>[] = [
+  const columns: ColumnProps<WikiNoResultKeyword>[] = [
     { title: '搜索关键词', dataIndex: 'keyword', width: 260, render: renderEllipsis },
     { title: '近 30 天搜索次数', dataIndex: 'searchCount', width: 150, align: 'right' },
     dateTimeColumn('最近搜索时间', 'lastSearchedAt'),
