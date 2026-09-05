@@ -162,12 +162,14 @@ function CampaignDrawer({ segment, onClose }: { segment: AnalyticsUserSegment; o
     if (channel === 'webhook' && !/^https?:\/\/.+/i.test(webhookUrl)) { Toast.warning('请输入 http/https Webhook URL'); return; }
     if (landingUrl && !/^https?:\/\/.+/i.test(landingUrl)) { Toast.warning('落地页必须是 http/https 地址'); return; }
     await createCampaign.mutateAsync({
-      segmentId: segment.id,
-      name: name.trim(),
-      channel,
-      templateId: channel === 'webhook' ? null : templateId,
-      webhookUrl: channel === 'webhook' ? webhookUrl.trim() : null,
-      landingUrl: channel === 'webhook' ? null : (landingUrl.trim() || null),
+      body: {
+        segmentId: segment.id,
+        name: name.trim(),
+        channel,
+        templateId: channel === 'webhook' ? null : templateId,
+        webhookUrl: channel === 'webhook' ? webhookUrl.trim() : null,
+        landingUrl: channel === 'webhook' ? null : (landingUrl.trim() || null),
+      },
     });
     Toast.success('触达活动已创建');
     setName('');
@@ -193,8 +195,8 @@ function CampaignDrawer({ segment, onClose }: { segment: AnalyticsUserSegment; o
       width: 120,
       desktopInlineKeys: ['execute'],
       actions: (record) => [
-        { key: 'execute', label: '执行', loading: executeCampaign.isPending, disabledReason: record.status === 'running' ? '执行中' : undefined, onClick: async () => { await executeCampaign.mutateAsync(record.id); Toast.success('触达任务已提交'); } },
-        { key: 'delete', label: '删除', danger: true, disabledReason: record.status === 'running' ? '执行中不可删' : undefined, onClick: () => { confirmDelete({ title: `确定删除触达「${record.name}」吗？`, onOk: () => deleteCampaign.mutateAsync(record.id) }); } },
+        { key: 'execute', label: '执行', loading: executeCampaign.isPending, disabledReason: record.status === 'running' ? '执行中' : undefined, onClick: async () => { await executeCampaign.mutateAsync({ params: { id: record.id } }); Toast.success('触达任务已提交'); } },
+        { key: 'delete', label: '删除', danger: true, disabledReason: record.status === 'running' ? '执行中不可删' : undefined, onClick: () => { confirmDelete({ title: `确定删除触达「${record.name}」吗？`, onOk: () => deleteCampaign.mutateAsync({ params: { id: record.id } }) }); } },
       ],
     }),
   ];
@@ -346,12 +348,12 @@ export default function AnalyticsSegmentsTab() {
   };
 
   const handleDelete = async (record: AnalyticsUserSegment) => {
-    await deleteMutation.mutateAsync(record.id);
+    await deleteMutation.mutateAsync({ params: { id: record.id } });
     Toast.success('删除成功');
   };
 
   const handleMaterialize = async (record: AnalyticsUserSegment) => {
-    await materializeMutation.mutateAsync(record.id);
+    await materializeMutation.mutateAsync({ params: { id: record.id } });
     Toast.success('重算任务已提交，可在顶部任务中心查看进度');
   };
 

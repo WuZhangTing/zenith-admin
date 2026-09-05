@@ -56,9 +56,7 @@ import {
   useSaveFunnelReport,
   useDeleteFunnelReport,
 } from '@/hooks/queries/analytics';
-import type { AnalyticsComparison, AnalyticsRetentionMode, AnalyticsRetentionPeriodType, AnalyticsSavedReport, AnalyticsSegmentPropertyFilter, FeatureStats, HeatmapData, HeatmapElementItem, HeatmapPageListItem, HeatmapRageClickItem, PageStats, PathLink } from '@zenith/shared/analytics';
-import type { UserStats } from '@zenith/shared/identity';
-import type { SessionListItem } from '@zenith/shared/platform';
+import type { AnalyticsComparison, AnalyticsDeviceType, AnalyticsEventSource, AnalyticsRetentionMode, AnalyticsRetentionPeriodType, AnalyticsSavedReport, AnalyticsSegmentPropertyFilter, AnalyticsUserStats, FeatureStats, HeatmapData, HeatmapElementItem, HeatmapPageListItem, HeatmapRageClickItem, PageStats, PathLink, SessionListItem } from '@zenith/shared/analytics';
 import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_EVENT_SOURCE_OPTIONS, ANALYTICS_PATH_EXIT_PAGE, ANALYTICS_RETENTION_MODE_OPTIONS, ANALYTICS_RETENTION_PERIOD_LIMITS, ANALYTICS_RETENTION_PERIOD_TYPE_OPTIONS, ANALYTICS_RETENTION_PERIOD_UNIT_LABELS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS, USER_BEHAVIOR_EVENT_TYPE_LABELS } from '@zenith/shared/analytics';
 import AnalyticsEventQueryTab from './AnalyticsEventQueryTab';
 import AnalyticsExperimentsTab from './AnalyticsExperimentsTab';
@@ -633,7 +631,7 @@ function FeatureTab() {
   );
 }
 
-type DeviceFilter = 'desktop' | 'mobile' | 'tablet' | 'bot' | 'unknown';
+type DeviceFilter = AnalyticsDeviceType;
 
 // 标签取 shared SSOT；颜色是时间轴 UI 表现，留在页面侧
 const TIMELINE_EVENT_META: Record<string, { label: string; color: 'blue' | 'green' | 'orange' | 'grey' | 'red' | 'purple' }> = {
@@ -873,12 +871,14 @@ function FunnelTab() {
     const name = saveName.trim();
     if (!name) { Toast.warning('请输入报表名称'); return; }
     await saveReportMutation.mutateAsync({
-      name,
-      config: {
-        days,
-        conversionWindowHours,
-        comparison,
-        steps: steps.map(({ label, pagePath, eventName, propKey, propOp, propValue }) => ({ label, pagePath, eventName, propKey, propOp, propValue })),
+      body: {
+        name,
+        config: {
+          days,
+          conversionWindowHours,
+          comparison,
+          steps: steps.map(({ label, pagePath, eventName, propKey, propOp, propValue }) => ({ label, pagePath, eventName, propKey, propOp, propValue })),
+        },
       },
     });
     Toast.success('已保存');
@@ -963,7 +963,7 @@ function FunnelTab() {
 
   const analyze = async () => {
     if (!isComparisonReady(comparison)) { Toast.warning('请至少选择一个对比分群'); return; }
-    await analyzeMutation.mutateAsync({ days, conversionWindowHours, comparison, steps: funnelSteps });
+    await analyzeMutation.mutateAsync({ body: { days, conversionWindowHours, comparison, steps: funnelSteps } });
   };
 
   /** 点击某序列某步的「已转化 / 已流失」→ 下钻出具体用户 */
@@ -1035,7 +1035,7 @@ function FunnelTab() {
                           e.stopPropagation();
                           confirmDelete({
                             title: `删除报表「${report.name}」？`,
-                            onOk: () => deleteReportMutation.mutateAsync(report.id).then(() => Toast.success('已删除')),
+                            onOk: () => deleteReportMutation.mutateAsync({ params: { id: report.id } }).then(() => Toast.success('已删除')),
                           });
                         }}
                       />
@@ -1435,7 +1435,7 @@ function PathTab() {
   );
 }
 
-type UserStatsRow = UserStats['list'][number] & { id: string; rank: number };
+type UserStatsRow = AnalyticsUserStats['list'][number] & { id: string; rank: number };
 
 function UsersTab() {
   const [days, setDays] = useBehaviorDays();
@@ -1631,7 +1631,7 @@ function HeatmapTab() {
   const [pagePath, setPagePath] = useState('');
   const [componentArea, setComponentArea] = useState('');
   const [deviceType, setDeviceType] = useState<DeviceFilter | undefined>();
-  const [source, setSource] = useState<string | undefined>();
+  const [source, setSource] = useState<AnalyticsEventSource | undefined>();
   const pagesQuery = useAnalyticsHeatmapPages(days);
   const pages = pagesQuery.data?.pages ?? EMPTY_HEATMAP_PAGES;
   const heatmapQuery = useAnalyticsHeatmap(pagePath, componentArea, days, deviceType, source);

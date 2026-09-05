@@ -1,8 +1,9 @@
-import { http } from 'msw';
-import { ok, notFound, paginate } from '@/mocks/utils/handlers';
-import type { ErrorGroup, ErrorEvent, ErrorOverview, SourceMapItem, ErrorAlertRule, ErrorAlertLog, FrontendErrorType, ErrorLevel } from '@zenith/shared/analytics';
-import type { PaginatedResponse } from '@zenith/shared/core';
+import type { ErrorAlertLog, ErrorAlertRule, ErrorEvent, ErrorGroup, ErrorLevel, FrontendErrorType, SourceMapItem } from '@zenith/shared/analytics';
+import { frontendErrorContract } from '@zenith/shared/analytics';
+import { mock } from '@/mocks/utils/contract';
+import { notFound } from '@/mocks/utils/handlers';
 import { mockDateTime, mockDateTimeOffset, mockDateOffset } from '../utils/date';
+
 const rand = (min: number, max: number) => Math.floor(min + Math.random() * (max - min));
 
 const TYPES: FrontendErrorType[] = ['js_error', 'promise_rejection', 'resource_error', 'console_error', 'http_error', 'white_screen', 'crash'];
@@ -102,53 +103,47 @@ const mockAlertLogs: ErrorAlertLog[] = Array.from({ length: 26 }, (_, i) => ({
   createdAt: mockDateTimeOffset(-i * 5400000),
 }));
 
-export const frontendErrorsHandlers = [
-  http.post('/api/frontend-errors', () => ok(null, '上报成功')),
+function mockDateOffsetAxis(days: number): string[] {
+  const arr: string[] = [];
+  for (let i = days - 1; i >= 0; i--) arr.push(mockDateOffset(-i));
+  return arr;
+}
 
-  http.get('/api/frontend-errors/overview', ({ request }) => {
-    const days = Number(new URL(request.url).searchParams.get('days')) || 30;
-    const trend = mockDateOffsetAxis(days).map((date) => ({ date, occurrences: rand(5, 60), groups: rand(1, 12) }));
+export const frontendErrorsHandlers = [
+  mock(frontendErrorContract.report, ({ ok }) => ok(null, '上报成功')),
+
+  mock(frontendErrorContract.overview, ({ query, ok }) => {
+    const trend = mockDateOffsetAxis(query.days ?? 30).map((date) => ({ date, occurrences: rand(5, 60), groups: rand(1, 12) }));
     const byType = TYPES.map((errorType) => ({ errorType, groups: rand(1, 10), occurrences: rand(10, 200) }));
     const byLevel = LEVELS.map((level) => ({ level, groups: rand(1, 12), occurrences: rand(10, 240) }));
-    return ok<ErrorOverview>({
+    return ok({
       totalGroups: mockGroups.length, unresolved: mockGroups.filter((g) => g.status === 'unresolved').length,
       totalOccurrences: mockGroups.reduce((s, g) => s + g.count, 0), affectedUsers: rand(80, 320), newToday: rand(2, 14),
       byType, byLevel, trend, topIssues: [...mockGroups].sort((a, b) => b.count - a.count).slice(0, 10),
     });
   }),
 
-  http.get('/api/frontend-errors/groups', ({ request }) => {
-    const u = new URL(request.url);
-    const status = u.searchParams.get('status');
-    const errorType = u.searchParams.get('errorType');
-    const level = u.searchParams.get('level');
-    const keyword = u.searchParams.get('keyword') ?? '';
-    const environment = u.searchParams.get('environment');
+  mock(frontendErrorContract.groups, ({ query, ok, paginate }) => {
     let list = [...mockGroups];
-    if (status) list = list.filter((g) => g.status === status);
-    if (errorType) list = list.filter((g) => g.errorType === errorType);
-    if (level) list = list.filter((g) => g.level === level);
-    if (keyword) list = list.filter((g) => g.message.includes(keyword));
-    if (environment) list = list.filter((g) => g.environment === environment);
-    return ok<PaginatedResponse<ErrorGroup>>(paginate(list, u, 20));
+    if (query.status) list = list.filter((g) => g.status === query.status);
+    if (query.errorType) list = list.filter((g) => g.errorType === query.errorType);
+    if (query.level) list = list.filter((g) => g.level === query.level);
+    if (query.keyword) list = list.filter((g) => g.message.includes(query.keyword!));
+    if (query.environment) list = list.filter((g) => g.environment === query.environment);
+    return ok(paginate(list));
   }),
 
-  http.post('/api/frontend-errors/groups/batch-status', async ({ request }) => {
-    const u = new URL(request.url);
-    const status = (u.searchParams.get('status') ?? 'resolved') as ErrorGroup['status'];
-    const body = (await request.json()) as { ids: number[] };
-    mockGroups = mockGroups.map((g) => (body.ids.includes(g.id) ? { ...g, status } : g));
+  mock(frontendErrorContract.batchUpdateGroupStatus, ({ query, body, ok }) => {
+    mockGroups = mockGroups.map((g) => (body.ids.includes(g.id) ? { ...g, status: query.status } : g));
     return ok(null, `已更新 ${body.ids.length} 条`);
   }),
-  http.delete('/api/frontend-errors/groups/batch', async ({ request }) => {
-    const body = (await request.json()) as { ids: number[] };
+  mock(frontendErrorContract.batchDeleteGroups, ({ body, ok }) => {
     mockGroups = mockGroups.filter((g) => !body.ids.includes(g.id));
     return ok(null, `已删除 ${body.ids.length} 条`);
   }),
 
-  http.get('/api/frontend-errors/groups/:id', ({ params }) => {
-    const id = Number(params.id);
-    const group = mockGroups.find((g) => g.id === id) ?? mockGroups[0];
+  mock(frontendErrorContract.groupDetail, ({ params, ok }) => {
+    const group = mockGroups.find((g) => g.id === params.id) ?? mockGroups[0];
     const recentEvents = buildEvents(group.id, 8);
     return ok({
       group,
@@ -159,73 +154,51 @@ export const frontendErrorsHandlers = [
       recentEvents,
     });
   }),
-  http.put('/api/frontend-errors/groups/:id', async ({ params, request }) => {
-    const id = Number(params.id);
-    const body = (await request.json()) as Partial<ErrorGroup>;
-    const idx = mockGroups.findIndex((g) => g.id === id);
+  mock(frontendErrorContract.updateGroup, ({ params, body, ok }) => {
+    const idx = mockGroups.findIndex((g) => g.id === params.id);
     if (idx === -1) return notFound('不存在', { status: 404 });
     mockGroups[idx] = { ...mockGroups[idx], ...body, resolvedAt: body.status === 'resolved' ? mockDateTime() : null };
     return ok(mockGroups[idx], '更新成功');
   }),
 
-  http.get('/api/frontend-errors/events', ({ request }) => {
-    const u = new URL(request.url);
-    const groupId = Number(u.searchParams.get('groupId')) || mockGroups[0].id;
-    const all = buildEvents(groupId, 40);
-    return ok<PaginatedResponse<ErrorEvent>>(paginate(all, u, 20));
+  mock(frontendErrorContract.events, ({ query, ok, paginate }) => {
+    const groupId = query.groupId || mockGroups[0].id;
+    return ok(paginate(buildEvents(groupId, 40)));
   }),
 
-  http.delete('/api/frontend-errors/clean', () => ok(null, '共清除 320 条记录')),
+  mock(frontendErrorContract.clean, ({ ok }) => ok(null, '共清除 320 条记录')),
 
-  http.get('/api/frontend-errors/source-maps', ({ request }) => {
-    const u = new URL(request.url);
-    return ok<PaginatedResponse<SourceMapItem>>(paginate(mockSourceMaps, u, 20));
-  }),
-  http.post('/api/frontend-errors/source-maps', async ({ request }) => {
-    const body = (await request.json()) as { release: string; fileName: string; content: string };
-    const item: SourceMapItem = { id: nextSmId++, release: body.release, fileName: body.fileName, size: body.content?.length ?? 0, createdAt: mockDateTime(), updatedAt: mockDateTime() };
+  mock(frontendErrorContract.sourceMaps, ({ ok, paginate }) => ok(paginate(mockSourceMaps))),
+  mock(frontendErrorContract.uploadSourceMap, ({ body, ok }) => {
+    const item: SourceMapItem = { id: nextSmId++, release: body.release, fileName: body.fileName, size: body.content.length, createdAt: mockDateTime(), updatedAt: mockDateTime() };
     mockSourceMaps.unshift(item);
     return ok(item, '上传成功');
   }),
-  http.delete('/api/frontend-errors/source-maps/:id', ({ params }) => {
-    mockSourceMaps = mockSourceMaps.filter((m) => m.id !== Number(params.id));
+  mock(frontendErrorContract.removeSourceMap, ({ params, ok }) => {
+    mockSourceMaps = mockSourceMaps.filter((m) => m.id !== params.id);
     return ok(null, '删除成功');
   }),
 
-  http.get('/api/frontend-errors/alerts', ({ request }) => {
-    const u = new URL(request.url);
-    return ok<PaginatedResponse<ErrorAlertRule>>(paginate(mockAlerts, u, 20));
-  }),
-  http.post('/api/frontend-errors/alerts', async ({ request }) => {
-    const body = (await request.json()) as Partial<ErrorAlertRule>;
-    const item: ErrorAlertRule = { id: nextAlertId++, name: body.name ?? '新规则', errorType: body.errorType ?? null, level: body.level ?? null, condition: body.condition ?? 'threshold', thresholdCount: body.thresholdCount ?? 10, windowMinutes: body.windowMinutes ?? 60, channels: body.channels ?? [], webhookUrl: body.webhookUrl ?? null, recipients: body.recipients ?? [], enabled: body.enabled ?? true, lastTriggeredAt: null, createdAt: mockDateTime(), updatedAt: mockDateTime() };
+  mock(frontendErrorContract.alerts, ({ ok, paginate }) => ok(paginate(mockAlerts))),
+  mock(frontendErrorContract.createAlert, ({ body, ok }) => {
+    const item: ErrorAlertRule = { id: nextAlertId++, name: body.name, errorType: body.errorType ?? null, level: body.level ?? null, condition: body.condition, thresholdCount: body.thresholdCount, windowMinutes: body.windowMinutes, channels: body.channels, webhookUrl: body.webhookUrl ?? null, recipients: body.recipients, enabled: body.enabled, lastTriggeredAt: null, createdAt: mockDateTime(), updatedAt: mockDateTime() };
     mockAlerts.unshift(item);
     return ok(item, '创建成功');
   }),
-  http.put('/api/frontend-errors/alerts/:id', async ({ params, request }) => {
-    const id = Number(params.id);
-    const body = (await request.json()) as Partial<ErrorAlertRule>;
-    const idx = mockAlerts.findIndex((a) => a.id === id);
+  mock(frontendErrorContract.updateAlert, ({ params, body, ok }) => {
+    const idx = mockAlerts.findIndex((a) => a.id === params.id);
     if (idx === -1) return notFound('不存在', { status: 404 });
     mockAlerts[idx] = { ...mockAlerts[idx], ...body, updatedAt: mockDateTime() };
     return ok(mockAlerts[idx], '更新成功');
   }),
-  http.delete('/api/frontend-errors/alerts/:id', ({ params }) => {
-    mockAlerts = mockAlerts.filter((a) => a.id !== Number(params.id));
+  mock(frontendErrorContract.removeAlert, ({ params, ok }) => {
+    mockAlerts = mockAlerts.filter((a) => a.id !== params.id);
     return ok(null, '删除成功');
   }),
-  http.post('/api/frontend-errors/alerts/:id/test', () => ok(null, '测试消息已发送，请检查各通知渠道')),
+  mock(frontendErrorContract.testAlert, ({ ok }) => ok(null, '测试消息已发送，请检查各通知渠道')),
 
-  http.get('/api/frontend-errors/alert-logs', ({ request }) => {
-    const u = new URL(request.url);
-    const ruleId = u.searchParams.get('ruleId');
-    const list = ruleId ? mockAlertLogs.filter((l) => l.ruleId === Number(ruleId)) : mockAlertLogs;
-    return ok<PaginatedResponse<ErrorAlertLog>>(paginate(list, u, 20));
+  mock(frontendErrorContract.alertLogs, ({ query, ok, paginate }) => {
+    const list = query.ruleId ? mockAlertLogs.filter((l) => l.ruleId === query.ruleId) : mockAlertLogs;
+    return ok(paginate(list));
   }),
 ];
-
-function mockDateOffsetAxis(days: number): string[] {
-  const arr: string[] = [];
-  for (let i = days - 1; i >= 0; i--) arr.push(mockDateOffset(-i));
-  return arr;
-}

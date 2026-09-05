@@ -20,7 +20,7 @@ const deleteOverrideMutateAsync = vi.fn().mockResolvedValue({});
 const invalidateQueriesMock = vi.fn();
 
 vi.mock('@/hooks/queries/analytics', () => ({
-  analyticsKeys: { data: { all: ['analytics', 'data'] } },
+  analyticsKeys: { data: { quality: ['analytics', 'quality'], overridesLists: ['analytics', 'eventOverrides'] } },
   useAnalyticsQuality: (...args: unknown[]) => useAnalyticsQualityMock(...args),
   useAnalyticsEventOverrides: (...args: unknown[]) => useAnalyticsEventOverridesMock(...args),
   useSaveAnalyticsEventOverride: () => ({ mutateAsync: saveOverrideMutateAsync, isPending: false }),
@@ -108,7 +108,7 @@ describe('AnalyticsQualityTab', () => {
     fireEvent.click(searchButtons[0]);
     const lastParams = useAnalyticsQualityMock.mock.calls.at(-1)?.[0];
     expect(lastParams.eventName).toBe('order_submit');
-    expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ['analytics', 'data'] });
+    expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ['analytics', 'quality'] });
   });
 
   it('租户覆盖列表渲染禁用状态标签', () => {
@@ -131,6 +131,6 @@ describe('AnalyticsQualityTab', () => {
   it('删除覆盖调用 deleteOverrideMutation', async () => {
     renderWithPreferences(<AnalyticsQualityTab />);
     fireEvent.click(screen.getByText('删除'));
-    await waitFor(() => expect(deleteOverrideMutateAsync).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(deleteOverrideMutateAsync).toHaveBeenCalledWith({ params: { id: 1 } }));
   });
 });

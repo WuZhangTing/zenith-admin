@@ -1,4 +1,6 @@
 import { http } from 'msw';
+import { analyticsCampaignContract } from '@zenith/shared/analytics';
+import { urlOf } from '@/lib/contract-query';
 import { ok } from '@/mocks/utils/handlers';
 import type { TraceTimelineNode } from '@zenith/shared/platform';
 import { mockDateTime } from '../utils/date';
@@ -8,7 +10,7 @@ function buildDemoNodes(): TraceTimelineNode[] {
   const ts = mockDateTime();
   return [
     {
-      kind: 'request', ts, title: 'POST /api/analytics/campaigns/1/execute', status: 'success',
+      kind: 'request', ts, title: `POST ${urlOf(analyticsCampaignContract.executeCampaign, { params: { id: 1 } })}`, status: 'success',
       durationMs: 128, refId: 1001,
       detail: { description: '执行触达活动', module: '分群触达', username: 'admin', responseCode: 200, ip: '127.0.0.1', hasDiff: false },
     },
