@@ -4,8 +4,7 @@ import { Button, Form, Tabs, Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Save } from 'lucide-react';
-import type { LoginRiskEvent } from '@zenith/shared/identity';
-import type { IdentitySecurityPolicy } from '@zenith/shared/platform';
+import type { IdentitySecurityPolicy, LoginRiskEvent } from '@zenith/shared/identity';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { dateTimeColumn } from '@/utils/table-columns';
@@ -69,7 +68,7 @@ export default function IdentitySecurityPage() {
     } catch {
       return;
     }
-    const saved = await savePolicyMutation.mutateAsync(values);
+    const saved = await savePolicyMutation.mutateAsync({ body: values });
     setPolicy(saved);
     Toast.success('身份安全策略已保存');
   }

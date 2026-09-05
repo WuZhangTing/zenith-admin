@@ -1,16 +1,6 @@
-import { useMutation } from '@tanstack/react-query';
-import type { IdentityProviderConnectionTestResult, IdentityProviderSyncResult, LdapDirectoryUser, TenantIdentityProvider } from '@zenith/shared/identity';
-import { toQueryString, unwrap } from '@/lib/query';
-import { request } from '@/utils/request';
-import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
+import { identityProviderContract } from '@zenith/shared/identity';
+import { createResourceQueries, useApiMutation } from '@/lib/contract-query';
 import { useAllTenants } from './tenants';
-
-export interface IdentityProviderListParams extends CrudListParams {
-  keyword?: string;
-  type?: string;
-  status?: string;
-  tenantId?: string;
-}
 
 export const {
   keys: identityProviderKeys,
@@ -18,11 +8,7 @@ export const {
   useDetail: useIdentityProviderDetail,
   useSave: useSaveIdentityProvider,
   useDelete: useDeleteIdentityProviders,
-} = createCrudQueries<TenantIdentityProvider, IdentityProviderListParams, Record<string, unknown>>({
-  resource: 'identity-providers',
-  // 服务端未提供 DELETE /batch
-  deleteMode: 'single',
-});
+} = createResourceQueries(identityProviderContract);
 
 /**
  * 身份源配置页的租户下拉——直接复用 tenants 域的共享 lookup，
@@ -32,23 +18,15 @@ export function useIdentityProviderTenants(options?: { enabled?: boolean }) {
   return useAllTenants(options?.enabled ?? true);
 }
 
+/** 连接测试 / 目录搜索 / 目录同步都是即时诊断动作，结果只在弹窗内展示，不失效任何缓存 */
 export function useTestIdentityProviderConnection() {
-  return useMutation({
-    mutationFn: (id: number) =>
-      request.post<IdentityProviderConnectionTestResult>(`/api/identity-providers/${id}/test`, {}, { silent: true }).then(unwrap),
-  });
+  return useApiMutation(identityProviderContract.test, { requestOptions: { silent: true } });
 }
 
 export function useSearchLdapDirectoryUsers() {
-  return useMutation({
-    mutationFn: ({ id, keyword }: { id: number; keyword?: string }) =>
-      request.get<LdapDirectoryUser[]>(`/api/identity-providers/${id}/ldap/users${toQueryString({ limit: 20, keyword })}`, { silent: true }).then(unwrap),
-  });
+  return useApiMutation(identityProviderContract.ldapUsers, { requestOptions: { silent: true } });
 }
 
 export function useSyncIdentityProviderDirectory() {
-  return useMutation({
-    mutationFn: (id: number) =>
-      request.post<IdentityProviderSyncResult>(`/api/identity-providers/${id}/sync`, { limit: 500 }, { silent: true }).then(unwrap),
-  });
+  return useApiMutation(identityProviderContract.sync, { requestOptions: { silent: true } });
 }

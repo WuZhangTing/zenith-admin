@@ -1,4 +1,4 @@
-import type { Menu } from '../identity/types';
+import type { Menu } from '../identity/contracts';
 import { MENU_ROOT_FEATURE_MAP } from '../licensing/feature-catalog';
 import { SEED_MENUS_COMMON } from './menus/common';
 import { SEED_MENUS_SYSTEM } from './menus/system';

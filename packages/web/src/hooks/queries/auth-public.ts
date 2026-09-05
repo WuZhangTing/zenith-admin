@@ -1,13 +1,8 @@
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query';
-import type { EnterpriseIdentityDiscovery, OAuthProviderType } from '@zenith/shared/identity';
+import { authContract, enterpriseAuthContract, oauthContract, type OAuthProviderType } from '@zenith/shared/identity';
+import { api } from '@/lib/contract-query';
+import { unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
-import { toQueryString, unwrap } from '@/lib/query';
-
-export interface CaptchaResult {
-  captchaId: string;
-  svg: string;
-  enabled: boolean;
-}
 
 export const authPublicKeys = {
   all: ['auth-public'] as const,
@@ -20,7 +15,7 @@ export const authPublicKeys = {
 export function usePublicCaptcha() {
   return useQuery({
     queryKey: authPublicKeys.captcha,
-    queryFn: () => request.get<CaptchaResult>('/api/auth/captcha', { silent: true }).then(unwrap),
+    queryFn: () => api(authContract.captcha, { silent: true }),
   });
 }
 
@@ -35,9 +30,7 @@ export function useEnterpriseProviders(tenantCode: string) {
   return useQuery({
     queryKey: authPublicKeys.enterpriseProviders(tenantCode),
     queryFn: () =>
-      request
-        .get<EnterpriseIdentityDiscovery>(`/api/auth/enterprise/providers${toQueryString({ tenantCode })}`, { silent: true })
-        .then(unwrap)
+      api(enterpriseAuthContract.providers, { query: { tenantCode: tenantCode || undefined } }, { silent: true })
         .catch(() => ({ tenantCode, providers: [] })),
     placeholderData: keepPreviousData,
   });
@@ -51,9 +44,7 @@ export function useOAuthProviders(enabled = true) {
   return useQuery({
     queryKey: authPublicKeys.oauthProviders,
     queryFn: () =>
-      request
-        .get<OAuthProviderType[]>('/api/auth/oauth/providers', { silent: true })
-        .then(unwrap)
+      api(oauthContract.providers, { silent: true })
         .catch((): OAuthProviderType[] => []),
     enabled,
   });
@@ -62,6 +53,6 @@ export function useOAuthProviders(enabled = true) {
 export function useForgotPassword() {
   return useMutation({
     mutationFn: (values: { email: string }) =>
-      request.post<null>('/api/auth/forgot-password', { email: values.email }, { silent: true }).then(unwrap),
+      api(authContract.forgotPassword, { body: { email: values.email } }, { silent: true }),
   });
 }

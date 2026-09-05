@@ -1,9 +1,9 @@
-import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createUserSchema, resetUserPasswordSchema, updateUserSchema } from '@zenith/shared/identity';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { userContract } from '@zenith/shared/identity';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
-import { BatchIdsBody, ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
-import { AlertRecipientUserDTO, UserDTO, UserMenuPermissionsDTO, UserDataPermissionDTO, UserEffectivePermissionsDTO } from '../../lib/openapi-dtos';
+import { defineContractRoute } from '../../lib/contract-route';
+import { validationHook, okBody } from '../../lib/openapi-schemas';
 import {
   listAlertRecipientUsers, listAllUsers, listUsers, createUser, batchDeleteUsers, batchUpdateUserStatus, batchResetUsersPassword,
   updateUser, deleteUser, updateUserPassword, unlockUserById,
@@ -19,74 +19,31 @@ import {
 
 const usersRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const batchStatusSchema = z.object({ ids: z.array(z.number().int()), status: z.enum(['enabled', 'disabled']) });
+const read = [authMiddleware, guard({ permission: 'system:user:list' })] as const;
+const assign = [authMiddleware, guard({ permission: 'system:user:assign' })] as const;
 
-const getAllUsersRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/all', tags: ['Users'], summary: '全量用户（供下拉框）',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:user:list' })] as const,
-    request: {},
-    responses: { ...commonErrorResponses, ...ok(z.array(UserDTO), '全量用户') },
-  }),
+const getAllUsersRoute = defineContractRoute(userContract.all, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await listAllUsers()), 200),
 });
 
-const getAlertRecipientUsersRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/alert-recipients', tags: ['Users'], summary: '告警接收用户下拉项',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: ['alert:rule:create', 'alert:rule:update'] })] as const,
-    request: {},
-    responses: { ...commonErrorResponses, ...ok(z.array(AlertRecipientUserDTO), '告警接收用户') },
-  }),
+const getAlertRecipientUsersRoute = defineContractRoute(userContract.alertRecipients, {
+  middleware: [authMiddleware, guard({ permission: ['alert:rule:create', 'alert:rule:update'] })] as const,
   handler: async (c) => c.json(okBody(await listAlertRecipientUsers()), 200),
 });
 
-const listUsersRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/', tags: ['Users'], summary: '用户列表',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:user:list' })] as const,
-    request: {
-      query: PaginationQuery.extend({
-        keyword: z.string().optional(), phone: z.string().optional(),
-        departmentId: z.coerce.number().optional(), status: z.enum(['enabled', 'disabled']).optional(),
-        startTime: dateRangeBound('起始时间'), endTime: dateRangeBound('结束时间'),
-      }),
-    },
-    responses: { ...commonErrorResponses, ...okPaginated(UserDTO, 'ok') },
-  }),
+const listUsersRoute = defineContractRoute(userContract.list, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await listUsers(c.req.valid('query'))), 200),
 });
 
-const createUserRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/', tags: ['Users'], summary: '创建用户',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:user:create', audit: { description: '创建用户', module: '用户管理' } })] as const,
-    request: { body: { content: jsonContent(createUserSchema), required: true } },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(UserDTO, '创建成功'),
-      400: { content: jsonContent(ErrorResponse), description: '参数错误' },
-    },
-  }),
+const createUserRoute = defineContractRoute(userContract.create, {
+  middleware: [authMiddleware, guard({ permission: 'system:user:create', audit: { description: '创建用户', module: '用户管理' } })] as const,
   handler: async (c) => c.json(okBody(await createUser(c.req.valid('json')), '创建成功'), 200),
 });
 
-const batchDeleteUsersRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/batch', tags: ['Users'], summary: '批量删除用户',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:user:delete', audit: { description: '批量删除用户', module: '用户管理' } })] as const,
-    request: { body: { content: jsonContent(BatchIdsBody), required: true } },
-    responses: {
-      ...commonErrorResponses,
-      ...okMsg('删除成功'),
-      400: { content: jsonContent(ErrorResponse), description: '参数错误' },
-    },
-  }),
+const batchDeleteUsersRoute = defineContractRoute(userContract.removeBatch, {
+  middleware: [authMiddleware, guard({ permission: 'system:user:delete', audit: { description: '批量删除用户', module: '用户管理' } })] as const,
   handler: async (c) => {
     const { ids } = c.req.valid('json');
     const before = await getUsersBeforeAudit(ids);
@@ -96,14 +53,8 @@ const batchDeleteUsersRoute = defineOpenAPIRoute({
   },
 });
 
-const batchResetPasswordRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/batch-password', tags: ['Users'], summary: '批量重置用户密码',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:user:update', audit: { description: '批量重置用户密码', module: '用户管理' } })] as const,
-    request: { body: { content: jsonContent(z.object({ ids: z.array(z.number().int()), password: z.string().min(6).max(64) })), required: true } },
-    responses: { ...okMsg('密码重置成功'), ...commonErrorResponses },
-  }),
+const batchResetPasswordRoute = defineContractRoute(userContract.batchResetPassword, {
+  middleware: [authMiddleware, guard({ permission: 'system:user:update', audit: { description: '批量重置用户密码', module: '用户管理' } })] as const,
   handler: async (c) => {
     const { ids, password } = c.req.valid('json');
     await batchResetUsersPassword(ids, password);
@@ -111,18 +62,8 @@ const batchResetPasswordRoute = defineOpenAPIRoute({
   },
 });
 
-const batchStatusUsersRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/batch-status', tags: ['Users'], summary: '批量修改用户状态',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:user:update', audit: { description: '批量修改用户状态', module: '用户管理' } })] as const,
-    request: { body: { content: jsonContent(batchStatusSchema), required: true } },
-    responses: {
-      ...commonErrorResponses,
-      ...okMsg('ok'),
-      400: { content: jsonContent(ErrorResponse), description: '参数错误' },
-    },
-  }),
+const batchStatusUsersRoute = defineContractRoute(userContract.batchStatus, {
+  middleware: [authMiddleware, guard({ permission: 'system:user:update', audit: { description: '批量修改用户状态', module: '用户管理' } })] as const,
   handler: async (c) => {
     const { ids, status } = c.req.valid('json');
     const before = await getUsersBeforeAudit(ids);
@@ -132,19 +73,8 @@ const batchStatusUsersRoute = defineOpenAPIRoute({
   },
 });
 
-const updateUserPasswordRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/{id}/password', tags: ['Users'], summary: '修改用户密码',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:user:update', audit: { description: '修改用户密码', module: '用户管理' } })] as const,
-    request: { params: IdParam, body: { content: jsonContent(resetUserPasswordSchema), required: true } },
-    responses: {
-      ...commonErrorResponses,
-      ...okMsg('ok'),
-      400: { content: jsonContent(ErrorResponse), description: '参数错误' },
-      404: { content: jsonContent(ErrorResponse), description: '用户不存在' },
-    },
-  }),
+const updateUserPasswordRoute = defineContractRoute(userContract.resetPassword, {
+  middleware: [authMiddleware, guard({ permission: 'system:user:update', audit: { description: '修改用户密码', module: '用户管理' } })] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { password } = c.req.valid('json');
@@ -155,18 +85,8 @@ const updateUserPasswordRoute = defineOpenAPIRoute({
   },
 });
 
-const unlockUserRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/{id}/unlock', tags: ['Users'], summary: '解锁账号',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:user:update', audit: { description: '解除账号锁定', module: '用户管理' } })] as const,
-    request: { params: IdParam },
-    responses: {
-      ...commonErrorResponses,
-      ...okMsg('ok'),
-      404: { content: jsonContent(ErrorResponse), description: '用户不存在' },
-    },
-  }),
+const unlockUserRoute = defineContractRoute(userContract.unlock, {
+  middleware: [authMiddleware, guard({ permission: 'system:user:update', audit: { description: '解除账号锁定', module: '用户管理' } })] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getUserBeforeAudit(id);
@@ -176,55 +96,23 @@ const unlockUserRoute = defineOpenAPIRoute({
   },
 });
 
-const getOneUserRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/{id}', tags: ['Users'], summary: '获取用户详情',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:user:list' })] as const,
-    request: { params: IdParam },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(UserDTO, '用户详情'),
-      404: { content: jsonContent(ErrorResponse), description: '用户不存在' },
-    },
-  }),
+const getOneUserRoute = defineContractRoute(userContract.detail, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await getUser(c.req.valid('param').id)), 200),
 });
 
-const updateUserRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/{id}', tags: ['Users'], summary: '更新用户',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:user:update', audit: { description: '更新用户', module: '用户管理' } })] as const,
-    request: { params: IdParam, body: { content: jsonContent(updateUserSchema), required: true } },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(UserDTO, '更新成功'),
-      400: { content: jsonContent(ErrorResponse), description: '参数错误' },
-      404: { content: jsonContent(ErrorResponse), description: '用户不存在' },
-    },
-  }),
+const updateUserRoute = defineContractRoute(userContract.update, {
+  middleware: [authMiddleware, guard({ permission: 'system:user:update', audit: { description: '更新用户', module: '用户管理' } })] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getUserBeforeAudit(id);
     if (before) setAuditBeforeData(c, before);
-    const updated = await updateUser(id, c.req.valid('json'));
-    return c.json(okBody(updated, '更新成功'), 200);
+    return c.json(okBody(await updateUser(id, c.req.valid('json')), '更新成功'), 200);
   },
 });
 
-const deleteUserRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/{id}', tags: ['Users'], summary: '删除用户',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:user:delete', audit: { description: '删除用户', module: '用户管理' } })] as const,
-    request: { params: IdParam },
-    responses: {
-      ...commonErrorResponses,
-      ...okMsg('删除成功'),
-      404: { content: jsonContent(ErrorResponse), description: '用户不存在' },
-    },
-  }),
+const deleteUserRoute = defineContractRoute(userContract.remove, {
+  middleware: [authMiddleware, guard({ permission: 'system:user:delete', audit: { description: '删除用户', module: '用户管理' } })] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getUserBeforeAudit(id);
@@ -234,24 +122,8 @@ const deleteUserRoute = defineOpenAPIRoute({
   },
 });
 
-const assignUserRolesRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/{id}/roles', tags: ['Users'], summary: '分配用户角色',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:user:assign', audit: { description: '分配用户角色', module: '用户管理' } })] as const,
-    request: {
-      params: IdParam,
-      body: {
-        content: { 'application/json': { schema: z.object({ roleIds: z.array(z.number().int()) }) } },
-        required: true,
-      },
-    },
-    responses: {
-      ...commonErrorResponses,
-      ...okMsg('保存成功'),
-      404: { content: jsonContent(ErrorResponse), description: '用户不存在' },
-    },
-  }),
+const assignUserRolesRoute = defineContractRoute(userContract.assignRoles, {
+  middleware: [authMiddleware, guard({ permission: 'system:user:assign', audit: { description: '分配用户角色', module: '用户管理' } })] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { roleIds } = c.req.valid('json');
@@ -264,38 +136,13 @@ const assignUserRolesRoute = defineOpenAPIRoute({
   },
 });
 
-const getUserMenusRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/{id}/menus', tags: ['Users'], summary: '获取用户菜单权限',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:user:assign' })] as const,
-    request: { params: IdParam },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(UserMenuPermissionsDTO, '获取成功'),
-    },
-  }),
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const data = await getUserMenuPermissions(id);
-    return c.json(okBody(data), 200);
-  },
+const getUserMenusRoute = defineContractRoute(userContract.menus, {
+  middleware: assign,
+  handler: async (c) => c.json(okBody(await getUserMenuPermissions(c.req.valid('param').id)), 200),
 });
 
-const assignUserMenusRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/{id}/menus', tags: ['Users'], summary: '分配用户菜单权限',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:user:assign', audit: { description: '分配用户菜单权限', module: '用户管理' } })] as const,
-    request: {
-      params: IdParam,
-      body: { content: { 'application/json': { schema: z.object({ menuIds: z.array(z.number().int()) }) } }, required: true },
-    },
-    responses: {
-      ...commonErrorResponses,
-      ...okMsg('保存成功'),
-    },
-  }),
+const assignUserMenusRoute = defineContractRoute(userContract.assignMenus, {
+  middleware: [authMiddleware, guard({ permission: 'system:user:assign', audit: { description: '分配用户菜单权限', module: '用户管理' } })] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { menuIds } = c.req.valid('json');
@@ -308,48 +155,13 @@ const assignUserMenusRoute = defineOpenAPIRoute({
   },
 });
 
-const getUserDataPermissionRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/{id}/data-permission', tags: ['Users'], summary: '获取用户数据权限',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:user:assign' })] as const,
-    request: { params: IdParam },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(UserDataPermissionDTO, '获取成功'),
-    },
-  }),
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const data = await getUserDataPermission(id);
-    return c.json(okBody(data), 200);
-  },
+const getUserDataPermissionRoute = defineContractRoute(userContract.dataPermission, {
+  middleware: assign,
+  handler: async (c) => c.json(okBody(await getUserDataPermission(c.req.valid('param').id)), 200),
 });
 
-const updateUserDataPermissionRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/{id}/data-permission', tags: ['Users'], summary: '设置用户数据权限',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:user:assign', audit: { description: '设置用户数据权限', module: '用户管理' } })] as const,
-    request: {
-      params: IdParam,
-      body: {
-        content: {
-          'application/json': {
-            schema: z.object({
-              dataScope: z.enum(['all', 'custom', 'dept_only', 'dept', 'self']).nullable(),
-              deptScopeIds: z.array(z.number().int()),
-            }),
-          },
-        },
-        required: true,
-      },
-    },
-    responses: {
-      ...commonErrorResponses,
-      ...okMsg('保存成功'),
-    },
-  }),
+const updateUserDataPermissionRoute = defineContractRoute(userContract.updateDataPermission, {
+  middleware: [authMiddleware, guard({ permission: 'system:user:assign', audit: { description: '设置用户数据权限', module: '用户管理' } })] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const data = c.req.valid('json');
@@ -362,24 +174,12 @@ const updateUserDataPermissionRoute = defineOpenAPIRoute({
   },
 });
 
-const getUserEffectivePermissionsRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/{id}/effective-permissions', tags: ['Users'], summary: '获取用户最终有效权限',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:user:assign' })] as const,
-    request: { params: IdParam },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(UserEffectivePermissionsDTO, '获取成功'),
-    },
-  }),
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const data = await getUserEffectivePermissions(id);
-    return c.json(okBody(data), 200);
-  },
+const getUserEffectivePermissionsRoute = defineContractRoute(userContract.effectivePermissions, {
+  middleware: assign,
+  handler: async (c) => c.json(okBody(await getUserEffectivePermissions(c.req.valid('param').id)), 200),
 });
 
+// 静态路径（/alert-recipients、/all、/batch*）必须先于动态 /{id} 注册
 usersRouter.openapiRoutes([
   getAlertRecipientUsersRoute, getAllUsersRoute, listUsersRoute, createUserRoute, batchDeleteUsersRoute, batchStatusUsersRoute, batchResetPasswordRoute,
   updateUserPasswordRoute, unlockUserRoute,

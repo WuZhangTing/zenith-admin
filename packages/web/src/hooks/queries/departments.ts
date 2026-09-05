@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Department } from '@zenith/shared/identity';
-import { request } from '@/utils/request';
-import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
+import type { BodyOf, QueryOf } from '@zenith/shared/core';
+import { departmentContract, type Department } from '@zenith/shared/identity';
+import { api, useApiMutation } from '@/lib/contract-query';
+import { LOOKUP_STALE_TIME } from '@/lib/query';
 
-export interface DepartmentTreeParams {
-  keyword?: string;
-  status?: string;
-}
+export type DepartmentTreeParams = NonNullable<QueryOf<typeof departmentContract.tree>>;
+
+/** 保存载荷：创建入参的部分形态，同一表单同时服务新增与编辑 */
+export type DepartmentFormValues = Partial<BodyOf<typeof departmentContract.create>>;
 
 export const departmentKeys = {
   all: ['departments'] as const,
@@ -21,7 +22,7 @@ export const departmentKeys = {
 export function useDepartmentTree(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: departmentKeys.tree,
-    queryFn: () => request.get<Department[]>('/api/departments').then(unwrap),
+    queryFn: () => api(departmentContract.tree, { query: {} }),
     staleTime: LOOKUP_STALE_TIME,
     enabled: options?.enabled ?? true,
   });
@@ -30,7 +31,7 @@ export function useDepartmentTree(options?: { enabled?: boolean }) {
 export function useDepartmentTreeSearch(params: DepartmentTreeParams, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: departmentKeys.treeSearch(params),
-    queryFn: () => request.get<Department[]>(`/api/departments${toQueryString(params)}`).then(unwrap),
+    queryFn: () => api(departmentContract.tree, { query: params }),
     staleTime: LOOKUP_STALE_TIME,
     enabled: options?.enabled ?? true,
   });
@@ -40,7 +41,7 @@ export function useDepartmentTreeSearch(params: DepartmentTreeParams, options?: 
 export function useFlatDepartments(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: departmentKeys.flat,
-    queryFn: () => request.get<Department[]>('/api/departments/flat').then(unwrap),
+    queryFn: () => api(departmentContract.flat),
     select: (data) => (Array.isArray(data) ? data : []),
     staleTime: LOOKUP_STALE_TIME,
     enabled: options?.enabled ?? true,
@@ -50,19 +51,18 @@ export function useFlatDepartments(options?: { enabled?: boolean }) {
 export function useDepartmentDetail(id: number | undefined, enabled = true) {
   return useQuery({
     queryKey: departmentKeys.detail(id),
-    queryFn: () => request.get<Department>(`/api/departments/${id}`).then(unwrap),
+    queryFn: () => api(departmentContract.detail, { params: { id: id ?? 0 } }),
     enabled: enabled && id !== undefined,
   });
 }
 
 export function useSaveDepartment() {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Partial<Department> }) =>
-      (id === undefined
-        ? request.post<Department>('/api/departments', values)
-        : request.put<Department>(`/api/departments/${id}`, values)
-      ).then(unwrap),
+  return useMutation<Department, Error, { id?: number; values: DepartmentFormValues }>({
+    mutationFn: ({ id, values }) =>
+      id === undefined
+        ? api(departmentContract.create, { body: values as BodyOf<typeof departmentContract.create> })
+        : api(departmentContract.update, { params: { id }, body: values }),
     onSuccess: (saved) => {
       // 树与扁平列表都会注入 children / userCount 等聚合字段，写接口响应不含，故不回填
       void qc.invalidateQueries({ queryKey: departmentKeys.detail(saved.id) });
@@ -74,11 +74,9 @@ export function useSaveDepartment() {
 }
 
 export function useDeleteDepartment() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/departments/${id}`).then(unwrap),
-    onSuccess: (_data, id) => {
-      qc.removeQueries({ queryKey: departmentKeys.detail(id) });
+  return useApiMutation(departmentContract.remove, {
+    invalidate: (qc, _output, { params }) => {
+      qc.removeQueries({ queryKey: departmentKeys.detail(params.id) });
       void qc.invalidateQueries({ queryKey: departmentKeys.tree });
       void qc.invalidateQueries({ queryKey: departmentKeys.flat });
     },

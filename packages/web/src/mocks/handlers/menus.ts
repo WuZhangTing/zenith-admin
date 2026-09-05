@@ -1,55 +1,40 @@
-import { http } from 'msw';
-import { ok, notFound, conflict } from '@/mocks/utils/handlers';
+import { menuContract, type Menu } from '@zenith/shared/identity';
+import { mock } from '@/mocks/utils/contract';
+import { notFound, conflict } from '@/mocks/utils/handlers';
 import { removeWhere } from '@/mocks/utils/array';
 import { mockMenus, buildMenuTree, getNextMenuId } from '@/mocks/data/menus';
 import { mockRoles } from '@/mocks/data/roles';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { Menu } from '@zenith/shared/identity';
 
 export const menusHandlers = [
   // 当前用户的菜单树（用于渲染侧边栏）
-  http.get('/api/menus/user', () => {
+  mock(menuContract.userTree, ({ ok }) => {
     // 与真实后端对齐：禁用菜单对所有人不可见；按钮为纯权限点，不参与页面展示
     return ok(buildMenuTree(mockMenus.filter((m) => m.status === 'enabled' && m.type !== 'button')));
   }),
 
+  // 平铺菜单列表
+  mock(menuContract.flat, ({ ok }) => {
+    return ok(mockMenus);
+  }),
+
   // 菜单树（含所有层级）
-  http.get('/api/menus', ({ request }) => {
-    const url = new URL(request.url);
-    const flat = url.searchParams.get('flat');
-    if (flat === 'true') {
-      return ok(mockMenus);
-    }
+  mock(menuContract.tree, ({ ok }) => {
     return ok(buildMenuTree(mockMenus));
   }),
 
   // 获取单个菜单
-  http.get('/api/menus/:id', ({ params }) => {
-    const menu = mockMenus.find((m) => m.id === Number(params.id));
-    if (!menu) return notFound('菜单不存在');
+  mock(menuContract.detail, ({ params, ok }) => {
+    const menu = mockMenus.find((m) => m.id === params.id);
+    if (!menu) return notFound('菜单不存在', { status: 404 });
     return ok(menu);
   }),
 
   // 新增菜单
-  http.post('/api/menus', async ({ request }) => {
-    const body = await request.json() as Partial<Menu>;
+  mock(menuContract.create, ({ body, ok }) => {
     const newMenu: Menu = {
       id: getNextMenuId(),
-      parentId: body.parentId ?? 0,
-      title: body.title ?? '',
-      name: body.name,
-      path: body.path,
-      component: body.component,
-      icon: body.icon,
-      type: body.type ?? 'menu',
-      permission: body.permission,
-      query: body.query ?? null,
-      isExternal: body.isExternal ?? false,
-      embed: body.embed ?? false,
-      keepAlive: body.keepAlive ?? false,
-      sort: body.sort ?? 0,
-      status: body.status ?? 'enabled',
-      visible: body.visible ?? true,
+      ...body,
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),
     };
@@ -58,19 +43,18 @@ export const menusHandlers = [
   }),
 
   // 更新菜单
-  http.put('/api/menus/:id', async ({ params, request }) => {
-    const menu = mockMenus.find((m) => m.id === Number(params.id));
-    if (!menu) return notFound('菜单不存在');
-    const body = await request.json() as Partial<Menu>;
+  mock(menuContract.update, ({ params, body, ok }) => {
+    const menu = mockMenus.find((m) => m.id === params.id);
+    if (!menu) return notFound('菜单不存在', { status: 404 });
     Object.assign(menu, body, { updatedAt: mockDateTime() });
     return ok(menu, '更新成功');
   }),
 
   // 删除菜单（在用保护：被非超管角色引用的菜单返回 409；级联删除子菜单）
-  http.delete('/api/menus/:id', ({ params }) => {
-    const id = Number(params.id);
+  mock(menuContract.remove, ({ params, ok }) => {
+    const id = params.id;
     const index = mockMenus.findIndex((m) => m.id === id);
-    if (index === -1) return notFound('菜单不存在');
+    if (index === -1) return notFound('菜单不存在', { status: 404 });
     // 收集自身及全部子孙菜单
     const toDelete = new Set<number>();
     const queue = [id];

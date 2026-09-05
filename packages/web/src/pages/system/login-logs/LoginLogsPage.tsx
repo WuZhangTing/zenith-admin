@@ -7,6 +7,8 @@ import { useClearLogs } from '@/hooks/useClearLogs';
 import { formatDateTimeRangeForApi } from '@/utils/date';
 import LoginLogStatsPanel from './LoginLogStatsPanel';
 import { loginLogKeys, useCleanLoginLogs, useLoginLogList } from '@/hooks/queries/login-logs';
+import { enumValueOf } from '@zenith/shared/core';
+import { LOGIN_EVENT_TYPES, LOGIN_STATUSES } from '@zenith/shared/identity';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, FilterSelect, KeywordInput, StatusSelect } from '@/components/search-filters';
@@ -35,8 +37,8 @@ export default function LoginLogsPage() {
     page,
     pageSize,
     username: submittedParams.username || undefined,
-    eventType: submittedParams.eventType || undefined,
-    status: submittedParams.status || undefined,
+    eventType: enumValueOf(LOGIN_EVENT_TYPES, submittedParams.eventType),
+    status: enumValueOf(LOGIN_STATUSES, submittedParams.status),
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
   });
   const data = listQuery.data?.list ?? [];
@@ -44,7 +46,7 @@ export default function LoginLogsPage() {
   const cleanLogsMutation = useCleanLoginLogs();
   const clearLogsLoading = cleanLogsMutation.isPending;
   const clearLogs = useClearLogs({
-    clean: (months) => cleanLogsMutation.mutateAsync(months),
+    clean: (days) => cleanLogsMutation.mutateAsync({ query: { days } }),
     onCleared: () => setPage(1),
   });
 

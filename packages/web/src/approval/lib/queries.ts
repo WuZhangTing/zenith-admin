@@ -4,6 +4,8 @@
 import { QueryClient, keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import type { WorkflowApproverPreviewNode, WorkflowComment, WorkflowDefinition, WorkflowInstance, WorkflowInstanceSummaryItem, WorkflowQuickPhrase, WorkflowSelectableNextApproverGroup, WorkflowSlaLevel, WorkflowTaskStatus } from '@zenith/shared/workflow';
+import { authContract, userContract } from '@zenith/shared/identity';
+import { api } from '@/lib/contract-query';
 import { approvalRequest, unwrapApproval } from './approval-request';
 
 export const approvalQueryClient = new QueryClient({
@@ -89,7 +91,7 @@ export function useApprovalDetail(id: number | null) {
 export function useApprovalMe() {
   return useQuery({
     queryKey: approvalKeys.me,
-    queryFn: () => approvalRequest.get<{ id: number; username: string; nickname: string | null }>('/api/auth/me', { silent: true }).then(unwrapApproval),
+    queryFn: () => api(authContract.me, { client: approvalRequest, silent: true }),
     retry: false,
   });
 }
@@ -218,10 +220,7 @@ export function useSelectableNextApprovers(taskId: number | null, enabled: boole
 export function useApprovalUsers(enabled: boolean) {
   return useQuery({
     queryKey: approvalKeys.users,
-    queryFn: () =>
-      approvalRequest
-        .get<Array<{ id: number; nickname: string | null; username: string }>>('/api/users/all', { silent: true })
-        .then(unwrapApproval),
+    queryFn: () => api(userContract.all, { client: approvalRequest, silent: true }),
     enabled,
     staleTime: 5 * 60_000,
   });

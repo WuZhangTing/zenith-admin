@@ -125,7 +125,7 @@ describe('useAssignPositionMembers', () => {
     const fetches = observeFetches(qc);
     api.resetCalls();
 
-    await result.current.assign.mutateAsync({ id: 1, userIds: [7, 8] });
+    await result.current.assign.mutateAsync({ params: { id: 1 }, body: { userIds: [7, 8] } });
     await waitFor(() => expect(fetches.countOf(positionKeys.members(1))).toBe(1));
     await waitFor(() => expect(result.current.list.isFetching).toBe(false));
 

@@ -3,7 +3,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Form, Button, Toast, Typography, Spin } from '@douyinfe/semi-ui';
 import { Lock, CheckCircle } from 'lucide-react';
 import { config } from '@/config';
-import { request } from '@/utils/request';
+import { authContract } from '@zenith/shared/identity';
+import { api } from '@/lib/contract-query';
+import { ApiError } from '@/lib/query';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 
 const { Title, Text } = Typography;
@@ -32,18 +34,17 @@ export default function ResetPasswordPage() {
   }, [token]);
 
   const handleSubmit = async (values: { newPassword: string; confirmPassword: string }) => {
+    if (!token) return;
     if (values.newPassword !== values.confirmPassword) {
       Toast.error('两次输入的密码不一致');
       return;
     }
     setLoading(true);
     try {
-      const res = await request.post<null>('/api/auth/reset-password', { token, newPassword: values.newPassword }, { silent: true });
-      if (res.code === 0) {
-        setSuccess(true);
-      } else {
-        Toast.error(res.message || '重置失败，请重试');
-      }
+      await api(authContract.resetPassword, { body: { token, newPassword: values.newPassword } }, { silent: true });
+      setSuccess(true);
+    } catch (err) {
+      Toast.error((err instanceof ApiError && err.message) || '重置失败，请重试');
     } finally {
       setLoading(false);
     }

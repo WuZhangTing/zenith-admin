@@ -3,8 +3,11 @@ import { dateTimeStringSchema, httpUrl, partialForUpdate } from '../core/validat
 import { tenantPackageQuotasSchema } from '../licensing/validation';
 import { MP_OAUTH_SCOPES } from '../mp/constants';
 import {
+  DATA_SCOPES,
+  DEPARTMENT_CATEGORIES,
   DIRECTORY_SYNC_SOURCE_TYPES, DIRECTORY_SYNC_MATCH_KEYS,
   DIRECTORY_SYNC_CONFLICT_POLICIES, DIRECTORY_SYNC_RESOLUTIONS,
+  LOGIN_RISK_NEW_DEVICE_ACTIONS, MFA_MODES,
   OAUTH_PROVIDERS,
 } from './constants';
 
@@ -155,7 +158,7 @@ export const createDepartmentSchema = z.object({
   parentId: z.number().int().min(0).default(0),
   name: z.string().min(1, '部门名称不能为空').max(64),
   code: z.string().min(1, '部门编码不能为空').max(64).regex(/^\w+$/, '部门编码只能包含字母、数字和下划线'),
-  category: z.enum(['group', 'company', 'department']).default('department'),
+  category: z.enum(DEPARTMENT_CATEGORIES).default('department'),
   leaderId: z.number().int().nullable().optional(),
   phone: z.string().max(32).optional(),
   email: z.preprocess(
@@ -367,6 +370,12 @@ export const createTenantIdentityProviderSchema = z.object({
 export const updateTenantIdentityProviderSchema = partialForUpdate(createTenantIdentityProviderSchema);
 
 
+export type CreateTenantIdentityProviderInput = z.infer<typeof createTenantIdentityProviderSchema>;
+
+
+export type UpdateTenantIdentityProviderInput = z.infer<typeof updateTenantIdentityProviderSchema>;
+
+
 export const searchIdentityProviderUsersSchema = z.object({
   keyword: z.string().max(100).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
@@ -564,3 +573,116 @@ export const resolveDirectorySyncConflictSchema = z.object({
 export type CreateDirectorySyncSourceInput = z.infer<typeof createDirectorySyncSourceSchema>;
 export type UpdateDirectorySyncSourceInput = z.infer<typeof updateDirectorySyncSourceSchema>;
 export type ResolveDirectorySyncConflictInput = z.infer<typeof resolveDirectorySyncConflictSchema>;
+
+// ─── 认证 / 会话 Schema ───────────────────────────────────────────────────────
+export const refreshTokenSchema = z.object({
+  refreshToken: z.string().min(1),
+});
+
+export const mfaVerifySchema = z.object({
+  challengeId: z.string().min(1),
+  code: z.string().min(6).max(8),
+  rememberDevice: z.boolean().optional(),
+});
+
+export const verifyTotpSetupSchema = z.object({
+  factorId: z.number().int().positive(),
+  code: z.string().min(6).max(8),
+});
+
+export const verifyPasswordSchema = z.object({
+  password: z.string().min(1),
+});
+
+export const saveFavoriteMenusSchema = z.object({
+  menuIds: z.array(z.number().int()),
+});
+
+/** 偏好设置为自由结构的键值对，整体替换保存 */
+export const userPreferencesInputSchema = z.record(z.string(), z.unknown());
+
+export const createApiTokenSchema = z.object({
+  name: z.string(),
+  expiresAt: z.string().optional(),
+});
+
+export type CreateApiTokenInput = z.infer<typeof createApiTokenSchema>;
+
+// ─── 企业身份源登录 Schema ────────────────────────────────────────────────────
+export const enterpriseOidcCallbackSchema = z.object({
+  code: z.string(),
+  state: z.string(),
+  deviceId: z.string().max(128).optional(),
+});
+
+export const enterpriseSamlExchangeSchema = z.object({
+  ticket: z.string(),
+});
+
+// ─── 用户授权 / 批量操作 Schema ────────────────────────────────────────────────
+export const batchResetUsersPasswordSchema = z.object({
+  ids: z.array(z.number().int()),
+  password: z.string().min(6).max(64),
+});
+
+export const batchUpdateUserStatusSchema = z.object({
+  ids: z.array(z.number().int()),
+  status: z.enum(['enabled', 'disabled']),
+});
+
+export const assignUserRolesSchema = z.object({
+  roleIds: z.array(z.number().int()),
+});
+
+export const assignUserMenusSchema = z.object({
+  menuIds: z.array(z.number().int()),
+});
+
+export const updateUserDataPermissionSchema = z.object({
+  dataScope: z.enum(DATA_SCOPES).nullable(),
+  deptScopeIds: z.array(z.number().int()),
+});
+
+export type UpdateUserDataPermissionInput = z.infer<typeof updateUserDataPermissionSchema>;
+
+// ─── 成员 / 角色分配 Schema（岗位、用户组共用）───────────────────────────────
+export const scopeUserIdsSchema = z.object({
+  userIds: z.array(z.number().int().positive()),
+});
+
+export const userGroupRoleIdsSchema = z.object({
+  roleIds: z.array(z.number().int().positive()),
+});
+
+export const userGroupRulePreviewSchema = z.object({
+  groupId: z.number().int().positive().optional(),
+  memberRule: userGroupMemberRuleSchema,
+});
+
+export type UserGroupRulePreviewInput = z.infer<typeof userGroupRulePreviewSchema>;
+
+// ─── 身份安全策略 Schema（既是策略实体，也是整体替换保存的请求体）─────────────
+export const identitySecurityPolicySchema = z.object({
+  password: z.object({
+    minLength: z.number().int().min(6).max(64),
+    requireUppercase: z.boolean(),
+    requireSpecialChar: z.boolean(),
+    expiryEnabled: z.boolean(),
+    expiryDays: z.number().int().min(1).max(3650),
+  }),
+  lockout: z.object({
+    maxAttempts: z.number().int().min(1).max(100),
+    durationMinutes: z.number().int().min(1).max(1440),
+  }),
+  mfa: z.object({
+    enabled: z.boolean(),
+    mode: z.enum(MFA_MODES),
+    rememberDeviceDays: z.number().int().min(1).max(365),
+  }),
+  risk: z.object({
+    enabled: z.boolean(),
+    newDeviceAction: z.enum(LOGIN_RISK_NEW_DEVICE_ACTIONS),
+  }),
+}).meta({ id: 'IdentitySecurityPolicy' });
+
+export type IdentitySecurityPolicy = z.infer<typeof identitySecurityPolicySchema>;
