@@ -35,9 +35,8 @@ export interface DashboardCharts {
 /**
  * 工作台自有数据。
  *
- * 公告不在此列：顶栏公告铃铛与工作台公告卡片读的是同一份 `/api/announcements/published`，
- * 曾各自用 `['dashboard','announcements']` 与 `announcementKeys.published` 存两份缓存，
- * 导致从顶栏标记已读后工作台仍显示未读圆点。现统一复用 `announcements.ts` 的域 hook。
+ * 公告不在此列：顶栏公告铃铛与工作台公告卡片共用 `announcements.ts` 的 `usePublishedAnnouncements`，
+ * 同一 query key 只存一份缓存，从顶栏标记已读后工作台的未读圆点随之消失。
  */
 export const dashboardKeys = {
   all: ['dashboard'] as const,

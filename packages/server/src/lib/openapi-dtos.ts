@@ -14,9 +14,7 @@
  *   - dtos/auth.ts           认证 / OAuth
  *   - dtos/dict.ts           字典
  *   - dtos/logs.ts           日志
- *   - dtos/announcements.ts  公告
  *   - dtos/system-configs.ts 系统配置 / 密码策略
- *   - dtos/email-config.ts   邮件配置
  *   - dtos/cache.ts          缓存
  *   - dtos/db-backups.ts     数据库备份
  *   - dtos/monitor.ts        服务器监控
@@ -24,7 +22,6 @@
  *   - dtos/workflow.ts       工作流
  *   - dtos/dashboard.ts      仪表盘
  *   - dtos/region.ts         地区
- *   - dtos/messages.ts       消息模板
  */
 export * from './dtos';
 export * from './dtos/payment-capabilities';

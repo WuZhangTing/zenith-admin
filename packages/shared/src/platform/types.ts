@@ -3,7 +3,7 @@ import type { ChatMessage, ChatReactionGroup, ChatVoteData } from '../chat/contr
 import type { RtcIceCandidateInit, RtcInvitePayload, RtcPeerInfo } from '../chat/types';
 import type { EntityStatus } from '../core/types';
 import type { UserBehaviorEventType } from '../identity/types';
-import type { Announcement, ChannelMessage, InAppMessage } from '../messaging/types';
+import type { Announcement, ChannelMessage, InAppMessage } from '../messaging/contracts';
 import type { MpKfSession, MpMessageDirection, MpMessageType } from '../mp/types';
 import type { AsyncTask } from '../tasks/contracts';
 import type { WorkflowInstanceStatus } from '../workflow/types';
