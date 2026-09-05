@@ -1,8 +1,9 @@
 import * as z from 'zod';
 import { partialForUpdate } from '../core/validation';
+import { BIZ_LEAVE_TYPES } from './constants';
 
 // ── 业务接入示例：请假 ──
-export const bizLeaveTypeSchema = z.enum(['annual', 'sick', 'personal', 'marriage', 'other']);
+export const bizLeaveTypeSchema = z.enum(BIZ_LEAVE_TYPES);
 
 export const createBizLeaveSchema = z.object({
   leaveType: bizLeaveTypeSchema,

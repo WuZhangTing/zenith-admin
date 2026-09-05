@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
-import { request } from '@/utils/request';
+import { chatContract } from '@zenith/shared/chat';
+import type { ChatConversation, ChatMessage, ChatMessageContext, ChatMessageSearchItem, ChatGroupMember } from '@zenith/shared/chat';
+import { api } from '@/lib/contract-query';
 import { formatDateTimeRangeValuesForApi } from '@/utils/date';
-import type { ChatConversation, ChatMessage, ChatMessageContext, ChatMessageSearchItem, ChatMessageSearchResult, ChatGroupMember } from '@zenith/shared/chat';
 import type { SearchDatePreset, Setter } from '../types';
 
 /** 会话内消息搜索：筛选、日期预设、执行搜索、跳转定位（自 ChatPage 原样搬移） */
@@ -103,8 +104,8 @@ export function useConversationSearch({
       return;
     }
     void (async () => {
-      const res = await request.get<ChatGroupMember[]>(`/api/chat/conversations/${activeConvId}/members`, { silent: true });
-      if (res.code === 0 && res.data) setSearchMembers(res.data);
+      const members = await api(chatContract.groupMembers, { params: { id: activeConvId } }, { silent: true }).catch(() => null);
+      if (members) setSearchMembers(members);
     })();
   }, [activeConv?.type, activeConvId, showSearchPanel]);
 
@@ -122,32 +123,30 @@ export function useConversationSearch({
       return;
     }
 
-    const qs = new URLSearchParams();
-    if (msgSearch.trim()) qs.set('keyword', msgSearch.trim());
-    if (searchTypeFilters.length > 0) qs.set('types', searchTypeFilters.join(','));
-    if (searchSenderId) qs.set('senderId', String(searchSenderId));
-    if (searchTimeRange) {
-      const [startAt, endAt] = formatDateTimeRangeValuesForApi(searchTimeRange, '');
-      qs.set('startAt', startAt);
-      qs.set('endAt', endAt);
-    }
-    qs.set('page', String(targetPage));
-    qs.set('pageSize', '20');
+    const [startAt, endAt] = formatDateTimeRangeValuesForApi(searchTimeRange);
 
     setSearchLoading(true);
-    const res = await request.get<ChatMessageSearchResult>(
-      `/api/chat/conversations/${activeConvId}/messages/search?${qs.toString()}`,
-      { silent: true },
-    );
+    const result = await api(chatContract.searchMessages, {
+      params: { id: activeConvId },
+      query: {
+        keyword: msgSearch.trim() || undefined,
+        types: searchTypeFilters.length > 0 ? searchTypeFilters.join(',') : undefined,
+        senderId: searchSenderId || undefined,
+        startAt,
+        endAt,
+        page: targetPage,
+        pageSize: 20,
+      },
+    }, { silent: true }).catch(() => null);
     setSearchLoading(false);
 
-    if (res.code === 0 && res.data) {
+    if (result) {
       setShowSearchPanel(true);
       setShowMembers(false);
       setSearchHasSearched(true);
       setSearchPage(targetPage);
-      setSearchResults(targetPage === 1 ? res.data.list : [...searchResults, ...res.data.list]);
-      setSearchTotal(res.data.total);
+      setSearchResults(targetPage === 1 ? result.list : [...searchResults, ...result.list]);
+      setSearchTotal(result.total);
       return;
     }
 
@@ -158,19 +157,21 @@ export function useConversationSearch({
 
   const jumpToSearchResult = useCallback(async (item: ChatMessageSearchItem) => {
     if (!activeConvId) return;
-    const res = await request.get<ChatMessageContext>(
-      `/api/chat/conversations/${activeConvId}/messages/${item.message.id}/context?before=15&after=15`,
-      { silent: true },
-    );
-    if (res.code !== 0 || !res.data) {
-      Toast.error(res.message ?? '定位消息失败');
+    let context: ChatMessageContext;
+    try {
+      context = await api(chatContract.messageContext, {
+        params: { id: activeConvId, messageId: item.message.id },
+        query: { before: 15, after: 15 },
+      }, { silent: true });
+    } catch (err) {
+      Toast.error(err instanceof Error && err.message ? err.message : '定位消息失败');
       return;
     }
-    setMessages(res.data.list);
-    setHasMore(res.data.hasBefore);
-    setOldestMsgId(res.data.list[0]?.id ?? null);
-    setContextMode({ anchorMessageId: res.data.anchorMessageId, keyword: msgSearch.trim() || item.snippet });
-    setTimeout(() => scrollToMessage(res.data.anchorMessageId), 80);
+    setMessages(context.list);
+    setHasMore(context.hasBefore);
+    setOldestMsgId(context.list[0]?.id ?? null);
+    setContextMode({ anchorMessageId: context.anchorMessageId, keyword: msgSearch.trim() || item.snippet });
+    setTimeout(() => scrollToMessage(context.anchorMessageId), 80);
   }, [activeConvId, msgSearch, scrollToMessage]);
 
   return { resetSearchFilters, applyDatePreset, senderOptions, executeSearch, jumpToSearchResult };

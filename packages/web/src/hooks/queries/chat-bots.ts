@@ -1,63 +1,57 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ChatConversation, ChatWebhook } from '@zenith/shared/chat';
-import type { PaginatedResponse } from '@zenith/shared/core';
-import { toQueryString, unwrap } from '@/lib/query';
-import { request } from '@/utils/request';
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { chatBotContract, chatContract } from '@zenith/shared/chat';
+import { resourceKeyOf, type BodyOf, type QueryOf } from '@zenith/shared/core';
+import { api, contractKey, useApiMutation, useApiQuery } from '@/lib/contract-query';
 
-export interface ChatBotListParams {
-  page: number;
-  pageSize: number;
-  keyword?: string;
-}
+export type ChatBotListParams = QueryOf<typeof chatBotContract.list>;
+
+/** 新增与编辑共用同一表单：必填字段由表单 rules 保证，服务端 schema 兜底校验 */
+export type SaveChatBotValues = Partial<BodyOf<typeof chatBotContract.create>>;
+
+const CHAT_BOT_KEY = resourceKeyOf(chatBotContract.basePath);
 
 export const chatBotKeys = {
-  all: ['chat-bots'] as const,
-  lists: ['chat-bots', 'list'] as const,
-  list: (params: ChatBotListParams) => ['chat-bots', 'list', params] as const,
-  groupConversations: ['chat-bots', 'group-conversations'] as const,
+  all: [CHAT_BOT_KEY] as const,
+  lists: contractKey(chatBotContract.list),
+  list: (params: ChatBotListParams) => contractKey(chatBotContract.list, { query: params }),
+  /** 机器人表单的目标会话下拉源：从会话列表中筛出群聊 */
+  groupConversations: [CHAT_BOT_KEY, 'group-conversations'] as const,
 };
 
+/** 列表行即完整实体（令牌已脱敏），任何写操作后整体失效即可 */
+function invalidateChatBots(qc: QueryClient) {
+  void qc.invalidateQueries({ queryKey: chatBotKeys.all });
+}
+
 export function useChatBotList(params: ChatBotListParams) {
-  return useQuery({
-    queryKey: chatBotKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<ChatWebhook>>(`/api/chat-bots${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
+  return useApiQuery(chatBotContract.list, { query: params }, { placeholderData: keepPreviousData });
 }
 
 export function useChatBotGroupConversations(enabled = true) {
   return useQuery({
     queryKey: chatBotKeys.groupConversations,
-    queryFn: () => request.get<ChatConversation[]>('/api/chat/conversations').then(unwrap),
+    queryFn: () => api(chatContract.conversations),
     select: (items) => items.filter((item) => item.type === 'group'),
     enabled,
   });
 }
 
+/** 无 id 走创建（POST），有 id 走更新（PATCH） */
 export function useSaveChatBot() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
+    mutationFn: ({ id, values }: { id?: number; values: SaveChatBotValues }) =>
       (id === undefined
-        ? request.post<ChatWebhook>('/api/chat-bots', values)
-        : request.patch<ChatWebhook>(`/api/chat-bots/${id}`, values)
-      ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: chatBotKeys.all }),
+        ? api(chatBotContract.create, { body: values as BodyOf<typeof chatBotContract.create> })
+        : api(chatBotContract.update, { params: { id }, body: values })),
+    onSuccess: () => invalidateChatBots(qc),
   });
 }
 
 export function useRegenerateChatBotToken() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.post<ChatWebhook>(`/api/chat-bots/${id}/regenerate-token`, {}).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: chatBotKeys.all }),
-  });
+  return useApiMutation(chatBotContract.regenerateToken, { invalidate: invalidateChatBots });
 }
 
 export function useDeleteChatBot() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/chat-bots/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: chatBotKeys.all }),
-  });
+  return useApiMutation(chatBotContract.remove, { invalidate: invalidateChatBots });
 }

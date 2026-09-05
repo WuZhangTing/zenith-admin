@@ -9,7 +9,8 @@ import { Button, Form, Modal, Space, Tag, Toast, Typography } from '@douyinfe/se
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Send } from 'lucide-react';
 import dayjs from 'dayjs';
-import type { BizLeave } from '@zenith/shared/biz';
+import { BIZ_LEAVE_TYPES, type BizLeave, type CreateBizLeaveInput } from '@zenith/shared/biz';
+import { enumValueOf } from '@zenith/shared/core';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -19,7 +20,6 @@ import { formatDateForApi } from '@/utils/date';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import {
   bizLeaveKeys,
-  type SaveBizLeavePayload,
   useBizLeaveList,
   useDeleteBizLeave,
   useReopenBizLeave,
@@ -77,7 +77,7 @@ export default function LeavePage() {
   const reopenMutation = useReopenBizLeave();
   const saving = saveMutation.isPending;
   const submittingApproval = saveForApprovalMutation.isPending || submitApprovalMutation.isPending;
-  const modal = useEditModal<BizLeave, Record<string, unknown>, SaveBizLeavePayload>({
+  const modal = useEditModal<BizLeave, Record<string, unknown>, Partial<CreateBizLeaveInput>>({
     save: saveMutation,
     defaults: {},
     toValues: (record) => ({
@@ -97,11 +97,13 @@ export default function LeavePage() {
   const openCreate = modal.openCreate;
   const openEdit = modal.openEdit;
 
-  const payloadFromValues = (values: Record<string, unknown>) => {
+  const payloadFromValues = (values: Record<string, unknown>): CreateBizLeaveInput | null => {
+    const leaveType = enumValueOf(BIZ_LEAVE_TYPES, values.leaveType);
+    if (!leaveType) { Toast.error('请选择请假类型'); return null; }
     const range = values.dateRange as [Date, Date] | undefined;
     if (!range || range.length !== 2) { Toast.error('请选择请假日期'); return null; }
     return {
-      leaveType: String(values.leaveType ?? ''),
+      leaveType,
       startDate: formatDateForApi(range[0]),
       endDate: formatDateForApi(range[1]),
       days: Number(values.days),
@@ -121,7 +123,7 @@ export default function LeavePage() {
     mutation: typeof saveMutation,
   ) => {
     if (!payload) return null;
-    return mutation.mutateAsync({ id: modal.editing?.id, values: payload as SaveBizLeavePayload });
+    return mutation.mutateAsync({ id: modal.editing?.id, values: payload });
   };
 
   const handleSubmit = async () => {
@@ -136,7 +138,7 @@ export default function LeavePage() {
     if (!payload) return;
     const saved = await saveLeave(payload, saveForApprovalMutation);
     if (!saved) return;
-    await submitApprovalMutation.mutateAsync(saved.id);
+    await submitApprovalMutation.mutateAsync({ params: { id: saved.id } });
     Toast.success('已提交审批');
     modal.close();
   };
@@ -147,13 +149,13 @@ export default function LeavePage() {
   };
 
   const handleSubmitApproval = async (id: number) => {
-    await submitFromListMutation.mutateAsync(id);
+    await submitFromListMutation.mutateAsync({ params: { id } });
     Toast.success('已提交审批');
   };
 
   /** 驳回/取消后重新编辑：转回草稿并打开编辑弹窗，修改后再次提交将发起新流程 */
   const handleReopen = async (record: BizLeave) => {
-    const fresh = await reopenMutation.mutateAsync(record.id);
+    const fresh = await reopenMutation.mutateAsync({ params: { id: record.id } });
     Toast.success('已转为草稿，编辑后可重新提交审批');
     openEdit(fresh);
   };

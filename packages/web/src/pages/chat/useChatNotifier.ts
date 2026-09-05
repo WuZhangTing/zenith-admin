@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import type { ChatConversation } from '@zenith/shared/chat';
+import { chatContract } from '@zenith/shared/chat';
 import type { WsMessage } from '@zenith/shared/platform';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { request } from '@/utils/request';
+import { api } from '@/lib/contract-query';
 import { getChatNotifyPrefs } from '@/pages/chat/notifyPrefs';
 import { getMessageSummary } from '@/pages/chat/utils';
 
@@ -48,9 +48,9 @@ export function useChatNotifier(currentUserId: number | null) {
   locationRef.current = location.pathname;
 
   const refreshMuted = useCallback(async () => {
-    const res = await request.get<ChatConversation[]>('/api/chat/conversations', { silent: true });
-    if (res.code === 0 && res.data) {
-      mutedRef.current = new Set(res.data.filter((c) => c.isMuted).map((c) => c.id));
+    const list = await api(chatContract.conversations, { silent: true }).catch(() => null);
+    if (list) {
+      mutedRef.current = new Set(list.filter((c) => c.isMuted).map((c) => c.id));
     }
   }, []);
 

@@ -92,7 +92,7 @@ describe('群成员单一数据源', () => {
       { id: 3, nickname: '查理', role: 'member' } as ChatGroupMember,
     ]);
 
-    await result.current.addMember.mutateAsync({ conversationId: 10, userId: 3 });
+    await result.current.addMember.mutateAsync({ params: { id: 10 }, body: { userId: 3 } });
     await waitFor(() => expect(fetches.countOf(chatKeys.groupMembers(10))).toBe(1));
     await waitFor(() => expect(result.current.page.data).toHaveLength(3));
 
@@ -115,7 +115,7 @@ describe('群成员单一数据源', () => {
     expect(isOwner(result.current.page.data, 1)).toBe(true);
 
     api.on('GET', '/api/chat/conversations/10/members', OWNER_BOB);
-    await result.current.transfer.mutateAsync({ conversationId: 10, newOwnerId: 2 });
+    await result.current.transfer.mutateAsync({ params: { id: 10 }, body: { newOwnerId: 2 } });
 
     await waitFor(() => expect(isOwner(result.current.page.data, 2)).toBe(true));
     // 转让后原群主不应仍被判定为群主（此前页面副本不刷新，会继续放行群主操作）
@@ -158,8 +158,8 @@ describe('成员类 mutation 不再牵动同根静态 lookup', () => {
     const fetches = observeFetches(qc);
     api.resetCalls();
 
-    await result.current.addMember.mutateAsync({ conversationId: 10, userId: 3 });
-    await result.current.setRole.mutateAsync({ conversationId: 10, userId: 2, role: 'admin' });
+    await result.current.addMember.mutateAsync({ params: { id: 10 }, body: { userId: 3 } });
+    await result.current.setRole.mutateAsync({ params: { id: 10, userId: 2 }, body: { role: 'admin' } });
     await waitFor(() => expect(fetches.countOf(chatKeys.groupMembers(10))).toBe(2));
 
     expect(api.countOf('GET', '/api/chat/quick-replies')).toBe(0);
@@ -184,7 +184,7 @@ describe('会话级 key 与成员 key 解耦', () => {  it('refreshing conversat
     api.resetCalls();
 
     // 改群名/公告只是会话字段；此前成员 key 嵌在 conversations 之下，会被前缀连坐
-    await result.current.updateInfo.mutateAsync({ conversationId: 10, values: { name: '新群名' } });
+    await result.current.updateInfo.mutateAsync({ params: { id: 10 }, body: { name: '新群名' } });
 
     expect(fetches.countOf(chatKeys.groupMembers(10))).toBe(0);
     expect(api.countOf('GET', '/api/chat/conversations/10/members')).toBe(0);
@@ -216,7 +216,7 @@ describe('群公告历史迁入 Query（S11）', () => {
     const fetches = observeFetches(qc);
     api.on('GET', '/api/chat/conversations/10/announcement-history', []);
 
-    await result.current.remove.mutateAsync({ conversationId: 10, messageId: 100 });
+    await result.current.remove.mutateAsync({ params: { id: 10, messageId: 100 } });
     await waitFor(() => expect(result.current.history.data).toHaveLength(0));
 
     // 删除后由 mutation 失效重拉，页面不再手工维护数组

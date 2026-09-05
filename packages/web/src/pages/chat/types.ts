@@ -2,6 +2,8 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { ChatConversation, ChatMessage } from '@zenith/shared/chat';
 import type { Channel } from '@zenith/shared/messaging';
 
+export type { ChatUser } from '@zenith/shared/chat';
+
 /** React state setter 简写：拆分出的子组件 / hook 与主组件共享同名 setter */
 export type Setter<T> = Dispatch<SetStateAction<T>>;
 
@@ -22,12 +24,6 @@ export type TypingUsersMap = Record<number, { nickname: string; timer: ReturnTyp
 /** 群头像九宫格成员缓存表（key 为会话 id） */
 export type GroupAvatarMap = Record<number, Array<{ id: number; nickname: string; avatar?: string | null }>>;
 
-export interface ChatUser {
-  id: number;
-  nickname: string;
-  username: string;
-  avatar?: string | null;
-}
 
 export interface PendingImage {
   id: string;

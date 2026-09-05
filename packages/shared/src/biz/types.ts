@@ -1,31 +1,4 @@
 import type { PaymentMethod } from '../payment/constants';
-import type { WorkflowInstanceStatus } from '../workflow/types';
-
-// ─── 业务接入示例：请假（业务模块自有实体，通过 businessKey 关联工作流）────────────
-export type BizLeaveStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'cancelled';
-
-export interface BizLeave {
-  id: number;
-  /** 请假类型：annual=年假, sick=病假, personal=事假, marriage=婚假, other=其他 */
-  leaveType: string;
-  /** 开始日期 YYYY-MM-DD */
-  startDate: string;
-  /** 结束日期 YYYY-MM-DD */
-  endDate: string;
-  days: number;
-  reason: string | null;
-  status: BizLeaveStatus;
-  /** 关联的工作流实例 ID（提交审批后回填） */
-  workflowInstanceId: number | null;
-  /** 冗余的工作流状态，便于列表展示 */
-  workflowStatus: WorkflowInstanceStatus | null;
-  /** 申请人（= createdBy） */
-  applicantId: number | null;
-  applicantName?: string | null;
-  tenantId: number | null;
-  createdAt: string;
-  updatedAt: string;
-}
 
 // ─── 业务接入示例：支付接入（演示业务模块如何对接支付中心）─────────────────────
 export type BizPayDemoStatus = 'pending' | 'paying' | 'paid' | 'closed';

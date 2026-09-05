@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import { request } from '@/utils/request';
+import { chatContract } from '@zenith/shared/chat';
 import type { ChatConversation, ChatGroupMember } from '@zenith/shared/chat';
+import { api } from '@/lib/contract-query';
 import type { GroupAvatarMap, Setter } from '../types';
 
 /** 群聊九宫格头像成员缓存补齐（自 ChatPage 原样搬移） */
@@ -20,8 +21,8 @@ export function useGroupAvatars({
     let cancelled = false;
     void Promise.all(
       missingIds.map(async (id) => {
-        const res = await request.get<ChatGroupMember[]>(`/api/chat/conversations/${id}/members`, { silent: true });
-        return [id, (res.code === 0 && res.data ? res.data : []).slice(0, 9)] as const;
+        const members = await api(chatContract.groupMembers, { params: { id } }, { silent: true }).catch(() => null);
+        return [id, (members ?? []).slice(0, 9)] as const;
       }),
     ).then((entries) => {
       if (cancelled) return;

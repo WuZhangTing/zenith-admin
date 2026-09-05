@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
-import { request } from '@/utils/request';
+import { chatContract } from '@zenith/shared/chat';
+import { api } from '@/lib/contract-query';
 import { confirmDelete } from '@/utils/confirm';
 import { useChatAnnouncementHistory, useDeleteChatAnnouncementHistory } from '@/hooks/queries/chat';
-import type { ChatConversation, ChatMessage, ChatMessageContext, ChatGroupMember, ChatPresence, ChatReadState } from '@zenith/shared/chat';
+import type { ChatConversation, ChatMessage, ChatMessageContext, ChatGroupMember, ChatReadState } from '@zenith/shared/chat';
 import type { MessageReadReceipt, Setter } from '../types';
 
 const EMPTY_ANNOUNCEMENT_HISTORY: ChatMessage[] = [];
@@ -39,14 +40,14 @@ export function useConversationExtras({
   useEffect(() => { activeConvIdRef.current = activeConvId; }, [activeConvId]);
 
   const fetchPinnedMessages = useCallback(async (convId: number) => {
-    const res = await request.get<ChatMessage[]>(`/api/chat/conversations/${convId}/pinned-messages`, { silent: true });
+    const list = await api(chatContract.pinnedMessages, { params: { id: convId } }, { silent: true }).catch(() => null);
     if (convId !== activeConvIdRef.current) return;
-    if (res.code === 0 && res.data) setPinnedMessages(res.data);
+    if (list) setPinnedMessages(list);
   }, []);
 
   const fetchFavoriteMessages = useCallback(async () => {
-    const res = await request.get<{ list: ChatMessage[] }>(`/api/chat/favorite-messages?page=1&pageSize=100`, { silent: true });
-    if (res.code === 0 && res.data) setFavoriteMessages(res.data.list);
+    const page = await api(chatContract.globalFavoriteMessages, { query: { page: 1, pageSize: 100 } }, { silent: true }).catch(() => null);
+    if (page) setFavoriteMessages(page.list);
   }, []);
 
   // 群公告历史是抽屉打开时才需要的非实时数据，交给 Query 持有：
@@ -69,28 +70,30 @@ export function useConversationExtras({
       title: '删除公告历史',
       content: '确定要删除该条公告历史记录吗？此操作不可恢复。',
       onOk: async () => {
-        await deleteAnnouncementHistoryMutation.mutateAsync({ conversationId: activeConvId, messageId });
+        await deleteAnnouncementHistoryMutation.mutateAsync({ params: { id: activeConvId, messageId } });
         Toast.success('已删除');
       },
     });
   }, [activeConvId, deleteAnnouncementHistoryMutation]);
 
   const openFavoriteMessage = useCallback(async (message: ChatMessage) => {
-    const res = await request.get<ChatMessageContext>(
-      `/api/chat/conversations/${message.conversationId}/messages/${message.id}/context?before=15&after=15`,
-      { silent: true },
-    );
-    if (res.code !== 0 || !res.data) {
-      Toast.error(res.message ?? '定位收藏消息失败');
+    let context: ChatMessageContext;
+    try {
+      context = await api(chatContract.messageContext, {
+        params: { id: message.conversationId, messageId: message.id },
+        query: { before: 15, after: 15 },
+      }, { silent: true });
+    } catch (err) {
+      Toast.error(err instanceof Error && err.message ? err.message : '定位收藏消息失败');
       return;
     }
     setLeftPaneMode('conversations');
     setActiveConvId(message.conversationId);
-    setMessages(res.data.list);
-    setHasMore(res.data.hasBefore);
-    setOldestMsgId(res.data.list[0]?.id ?? null);
-    setContextMode({ anchorMessageId: res.data.anchorMessageId, keyword: '收藏消息' });
-    const anchorMessageId = res.data.anchorMessageId;
+    setMessages(context.list);
+    setHasMore(context.hasBefore);
+    setOldestMsgId(context.list[0]?.id ?? null);
+    setContextMode({ anchorMessageId: context.anchorMessageId, keyword: '收藏消息' });
+    const anchorMessageId = context.anchorMessageId;
     setTimeout(() => {
       const el = document.getElementById(`msg-${anchorMessageId}`);
       if (!el) return;
@@ -102,19 +105,19 @@ export function useConversationExtras({
   }, []);
 
   const fetchReadStates = useCallback(async (convId: number) => {
-    const res = await request.get<ChatReadState[]>(`/api/chat/conversations/${convId}/read-states`, { silent: true });
+    const states = await api(chatContract.readStates, { params: { id: convId } }, { silent: true }).catch(() => null);
     if (convId !== activeConvIdRef.current) return;
-    if (res.code === 0 && res.data) setReadStates(res.data);
+    if (states) setReadStates(states);
   }, []);
 
   const fetchPresence = useCallback(async (userIds: number[]) => {
     const ids = [...new Set(userIds)].filter((id) => id > 0);
     if (ids.length === 0) return;
-    const res = await request.get<ChatPresence[]>(`/api/chat/presence?userIds=${ids.join(',')}`, { silent: true });
-    if (res.code !== 0 || !res.data) return;
+    const presence = await api(chatContract.presence, { query: { userIds: ids.join(',') } }, { silent: true }).catch(() => null);
+    if (!presence) return;
     setOnlineUserIds((prev) => {
       const next = new Set(prev);
-      for (const p of res.data!) {
+      for (const p of presence) {
         if (p.online) next.add(p.userId);
         else next.delete(p.userId);
       }
@@ -122,7 +125,7 @@ export function useConversationExtras({
     });
     setLastSeenMap((prev) => {
       const next = { ...prev };
-      for (const p of res.data!) next[p.userId] = p.lastSeen;
+      for (const p of presence) next[p.userId] = p.lastSeen;
       return next;
     });
   }, []);

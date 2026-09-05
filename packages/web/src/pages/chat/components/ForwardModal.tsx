@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Input, Toast, Typography, List as SemiList } from '@douyinfe/semi-ui';
 import AppModal from '@/components/AppModal';
 import { Search, CheckSquare, Square } from 'lucide-react';
-import { request } from '@/utils/request';
+import { chatContract } from '@zenith/shared/chat';
+import { api } from '@/lib/contract-query';
 import { UserAvatar } from '@/components/UserAvatar';
 import { useChatUsers } from '@/hooks/queries/chat';
 import { useDebouncedValue } from '@tanstack/react-pacer';
@@ -65,9 +66,9 @@ export function ForwardModal({
       // 尚无会话的用户先建单聊会话，再合并入目标会话列表
       const createdIds: number[] = [];
       for (const user of selectedUsers) {
-        const res = await request.post<ChatConversation>('/api/chat/conversations/direct', { targetUserId: user.id });
-        if (res.code !== 0 || !res.data) { Toast.error(`无法与 ${user.nickname} 建立会话`); return; }
-        createdIds.push(res.data.id);
+        const conv = await api(chatContract.createDirect, { body: { targetUserId: user.id } }).catch(() => null);
+        if (!conv) { Toast.error(`无法与 ${user.nickname} 建立会话`); return; }
+        createdIds.push(conv.id);
       }
       onConfirm([...selected, ...createdIds]);
       setSelected([]);

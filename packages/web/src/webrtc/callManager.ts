@@ -10,8 +10,9 @@
  * ChatPage 直接调用导出的动作方法。信令入站由 CallOverlayHost 通过 useWebSocket 注入。
  */
 import { sendWsMessage } from '@/hooks/useWebSocket';
-import { request } from '@/utils/request';
-import type { RtcPeerInfo, RtcCallType, RtcInvitePayload, RtcConfig, RtcIceCandidateInit } from '@zenith/shared/chat';
+import { api } from '@/lib/contract-query';
+import { chatContract } from '@zenith/shared/chat';
+import type { RtcPeerInfo, RtcCallType, RtcInvitePayload, RtcIceCandidateInit } from '@zenith/shared/chat';
 import type { WsMessage } from '@zenith/shared/platform';
 
 export type CallPhase = 'idle' | 'outgoing' | 'incoming' | 'connected';
@@ -99,8 +100,8 @@ class CallManager {
   private async getIce(): Promise<RTCIceServer[]> {
     if (this.iceServers) return this.iceServers;
     try {
-      const res = await request.get<RtcConfig>('/api/chat/rtc/config', { silent: true });
-      this.iceServers = res.code === 0 && res.data ? (res.data.iceServers as RTCIceServer[]) : [];
+      const config = await api(chatContract.rtcConfig, { silent: true }).catch(() => null);
+      this.iceServers = config ? (config.iceServers as RTCIceServer[]) : [];
     } catch {
       this.iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
     }
@@ -455,8 +456,9 @@ class CallManager {
     if (s.mode !== 'p2p' || s.conversationId == null) return;
     const durationSec = s.startedAt ? Math.round((Date.now() - s.startedAt) / 1000) : 0;
     try {
-      await request.post(`/api/chat/conversations/${s.conversationId}/call-record`, {
-        callType: s.callType, mode: s.mode, status, durationSec,
+      await api(chatContract.postCallRecord, {
+        params: { id: s.conversationId },
+        body: { callType: s.callType, mode: s.mode, status, durationSec },
       }, { silent: true });
     } catch { /* ignore */ }
   }

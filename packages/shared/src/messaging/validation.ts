@@ -1,5 +1,4 @@
 import * as z from 'zod';
-import { chatMessageExtraSchema } from '../chat/validation';
 import { dateTimeStringSchema, optionalLinkUrl, partialForUpdate } from '../core/validation';
 import { MP_CUSTOM_MSG_TYPES } from '../mp/constants';
 import { NOTIFICATION_CHANNELS, NOTIFICATION_DIGEST_MODES, PUSH_PROVIDERS, BROADCAST_AUDIENCE_TYPES, BROADCAST_CHANNELS } from './constants';
@@ -169,15 +168,6 @@ export const sendInAppSchema = z.object({
 });
 
 export type SendInAppInput = z.infer<typeof sendInAppSchema>;
-
-export const sendChatMessageSchema = z.object({
-  content: z.string().min(1, '消息不能为空').max(4096),
-  type: z.enum(['text', 'image', 'file', 'forward', 'vote', 'voice', 'video']).default('text'),
-  replyToId: z.number().int().positive().nullable().optional(),
-  extra: chatMessageExtraSchema.nullable().optional(),
-});
-
-export type SendChatMessageInput = z.infer<typeof sendChatMessageSchema>;
 
 // ─── Channel（站内公众号）管理 ────────────────────────────────────────────────
 export const createChannelSchema = z.object({

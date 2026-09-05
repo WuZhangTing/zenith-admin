@@ -3,12 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { FloatButton, Spin } from '@douyinfe/semi-ui';
 import { MessageCircle, X } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import type { ChatConversation } from '@zenith/shared/chat';
+import { chatContract } from '@zenith/shared/chat';
 import type { WsMessage } from '@zenith/shared/platform';
 import { useAuth } from '@/hooks/useAuth';
 import { useWebSocket, useWsConnected } from '@/hooks/useWebSocket';
-import { request } from '@/utils/request';
-import { unwrap } from '@/lib/query';
+import { api } from '@/lib/contract-query';
 import './QuickChatButton.css';
 
 const QuickChatPanel = lazy(() => import('@/pages/chat/ChatPage'));
@@ -31,7 +30,7 @@ export default function QuickChatButton({ onHide }: Readonly<{ onHide?: () => vo
   const wsDisconnectedSinceReadyRef = useRef(false);
   const { data: unreadConversations, refetch: refetchUnreadCount } = useQuery({
     queryKey: ['chat', 'quick-unread-conversations'],
-    queryFn: () => request.get<ChatConversation[]>('/api/chat/conversations', { silent: true }).then(unwrap),
+    queryFn: () => api(chatContract.conversations, { silent: true }),
     enabled: !location.pathname.startsWith('/chat'),
   });
 

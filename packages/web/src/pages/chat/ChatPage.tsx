@@ -8,7 +8,8 @@ import { Virtuoso, type VirtuosoHandle, type Components } from 'react-virtuoso';
 import { Search, MessageSquarePlus, Send, CornerDownLeft, Smile, ImagePlus, MoreHorizontal, X, Paperclip, Bookmark, History, Images, ArrowLeft, ExternalLink, BarChart3, Download, Mic, Phone, Video, Compass, BadgeCheck } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
-import { request } from '@/utils/request';
+import { chatContract } from '@zenith/shared/chat';
+import { api } from '@/lib/contract-query';
 import { fetchManagedFileBlob, canPreviewFile, isSpreadsheetFile, resolveFileMimeType } from '@/utils/file-utils';
 import FilePreviewModal from '@/components/FilePreviewModal';
 import type { ChatConversation, ChatMessage, ChatMessageExtra, ChatGroupMember, ChatMessageSearchItem, ChatMessageContext, ChatReadState } from '@zenith/shared/chat';
@@ -203,7 +204,7 @@ export default function ChatPage({
   const [leftPaneMode, setLeftPaneMode] = useState<'conversations' | 'favorites' | 'globalSearch'>('conversations');
   const [globalSearchKeyword, setGlobalSearchKeyword] = useState('');
   const [globalSearchLoading, setGlobalSearchLoading] = useState(false);
-  const [globalSearchResults, setGlobalSearchResults] = useState<import('@zenith/shared').ChatMessageSearchItem[]>([]);
+  const [globalSearchResults, setGlobalSearchResults] = useState<ChatMessageSearchItem[]>([]);
   const [globalSearchTotal, setGlobalSearchTotal] = useState(0);
   const [globalSearchPage, setGlobalSearchPage] = useState(1);
   const [globalSearchHasSearched, setGlobalSearchHasSearched] = useState(false);
@@ -591,13 +592,13 @@ export default function ChatPage({
   });
 
   /** 打开全局搜索结果：拉取上下文并跳转（原全局搜索列表 onClick 内联逻辑原样搬出） */
-  const onOpenSearchResult = async (item: import('@zenith/shared').ChatMessageSearchItem) => {
-    const res = await request.get<ChatMessageContext>(
-      `/api/chat/conversations/${item.message.conversationId}/messages/${item.message.id}/context?before=15&after=15`,
-      { silent: true },
-    );
-    if (res.code !== 0 || !res.data) {
-      import('@douyinfe/semi-ui').then(({ Toast }) => Toast.error('定位消息失败'));
+  const onOpenSearchResult = async (item: ChatMessageSearchItem) => {
+    const context: ChatMessageContext | null = await api(chatContract.messageContext, {
+      params: { id: item.message.conversationId, messageId: item.message.id },
+      query: { before: 15, after: 15 },
+    }, { silent: true }).catch(() => null);
+    if (!context) {
+      Toast.error('定位消息失败');
       return;
     }
     const targetConv = conversations.find((c) => c.id === item.message.conversationId);
@@ -608,11 +609,11 @@ export default function ChatPage({
     setActiveConvId(item.message.conversationId);
     onConvChange?.(item.message.conversationId);
     setLeftPaneMode('conversations');
-    setMessages(res.data.list);
-    setHasMore(res.data.hasBefore);
-    setOldestMsgId(res.data.list[0]?.id ?? null);
-    setContextMode({ anchorMessageId: res.data.anchorMessageId, keyword: globalSearchKeyword.trim() });
-    setTimeout(() => scrollToMessage(res.data.anchorMessageId), 80);
+    setMessages(context.list);
+    setHasMore(context.hasBefore);
+    setOldestMsgId(context.list[0]?.id ?? null);
+    setContextMode({ anchorMessageId: context.anchorMessageId, keyword: globalSearchKeyword.trim() });
+    setTimeout(() => scrollToMessage(context.anchorMessageId), 80);
   };
 
   // 频道列表本地过滤：按名称包含匹配，不调接口
@@ -1128,7 +1129,7 @@ export default function ChatPage({
                       virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' });
                       setPendingNewMsgCount(0);
                       if (activeConvId) {
-                        void request.post(`/api/chat/conversations/${activeConvId}/read`, {}, { silent: true });
+                        void api(chatContract.markRead, { params: { id: activeConvId } }, { silent: true }).catch(() => undefined);
                         setConversations(markConversationReadById(activeConvId));
                       }
                     }}

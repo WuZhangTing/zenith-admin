@@ -1,8 +1,9 @@
 import { useCallback } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import type { VirtuosoHandle } from 'react-virtuoso';
-import { request } from '@/utils/request';
-import type { ChatConversation, ChatLinkPreview, ChatMessage, ChatMessageContext, ChatGroupMember } from '@zenith/shared/chat';
+import { chatContract } from '@zenith/shared/chat';
+import type { ChatConversation, ChatLinkPreview, ChatMessage, ChatMessageContext, ChatMessageExtra, ChatGroupMember, SendChatMessageInput } from '@zenith/shared/chat';
+import { api } from '@/lib/contract-query';
 import { extractFirstUrl } from '../utils';
 import { VIRTUOSO_FIRST_INDEX_BUFFER, makeProgressHandler, removeUploadingItemById } from '../utils-state';
 import type { FailedMessage, PendingFile, PendingImage, Setter, UploadingItem } from '../types';
@@ -74,22 +75,22 @@ export function useComposerActions({
     // ─── 1. 文字消息（快速，短暂 loading 发送按钮）──────────────────────────
     if (content) {
       setSending(true);
-      const body: Record<string, unknown> = { content, type: 'text' };
+      const body: SendChatMessageInput = { content, type: 'text' };
       if (replyTo) body.replyToId = replyTo.id;
       const mentions = selectedMentions.filter((item) => content.includes(`@${item.nickname}`));
-      const extra: Record<string, unknown> = mentions.length > 0 ? { mentions } : {};
+      const extra: ChatMessageExtra = mentions.length > 0 ? { mentions } : {};
       const firstUrl = extractFirstUrl(content);
       if (firstUrl) {
         const preview = await fetchLinkPreview(firstUrl);
         if (preview) extra.linkPreview = preview;
       }
       if (Object.keys(extra).length > 0) body.extra = extra;
-      const res = await request.post<ChatMessage>(`/api/chat/conversations/${activeConvId}/messages`, body);
-      if (res.code !== 0) {
+      const sent = await api(chatContract.sendMessage, { params: { id: activeConvId }, body }).catch(() => null);
+      if (sent) {
+        appendMessageOnce(sent);
+      } else {
         const failId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
         setFailedMessages((prev) => [...prev, { id: failId, convId: activeConvId, content }]);
-      } else if (res.data) {
-        appendMessageOnce(res.data);
       }
       setSending(false);
     }
@@ -220,22 +221,24 @@ export function useComposerActions({
     }
     // 消息不在当前加载范围内，调用 context 接口加载后再定位
     if (!activeConvId) return;
-    const res = await request.get<ChatMessageContext>(
-      `/api/chat/conversations/${activeConvId}/messages/${id}/context?before=15&after=15`,
-      { silent: true },
-    );
-    if (res.code !== 0 || !res.data) {
-      Toast.error(res.message ?? '定位消息失败');
+    let context: ChatMessageContext;
+    try {
+      context = await api(chatContract.messageContext, {
+        params: { id: activeConvId, messageId: id },
+        query: { before: 15, after: 15 },
+      }, { silent: true });
+    } catch (err) {
+      Toast.error(err instanceof Error && err.message ? err.message : '定位消息失败');
       return;
     }
-    setMessages(res.data.list);
-    setHasMore(res.data.hasBefore);
-    setOldestMsgId(res.data.list[0]?.id ?? null);
+    setMessages(context.list);
+    setHasMore(context.hasBefore);
+    setOldestMsgId(context.list[0]?.id ?? null);
     setFirstItemIndex(VIRTUOSO_FIRST_INDEX_BUFFER);
-    const anchorId = res.data.anchorMessageId;
+    const anchorId = context.anchorMessageId;
     setContextMode({ anchorMessageId: anchorId, keyword: '' });
     setTimeout(() => {
-      const anchorIdx = res.data?.list.findIndex((m) => m.id === anchorId) ?? -1;
+      const anchorIdx = context.list.findIndex((m) => m.id === anchorId);
       if (anchorIdx !== -1) {
         virtuosoRef.current?.scrollToIndex({
           index: VIRTUOSO_FIRST_INDEX_BUFFER + anchorIdx,

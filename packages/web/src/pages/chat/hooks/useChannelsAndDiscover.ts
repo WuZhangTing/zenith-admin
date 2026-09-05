@@ -1,5 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
+import { chatContract } from '@zenith/shared/chat';
+import { api } from '@/lib/contract-query';
 import { request } from '@/utils/request';
 import { confirmDanger } from '@/utils/confirm';
 import { useDiscoverableChannels } from '@/hooks/queries/chat';
@@ -23,9 +25,9 @@ export function useChannelsAndDiscover({
 }) {
   const fetchConversations = useCallback(async () => {
     setLoadingConvs(true);
-    const res = await request.get<ChatConversation[]>('/api/chat/conversations', { silent: true });
+    const list = await api(chatContract.conversations, { silent: true }).catch(() => null);
     setLoadingConvs(false);
-    if (res.code === 0 && res.data) setConversations(res.data);
+    if (list) setConversations(list);
   }, []);
 
   useEffect(() => { void fetchConversations(); }, [fetchConversations]);

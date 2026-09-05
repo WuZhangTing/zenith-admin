@@ -34,9 +34,11 @@ export function StickerPanel({
     }
     try {
       await addMutation.mutateAsync({
-        url: uploaded.url,
-        fileId: uploaded.id,
-        name: uploaded.originalName,
+        body: {
+          url: uploaded.url,
+          fileId: uploaded.id,
+          name: uploaded.originalName,
+        },
       });
     } catch {
       return;
@@ -93,7 +95,7 @@ export function StickerPanel({
             <button
               type="button"
               aria-label="删除表情"
-              onClick={() => { void deleteMutation.mutateAsync(emoji.id).then(() => Toast.success('已删除')).catch(() => undefined); }}
+              onClick={() => { void deleteMutation.mutateAsync({ params: { id: emoji.id } }).then(() => Toast.success('已删除')).catch(() => undefined); }}
               style={{
                 position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%',
                 border: 'none', background: 'var(--semi-color-danger)', color: '#fff', cursor: 'pointer',
