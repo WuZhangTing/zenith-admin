@@ -1,9 +1,10 @@
-import { http } from 'msw';
-import { ok, notFound, pageParams } from '@/mocks/utils/handlers';
-import type { OAuth2Client, OAuth2ClientCreated } from '@zenith/shared/open-platform';
+import { developerAppContract, openGatewayContract } from '@zenith/shared/open-platform';
+import type { OAuth2Client, OAuth2ClientCreated, OpenApiDebugEndpoint } from '@zenith/shared/open-platform';
+import { urlOf } from '@/lib/contract-query';
+import { mock } from '@/mocks/utils/contract';
+import { notFound } from '@/mocks/utils/handlers';
 import { mockDateTime } from '@/mocks/utils/date';
 
-const BASE = '/api/developer-apps';
 let nextId = 102;
 let apps: OAuth2Client[] = [{
   id: 101,
@@ -28,45 +29,49 @@ let apps: OAuth2Client[] = [{
   previousSecretExpiresAt: null,
   status: 'enabled',
   ownerId: 1,
+  tenantId: null,
   createdAt: '2026-07-15 10:00:00',
   updatedAt: '2026-07-15 10:00:00',
 }];
 const secret = () => `oas_mock_${Math.random().toString(36).slice(2)}${Date.now()}`;
 
+/** 端点目录：网关核心端点取自契约，CMS 端点归 cms 域，这里只列演示用的两条 */
+const DEBUG_ENDPOINTS: OpenApiDebugEndpoint[] = [
+  { method: 'GET', path: urlOf(openGatewayContract.ping), summary: openGatewayContract.ping.summary, scope: null },
+  { method: 'GET', path: urlOf(openGatewayContract.echoQuery), summary: openGatewayContract.echoQuery.summary, scope: 'data:read' },
+  { method: 'POST', path: urlOf(openGatewayContract.echoBody), summary: openGatewayContract.echoBody.summary, scope: 'data:write' },
+  { method: 'GET', path: urlOf(openGatewayContract.userinfo), summary: openGatewayContract.userinfo.summary, scope: 'user:read' },
+  { method: 'GET', path: '/api/open/v1/cms/channels', summary: '站点栏目树（启用中）', scope: null },
+  { method: 'GET', path: '/api/open/v1/cms/contents', summary: '已发布内容查询', scope: null },
+];
+
 export const developerAppsHandlers = [
-  http.get(BASE, ({ request }) => {
-    const url = new URL(request.url);
-    const keyword = url.searchParams.get('keyword') ?? '';
-    const environment = url.searchParams.get('environment');
-    const reviewStatus = url.searchParams.get('reviewStatus');
-    const { page, pageSize } = pageParams(url, 20);
+  mock(developerAppContract.list, ({ query, ok, paginate }) => {
     const filtered = apps.filter((app) =>
-      (!keyword || app.name.includes(keyword))
-      && (!environment || app.environment === environment)
-      && (!reviewStatus || app.reviewStatus === reviewStatus),
+      (!query.keyword || app.name.includes(query.keyword))
+      && (!query.environment || app.environment === query.environment)
+      && (!query.reviewStatus || app.reviewStatus === query.reviewStatus),
     );
-    const start = (page - 1) * pageSize;
-    return ok({ list: filtered.slice(start, start + pageSize), total: filtered.length, page, pageSize }, 'success');
+    return ok(paginate(filtered));
   }),
-  http.post(BASE, async ({ request }) => {
-    const body = await request.json() as Partial<OAuth2Client>;
+  mock(developerAppContract.create, ({ body, ok }) => {
     const rawSecret = secret();
     const now = mockDateTime();
     const app: OAuth2Client = {
       id: nextId++,
       clientId: `dev-${Date.now()}`,
       clientSecretPrefix: body.isPublic ? null : `${rawSecret.slice(0, 10)}...`,
-      name: body.name ?? '未命名应用',
+      name: body.name,
       description: body.description ?? null,
-      logoUrl: body.logoUrl ?? null,
-      redirectUris: body.redirectUris ?? [],
-      allowedScopes: body.allowedScopes ?? ['openid'],
-      grantTypes: body.grantTypes ?? ['authorization_code'],
-      isPublic: body.isPublic ?? false,
-      ratePlanId: body.ratePlanId ?? null,
+      logoUrl: body.logoUrl || null,
+      redirectUris: body.redirectUris,
+      allowedScopes: body.allowedScopes,
+      grantTypes: body.grantTypes,
+      isPublic: body.isPublic,
+      ratePlanId: null,
       signEnabled: body.signEnabled ?? false,
-      ipAllowlist: body.ipAllowlist ?? [],
-      environment: body.environment ?? 'sandbox',
+      ipAllowlist: body.ipAllowlist,
+      environment: body.environment,
       reviewStatus: 'draft',
       reviewComment: null,
       submittedAt: null,
@@ -75,6 +80,7 @@ export const developerAppsHandlers = [
       previousSecretExpiresAt: null,
       status: 'enabled',
       ownerId: 1,
+      tenantId: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -82,16 +88,16 @@ export const developerAppsHandlers = [
     const result: OAuth2ClientCreated = { ...app, clientSecret: body.isPublic ? '' : rawSecret };
     return ok(result, '应用已保存为草稿');
   }),
-  http.post(`${BASE}/:id/submit`, ({ params }) => {
-    const app = apps.find((item) => item.id === Number(params.id));
+  mock(developerAppContract.submit, ({ params, ok }) => {
+    const app = apps.find((item) => item.id === params.id);
     if (!app) return notFound('应用不存在', { status: 404 });
     app.reviewStatus = 'pending';
     app.submittedAt = mockDateTime();
     app.updatedAt = mockDateTime();
     return ok(app, '已提交审核');
   }),
-  http.post(`${BASE}/:id/regenerate-secret`, ({ params }) => {
-    const app = apps.find((item) => item.id === Number(params.id));
+  mock(developerAppContract.regenerateSecret, ({ params, ok }) => {
+    const app = apps.find((item) => item.id === params.id);
     if (!app) return notFound('应用不存在', { status: 404 });
     const rawSecret = secret();
     app.clientSecretPrefix = `${rawSecret.slice(0, 10)}...`;
@@ -100,10 +106,10 @@ export const developerAppsHandlers = [
       clientId: app.clientId,
       clientSecret: rawSecret,
       previousValidUntil: app.previousSecretExpiresAt,
-    }, 'success');
+    });
   }),
-  http.get(`${BASE}/:id/quota-usage`, ({ params }) => {
-    const app = apps.find((item) => item.id === Number(params.id));
+  mock(developerAppContract.quotaUsage, ({ params, ok }) => {
+    const app = apps.find((item) => item.id === params.id);
     if (!app) return notFound('应用不存在', { status: 404 });
     const sandbox = app.environment === 'sandbox';
     return ok({
@@ -114,21 +120,12 @@ export const developerAppsHandlers = [
       qps: { used: sandbox ? 0 : 2, limit: sandbox ? 0 : 5, percentage: sandbox ? 0 : 40 },
       daily: { used: sandbox ? 0 : 8120, limit: sandbox ? 0 : 10000, percentage: sandbox ? 0 : 81.2 },
       monthly: { used: sandbox ? 0 : 56000, limit: sandbox ? 0 : 200000, percentage: sandbox ? 0 : 28 },
-    }, 'success');
+    });
   }),
-  // 端点目录（必须注册在 `${BASE}/:id` 之前，否则 `debug` 会被当成 id 匹配）
-  http.get(`${BASE}/debug/endpoints`, () => ok([
-    { method: 'GET', path: '/api/open/v1/ping', summary: '连通性测试', scope: null },
-    { method: 'GET', path: '/api/open/v1/echo', summary: '查询参数回显', scope: 'data:read' },
-    { method: 'POST', path: '/api/open/v1/echo', summary: '请求体回显（验证 body 参与签名）', scope: 'data:write' },
-    { method: 'GET', path: '/api/open/v1/userinfo', summary: '当前调用主体信息', scope: 'user:read' },
-    { method: 'GET', path: '/api/open/v1/cms/channels', summary: '站点栏目树（启用中）', scope: null },
-    { method: 'GET', path: '/api/open/v1/cms/contents', summary: '已发布内容查询', scope: null },
-  ], 'success')),
-  http.post(`${BASE}/:id/debug`, async ({ params, request }) => {
-    const app = apps.find((item) => item.id === Number(params.id));
+  mock(developerAppContract.debugEndpoints, ({ ok }) => ok(DEBUG_ENDPOINTS)),
+  mock(developerAppContract.debug, ({ params, body, ok }) => {
+    const app = apps.find((item) => item.id === params.id);
     if (!app) return notFound('应用不存在', { status: 404 });
-    const body = await request.json() as { method: string; path: string; query?: Record<string, string>; body?: unknown };
     const qs = new URLSearchParams(body.query ?? {}).toString();
     return ok({
       requestUrl: `http://127.0.0.1:3300${body.path}${qs ? `?${qs}` : ''}`,
@@ -144,30 +141,29 @@ export const developerAppsHandlers = [
       responseHeaders: { 'content-type': 'application/json', 'x-zenith-environment': app.environment },
       responseBody: JSON.stringify({ code: 0, message: 'success', data: body.body ?? body.query ?? { pong: true } }),
       durationMs: 23,
-    }, 'success');
+    });
   }),
-  http.get(`${BASE}/:id`, ({ params }) => {
-    const app = apps.find((item) => item.id === Number(params.id));
-    return app ? ok(app, 'success') : notFound('应用不存在', { status: 404 });
+  mock(developerAppContract.detail, ({ params, ok }) => {
+    const app = apps.find((item) => item.id === params.id);
+    return app ? ok(app) : notFound('应用不存在', { status: 404 });
   }),
-  http.put(`${BASE}/:id`, async ({ params, request }) => {
-    const index = apps.findIndex((item) => item.id === Number(params.id));
+  mock(developerAppContract.update, ({ params, body, ok }) => {
+    const index = apps.findIndex((item) => item.id === params.id);
     if (index < 0) return notFound('应用不存在', { status: 404 });
-    const body = await request.json() as Partial<OAuth2Client>;
+    const { logoUrl, ...rest } = body;
     apps[index] = {
       ...apps[index],
-      ...body,
-      id: apps[index].id,
-      clientId: apps[index].clientId,
+      ...rest,
+      ...(logoUrl === undefined ? {} : { logoUrl: logoUrl || null }),
       reviewStatus: 'draft',
       reviewComment: null,
       updatedAt: mockDateTime(),
     };
     return ok(apps[index], '更新成功');
   }),
-  http.delete(`${BASE}/:id`, ({ params }) => {
+  mock(developerAppContract.remove, ({ params, ok }) => {
     const before = apps.length;
-    apps = apps.filter((item) => item.id !== Number(params.id));
+    apps = apps.filter((item) => item.id !== params.id);
     return apps.length < before ? ok(null, '删除成功') : notFound('应用不存在', { status: 404 });
   }),
 ];

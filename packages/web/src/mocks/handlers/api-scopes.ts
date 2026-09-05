@@ -1,43 +1,38 @@
-import { http } from 'msw';
-import { ok, badRequest, notFound, pageParams, nextIdFrom } from '@/mocks/utils/handlers';
+import { apiScopeContract } from '@zenith/shared/open-platform';
 import type { ApiScope } from '@zenith/shared/open-platform';
+import { mock } from '@/mocks/utils/contract';
+import { removeWhere } from '@/mocks/utils/array';
+import { badRequest, notFound, nextIdFrom } from '@/mocks/utils/handlers';
 import { mockApiScopes } from '@/mocks/data/api-scopes';
 import { mockDateTime } from '@/mocks/utils/date';
 
-let scopes: ApiScope[] = mockApiScopes.map((s) => ({ ...s }));
+const scopes: ApiScope[] = mockApiScopes.map((s) => ({ ...s }));
 let nextId = nextIdFrom(scopes);
-const BASE = '/api/api-scopes';
 
 export const apiScopesHandlers = [
-  http.get(`${BASE}/options`, () => ok(scopes.filter((s) => s.status === 'enabled'), 'success')),
+  mock(apiScopeContract.options, ({ ok }) => ok(scopes.filter((s) => s.status === 'enabled'))),
 
-  http.get(BASE, ({ request }) => {
-    const url = new URL(request.url);
-    const keyword = url.searchParams.get('keyword') ?? '';
-    const group = url.searchParams.get('scopeGroup') ?? '';
-    const status = url.searchParams.get('status') ?? '';
-    const { page, pageSize } = pageParams(url);
+  mock(apiScopeContract.list, ({ query, ok, paginate }) => {
     let filtered = scopes;
-    if (keyword) filtered = filtered.filter((s) => s.code.includes(keyword) || s.name.includes(keyword));
-    if (group) filtered = filtered.filter((s) => s.scopeGroup === group);
-    if (status) filtered = filtered.filter((s) => s.status === status);
-    const start = (page - 1) * pageSize;
-    return ok({ list: filtered.slice(start, start + pageSize), total: filtered.length, page, pageSize }, 'success');
+    if (query.keyword) filtered = filtered.filter((s) => s.code.includes(query.keyword!) || s.name.includes(query.keyword!));
+    if (query.scopeGroup) filtered = filtered.filter((s) => s.scopeGroup === query.scopeGroup);
+    if (query.status) filtered = filtered.filter((s) => s.status === query.status);
+    return ok(paginate(filtered));
   }),
 
-  http.post(BASE, async ({ request }) => {
-    const body = (await request.json()) as Partial<ApiScope>;
+  mock(apiScopeContract.create, ({ body, ok }) => {
     if (scopes.some((s) => s.code === body.code)) {
       return badRequest('scope 编码已存在', { status: 400 });
     }
     const now = mockDateTime();
     const created: ApiScope = {
       id: nextId++,
-      code: body.code ?? '',
-      name: body.name ?? '',
+      code: body.code,
+      name: body.name,
       description: body.description ?? null,
-      scopeGroup: body.scopeGroup ?? 'general',
-      status: body.status ?? 'enabled',
+      scopeGroup: body.scopeGroup,
+      status: body.status,
+      usedByAppCount: 0,
       createdAt: now,
       updatedAt: now,
     };
@@ -45,29 +40,26 @@ export const apiScopesHandlers = [
     return ok(created, '创建成功');
   }),
 
-  http.delete(`${BASE}/batch`, async ({ request }) => {
-    const { ids } = (await request.json()) as { ids: number[] };
-    const set = new Set(ids ?? []);
-    const before = scopes.length;
-    scopes = scopes.filter((s) => !set.has(s.id));
-    return ok(null, `已删除 ${before - scopes.length} 条记录`);
+  mock(apiScopeContract.removeBatch, ({ body, ok }) => {
+    const selected = new Set(body.ids);
+    const deleted = removeWhere(scopes, (s) => selected.has(s.id));
+    return ok(null, `已删除 ${deleted} 条记录`);
   }),
 
-  http.get(`${BASE}/:id`, ({ params }) => {
-    const found = scopes.find((s) => s.id === Number(params.id));
-    return found ? ok(found, 'success') : notFound('API Scope 不存在', { status: 404 });
+  mock(apiScopeContract.detail, ({ params, ok }) => {
+    const found = scopes.find((s) => s.id === params.id);
+    return found ? ok(found) : notFound('API Scope 不存在', { status: 404 });
   }),
 
-  http.put(`${BASE}/:id`, async ({ params, request }) => {
-    const idx = scopes.findIndex((s) => s.id === Number(params.id));
+  mock(apiScopeContract.update, ({ params, body, ok }) => {
+    const idx = scopes.findIndex((s) => s.id === params.id);
     if (idx === -1) return notFound('API Scope 不存在', { status: 404 });
-    const body = (await request.json()) as Partial<ApiScope>;
-    scopes[idx] = { ...scopes[idx], ...body, code: scopes[idx].code, updatedAt: mockDateTime() };
+    scopes[idx] = { ...scopes[idx], ...body, updatedAt: mockDateTime() };
     return ok(scopes[idx], '更新成功');
   }),
 
-  http.delete(`${BASE}/:id`, ({ params }) => {
-    const idx = scopes.findIndex((s) => s.id === Number(params.id));
+  mock(apiScopeContract.remove, ({ params, ok }) => {
+    const idx = scopes.findIndex((s) => s.id === params.id);
     if (idx === -1) return notFound('API Scope 不存在', { status: 404 });
     scopes.splice(idx, 1);
     return ok(null, '删除成功');

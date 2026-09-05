@@ -1,113 +1,82 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse } from '@zenith/shared/core';
-import type { OAuth2Client, OAuth2ClientCreated, OpenApiDebugEndpoint, OpenApiDebugResult, OpenAppQuotaUsage } from '@zenith/shared/open-platform';
-import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
-import { request } from '@/utils/request';
+import { keepPreviousData, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { resourceKeyOf, type BodyOf, type QueryOf } from '@zenith/shared/core';
+import { developerAppContract } from '@zenith/shared/open-platform';
+import { LOOKUP_STALE_TIME } from '@/lib/query';
+import { api, contractKey, useApiMutation, useApiQuery } from '@/lib/contract-query';
 
-export interface MyAppListParams {
-  page: number;
-  pageSize: number;
-  keyword?: string;
-  environment?: OAuth2Client['environment'];
-  reviewStatus?: OAuth2Client['reviewStatus'];
-}
+export type MyAppListParams = QueryOf<typeof developerAppContract.list>;
+
+/** 新增与编辑共用同一表单：必填字段由表单 rules 保证，服务端 schema 兜底校验 */
+export type SaveMyAppValues = BodyOf<typeof developerAppContract.update>;
+
+export type DebugMyAppValues = BodyOf<typeof developerAppContract.debug>;
+
+const DEVELOPER_APP_KEY = resourceKeyOf(developerAppContract.basePath);
 
 export const developerAppKeys = {
-  all: ['developer-apps'] as const,
-  lists: ['developer-apps', 'list'] as const,
-  list: (params: MyAppListParams) => ['developer-apps', 'list', params] as const,
-  detail: (id: number | undefined) => ['developer-apps', 'detail', id] as const,
-  quota: (id: number | undefined) => ['developer-apps', 'quota', id] as const,
-  debugEndpoints: ['developer-apps', 'debug-endpoints'] as const,
+  all: [DEVELOPER_APP_KEY] as const,
+  lists: contractKey(developerAppContract.list),
+  list: (params: MyAppListParams) => contractKey(developerAppContract.list, { query: params }),
+  detail: (id: number) => contractKey(developerAppContract.detail, { params: { id } }),
+  quota: (id: number) => contractKey(developerAppContract.quotaUsage, { params: { id } }),
+  debugEndpoints: contractKey(developerAppContract.debugEndpoints),
 };
+
+/**
+ * 应用写操作（创建 / 更新 / 删除 / 提交审核 / 轮换密钥）改变列表、详情与配额用量，
+ * 端点目录是低频字典型数据、与应用无关，所以失效列表与按 id 的查询而非整个资源根。
+ */
+function invalidateMyApps(qc: QueryClient) {
+  void qc.invalidateQueries({ queryKey: developerAppKeys.lists });
+  void qc.invalidateQueries({ queryKey: contractKey(developerAppContract.detail) });
+  void qc.invalidateQueries({ queryKey: contractKey(developerAppContract.quotaUsage) });
+}
 
 /** 可调试的开放 API 端点目录（由服务端按实际路由派生，属低频字典型数据） */
 export function useDebugEndpoints() {
-  return useQuery({
-    queryKey: developerAppKeys.debugEndpoints,
-    queryFn: () => request.get<OpenApiDebugEndpoint[]>('/api/developer-apps/debug/endpoints', { silent: true }).then(unwrap),
-    staleTime: LOOKUP_STALE_TIME,
-  });
+  return useApiQuery(developerAppContract.debugEndpoints, { staleTime: LOOKUP_STALE_TIME, requestOptions: { silent: true } });
 }
 
 export function useMyAppList(params: MyAppListParams) {
-  return useQuery({
-    queryKey: developerAppKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<OAuth2Client>>(
-      `/api/developer-apps${toQueryString(params)}`,
-    ).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
+  return useApiQuery(developerAppContract.list, { query: params }, { placeholderData: keepPreviousData });
 }
 
 export function useMyAppDetail(id: number | undefined, enabled = true) {
-  return useQuery({
-    queryKey: developerAppKeys.detail(id),
-    queryFn: () => request.get<OAuth2Client>(`/api/developer-apps/${id}`).then(unwrap),
-    enabled: enabled && id !== undefined,
-  });
+  return useApiQuery(developerAppContract.detail, { params: { id: id ?? 0 } }, { enabled: enabled && id !== undefined });
 }
 
+/** 无 id 走创建（POST，返回含一次性 clientSecret），有 id 走更新（PUT） */
 export function useSaveMyApp() {
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
+    mutationFn: ({ id, values }: { id?: number; values: SaveMyAppValues }) =>
       (id === undefined
-        ? request.post<OAuth2ClientCreated>('/api/developer-apps', values)
-        : request.put<OAuth2Client>(`/api/developer-apps/${id}`, values)
-      ).then(unwrap),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: developerAppKeys.all }),
+        ? api(developerAppContract.create, { body: values as BodyOf<typeof developerAppContract.create> })
+        : api(developerAppContract.update, { params: { id }, body: values })),
+    onSuccess: () => invalidateMyApps(qc),
   });
 }
 
 export function useDeleteMyApp() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/developer-apps/${id}`).then(unwrap),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: developerAppKeys.all }),
-  });
+  return useApiMutation(developerAppContract.remove, { invalidate: invalidateMyApps });
 }
 
 export function useSubmitMyApp() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.post<OAuth2Client>(`/api/developer-apps/${id}/submit`).then(unwrap),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: developerAppKeys.all }),
-  });
+  return useApiMutation(developerAppContract.submit, { invalidate: invalidateMyApps });
 }
 
 export function useRotateMyAppSecret() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.post<{
-      clientId: string;
-      clientSecret: string;
-      previousValidUntil: string;
-    }>(`/api/developer-apps/${id}/regenerate-secret`).then(unwrap),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: developerAppKeys.all }),
-  });
+  return useApiMutation(developerAppContract.regenerateSecret, { invalidate: invalidateMyApps });
 }
 
 export function useMyAppQuota(id: number | undefined, enabled = true) {
-  return useQuery({
-    queryKey: developerAppKeys.quota(id),
-    queryFn: () => request.get<OpenAppQuotaUsage>(`/api/developer-apps/${id}/quota-usage`).then(unwrap),
+  return useApiQuery(developerAppContract.quotaUsage, { params: { id: id ?? 0 } }, {
     enabled: enabled && id !== undefined,
     refetchInterval: 10_000,
   });
 }
 
+/** 在线调试只读取网关响应，不改变任何缓存 */
 export function useDebugMyApp() {
-  return useMutation({
-    mutationFn: ({ id, values }: {
-      id: number;
-      values: {
-        method: 'GET' | 'POST' | 'PUT' | 'DELETE';
-        /** 端点路径由服务端端点目录校验，前端不再枚举 */
-        path: string;
-        query?: Record<string, string>;
-        body?: unknown;
-      };
-    }) => request.post<OpenApiDebugResult>(`/api/developer-apps/${id}/debug`, values).then(unwrap),
-  });
+  return useApiMutation(developerAppContract.debug);
 }

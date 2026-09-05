@@ -49,7 +49,6 @@ export * from './ops-overview';
 export * from './ops-hosts';
 export * from './report';
 export * from './report-platform';
-export * from './open-platform';
 export * from './open-payment';
 export * from './rules';
 export * from './user-feedbacks';

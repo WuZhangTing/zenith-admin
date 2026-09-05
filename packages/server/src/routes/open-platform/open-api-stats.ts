@@ -1,13 +1,9 @@
-import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { openApiStatsContract } from '@zenith/shared/open-platform';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
-import { PaginationQuery, commonErrorResponses, dateRangeBound, ok, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
-import {
-  OpenApiStatsOverviewDTO,
-  OpenApiStatsTrendPointDTO,
-  OpenApiStatsGroupItemDTO,
-  OpenApiCallLogDTO,
-} from '../../lib/openapi-dtos';
+import { defineContractRoute } from '../../lib/contract-route';
+import { validationHook, okBody } from '../../lib/openapi-schemas';
 import {
   getOpenApiStatsOverview,
   getOpenApiStatsTrend,
@@ -18,119 +14,43 @@ import {
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const RangeQuery = z.object({
-  startTime: dateRangeBound('起始时间'),
-  endTime: dateRangeBound('结束时间'),
-  clientId: z.string().optional(),
-  environment: z.enum(['production', 'sandbox']).optional(),
-});
+const read = [authMiddleware, guard({ permission: 'open:stats:view' })] as const;
 
-const viewGuard = guard({ permission: 'open:stats:view' });
-
-const overview = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get',
-    path: '/overview',
-    tags: ['OpenApiStats'],
-    summary: '调用统计总览',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, viewGuard] as const,
-    request: { query: RangeQuery },
-    responses: { ...commonErrorResponses, ...ok(OpenApiStatsOverviewDTO, '调用统计总览') },
-  }),
+const overview = defineContractRoute(openApiStatsContract.overview, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await getOpenApiStatsOverview(c.req.valid('query'))), 200),
 });
 
-const trend = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get',
-    path: '/trend',
-    tags: ['OpenApiStats'],
-    summary: '调用趋势（按小时/天聚合）',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, viewGuard] as const,
-    request: { query: RangeQuery.extend({ granularity: z.enum(['hour', 'day']).default('day') }) },
-    responses: { ...commonErrorResponses, ...ok(z.array(OpenApiStatsTrendPointDTO), '调用趋势') },
-  }),
+const trend = defineContractRoute(openApiStatsContract.trend, {
+  middleware: read,
   handler: async (c) => {
     const { startTime, endTime, clientId, environment, granularity } = c.req.valid('query');
     return c.json(okBody(await getOpenApiStatsTrend({ startTime, endTime, clientId, environment, granularity })), 200);
   },
 });
 
-const byApp = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get',
-    path: '/by-app',
-    tags: ['OpenApiStats'],
-    summary: '按应用聚合统计（Top N）',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, viewGuard] as const,
-    request: { query: RangeQuery.extend({ limit: z.coerce.number().int().min(1).max(50).default(10) }) },
-    responses: { ...commonErrorResponses, ...ok(z.array(OpenApiStatsGroupItemDTO), '按应用统计') },
-  }),
+const byApp = defineContractRoute(openApiStatsContract.byApp, {
+  middleware: read,
   handler: async (c) => {
     const { startTime, endTime, clientId, environment, limit } = c.req.valid('query');
     return c.json(okBody(await getOpenApiStatsByApp({ startTime, endTime, clientId, environment, limit })), 200);
   },
 });
 
-const byEndpoint = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get',
-    path: '/by-endpoint',
-    tags: ['OpenApiStats'],
-    summary: '按端点聚合统计（Top N）',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, viewGuard] as const,
-    request: { query: RangeQuery.extend({ limit: z.coerce.number().int().min(1).max(50).default(10) }) },
-    responses: { ...commonErrorResponses, ...ok(z.array(OpenApiStatsGroupItemDTO), '按端点统计') },
-  }),
+const byEndpoint = defineContractRoute(openApiStatsContract.byEndpoint, {
+  middleware: read,
   handler: async (c) => {
     const { startTime, endTime, clientId, environment, limit } = c.req.valid('query');
     return c.json(okBody(await getOpenApiStatsByEndpoint({ startTime, endTime, clientId, environment, limit })), 200);
   },
 });
 
-const logs = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get',
-    path: '/logs',
-    tags: ['OpenApiStats'],
-    summary: '调用日志列表',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, viewGuard] as const,
-    request: {
-      query: PaginationQuery.extend({
-        clientId: z.string().optional(),
-        success: z.enum(['true', 'false']).optional(),
-        method: z.string().max(10).optional(),
-        statusCode: z.coerce.number().int().min(100).max(599).optional(),
-        environment: z.enum(['production', 'sandbox']).optional(),
-        keyword: z.string().optional(),
-        startTime: dateRangeBound('起始时间'),
-        endTime: dateRangeBound('结束时间'),
-      }),
-    },
-    responses: { ...commonErrorResponses, ...okPaginated(OpenApiCallLogDTO, '调用日志列表') },
-  }),
+const logs = defineContractRoute(openApiStatsContract.logs, {
+  middleware: read,
   handler: async (c) => {
     const { page, pageSize, clientId, success, method, statusCode, environment, keyword, startTime, endTime } = c.req.valid('query');
     return c.json(
-      okBody(
-        await listOpenApiCallLogs({
-          page,
-          pageSize,
-          clientId,
-          success: success === undefined ? undefined : success === 'true',
-          method,
-          statusCode,
-          environment,
-          keyword,
-          startTime,
-          endTime,
-        }),
-      ),
+      okBody(await listOpenApiCallLogs({ page, pageSize, clientId, success, method, statusCode, environment, keyword, startTime, endTime })),
       200,
     );
   },

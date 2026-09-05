@@ -9,12 +9,11 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import type { MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { sendIotCommandSchema, setIotDesiredSchema } from '@zenith/shared/iot';
+import { openIotDeviceDetailSchema, openIotDeviceSchema, sendIotCommandSchema, setIotDesiredSchema } from '@zenith/shared/iot';
 import {
   ErrorResponse, commonErrorResponses, jsonContent, ok, okBody, okPaginated,
   PaginationQuery, validationHook,
 } from '../../lib/openapi-schemas';
-import { OpenIotDeviceDTO, OpenIotDeviceDetailDTO } from '../../lib/openapi-dtos';
 import {
   findOpenIotDeviceBySn, getOpenIotDeviceDetail, listOpenIotDevices,
 } from '../../services/iot/iot-open.service';
@@ -57,7 +56,7 @@ const listDevicesRoute = defineOpenAPIRoute({
         status: z.enum(['enabled', 'disabled']).optional(),
       }),
     },
-    responses: { ...commonErrorResponses, ...okPaginated(OpenIotDeviceDTO, 'ok') },
+    responses: { ...commonErrorResponses, ...okPaginated(openIotDeviceSchema, 'ok') },
   }),
   handler: async (c) => c.json(okBody(await listOpenIotDevices(c.req.valid('query'))), 200),
 });
@@ -70,7 +69,7 @@ const getDeviceRoute = defineOpenAPIRoute({
     request: { params: SnParam },
     responses: {
       ...commonErrorResponses,
-      ...ok(OpenIotDeviceDetailDTO, 'ok'),
+      ...ok(openIotDeviceDetailSchema, 'ok'),
       404: { content: jsonContent(ErrorResponse), description: '设备不存在' },
     },
   }),

@@ -1,16 +1,15 @@
 import { useState } from 'react';
 import { Button, Tag, TagGroup, Modal, Form, Toast, Typography, Banner, SideSheet, Descriptions } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { OPEN_WEBHOOK_DELIVERY_STATUS_LABELS, OPEN_WEBHOOK_EVENT_LABELS, PAYMENT_WEBHOOK_EVENTS, OPEN_WEBHOOK_DELIVERY_STATUS_OPTIONS } from '@zenith/shared/open-platform';
-import type { AppWebhookSubscription, AppWebhookDelivery } from '@zenith/shared/open-platform';
+import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
+import { OPEN_WEBHOOK_DELIVERY_STATUS_LABELS, OPEN_WEBHOOK_EVENTS, OPEN_WEBHOOK_EVENT_LABELS, PAYMENT_WEBHOOK_EVENTS, OPEN_WEBHOOK_DELIVERY_STATUS_OPTIONS } from '@zenith/shared/open-platform';
+import type { AppWebhookSubscription, AppWebhookDelivery, OpenWebhookEvent, OpenWebhookSignMode } from '@zenith/shared/open-platform';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import {
-  openPlatformKeys,
-  paymentWebhookKeys,
   useBatchRetryWebhookDeliveries,
   useDeleteWebhook,
   useOpenAppOptions,
@@ -21,6 +20,8 @@ import {
   useWebhookDeliveries,
   useWebhookEvents,
   useWebhookList,
+  webhookKeys,
+  type SaveWebhookValues,
   type WebhookApiScope,
 } from '@/hooks/queries/open-platform';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -47,8 +48,8 @@ type FormValues = {
   clientId: string;
   name: string;
   url: string;
-  events: string[];
-  signMode: 'hmacSha256' | 'none';
+  events: OpenWebhookEvent[];
+  signMode: OpenWebhookSignMode;
   headersText?: string;
   status: 'enabled' | 'disabled';
 };
@@ -64,7 +65,7 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
   const { hasPermission } = usePermission();
   const canManage = hasPermission(paymentScope ? 'payment:webhook:manage' : 'open:webhook:manage');
 
-  interface SearchParams { keyword: string; clientId?: string; status?: 'enabled' | 'disabled' }
+  interface SearchParams { keyword: string; clientId?: string; status?: string }
   const defaultSearchParams: SearchParams = { keyword: '', clientId: undefined, status: undefined };
   const {
     page, pageSize, buildPagination,
@@ -72,7 +73,7 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({
     defaults: defaultSearchParams,
-    listKey: paymentScope ? paymentWebhookKeys.lists : openPlatformKeys.webhooks.lists,
+    listKey: webhookKeys(scope).lists,
   });
 
   const appOptionsQuery = useOpenAppOptions();
@@ -96,7 +97,7 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
     pageSize,
     keyword: submittedParams.keyword || undefined,
     clientId: submittedParams.clientId,
-    status: submittedParams.status,
+    status: enumValueOf(USER_STATUSES, submittedParams.status),
   }, scope);
   const data = listQuery.data ?? null;
   const deliveryQuery = useWebhookDeliveries({
@@ -113,14 +114,15 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
   const testMutation = useTestWebhook(scope);
   const retryMutation = useRetryWebhookDelivery(scope);
   const batchRetryMutation = useBatchRetryWebhookDeliveries(scope);
-  const modal = useEditModal<AppWebhookSubscription, FormValues, Partial<Omit<FormValues, 'headersText'>> & { headers?: Record<string, string> }>({
+  const modal = useEditModal<AppWebhookSubscription, FormValues, SaveWebhookValues>({
     save: saveMutation,
     defaults: { events: [], signMode: 'hmacSha256', status: 'enabled' },
+    // 记录里的 null 所属应用（系统内部订阅）在表单中视为未选；事件按事件目录收窄
     toValues: (record) => ({
       clientId: record.clientId ?? '',
       name: record.name,
       url: record.url,
-      events: record.events,
+      events: record.events.flatMap((event) => enumValueOf(OPEN_WEBHOOK_EVENTS, event) ?? []),
       signMode: record.signMode,
       headersText: record.headers ? JSON.stringify(record.headers, null, 2) : '',
       status: record.status,
@@ -185,15 +187,15 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
   }
 
   async function handleDelete(id: number) {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync({ params: { id } });
     Toast.success('删除成功');
   }
   async function handleRegenerate(id: number) {
-    const res = await regenerateMutation.mutateAsync(id);
+    const res = await regenerateMutation.mutateAsync({ params: { id } });
     if (res.secret) { setOneTimeSecret(res.secret); setSecretModal(true); }
   }
   async function handleTest(id: number) {
-    await testMutation.mutateAsync(id);
+    await testMutation.mutateAsync({ params: { id } });
     Toast.success('已发送测试投递，请在投递日志中查看结果');
   }
 
@@ -206,11 +208,11 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
     setSelectedDeliveryIds([]);
   }
   async function retryDelivery(id: number) {
-    await retryMutation.mutateAsync(id);
+    await retryMutation.mutateAsync({ params: { id } });
     Toast.success('已触发重试');
   }
   async function batchRetryDeliveries() {
-    const result = await batchRetryMutation.mutateAsync(selectedDeliveryIds);
+    const result = await batchRetryMutation.mutateAsync({ body: { ids: selectedDeliveryIds } });
     setSelectedDeliveryIds([]);
     Toast.success(`已将 ${result.scheduled} 条投递加入重试队列`);
   }
@@ -318,7 +320,7 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
             <StatusSelect
               items={STATUS_OPTIONS}
               value={draftParams.status}
-              onChange={(v) => setDraftParams({ ...draftParams, status: v as 'enabled' | 'disabled' })}
+              onChange={(v) => setDraftParams({ ...draftParams, status: v as string })}
             />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />

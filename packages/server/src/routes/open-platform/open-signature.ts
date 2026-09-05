@@ -1,43 +1,22 @@
-import { OpenAPIHono, createRoute, defineOpenAPIRoute } from '@hono/zod-openapi';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { openSignatureContract } from '@zenith/shared/open-platform';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
-import {
-  jsonContent,
-  validationHook,
-  commonErrorResponses,
-  ok,
-  okBody,
-} from '../../lib/openapi-schemas';
-import { OpenSignatureResultDTO, OpenSignatureAlgorithmDTO } from '../../lib/openapi-dtos';
-import { openSignatureVerifySchema } from '@zenith/shared/open-platform';
+import { defineContractRoute } from '../../lib/contract-route';
+import { validationHook, okBody } from '../../lib/openapi-schemas';
 import { getSignatureAlgorithmDoc, verifyAppSignature } from '../../services/open-platform/open-signature.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const algorithm = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get',
-    path: '/algorithm',
-    tags: ['OpenSignature'],
-    summary: '获取签名算法说明',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'open:signature:use' })] as const,
-    responses: { ...commonErrorResponses, ...ok(OpenSignatureAlgorithmDTO, '签名算法说明') },
-  }),
+const use = [authMiddleware, guard({ permission: 'open:signature:use' })] as const;
+
+const algorithm = defineContractRoute(openSignatureContract.algorithm, {
+  middleware: use,
   handler: (c) => c.json(okBody(getSignatureAlgorithmDoc()), 200),
 });
 
-const verify = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post',
-    path: '/verify',
-    tags: ['OpenSignature'],
-    summary: '在线计算 / 校验请求签名',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'open:signature:use' })] as const,
-    request: { body: { content: jsonContent(openSignatureVerifySchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(OpenSignatureResultDTO, '签名结果') },
-  }),
+const verify = defineContractRoute(openSignatureContract.verify, {
+  middleware: use,
   handler: async (c) => c.json(okBody(await verifyAppSignature(c.req.valid('json'))), 200),
 });
 
