@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, Col, Form, Input, InputNumber, Modal, Row, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, Trash2 } from 'lucide-react';
-import type { AnalyticsExperiment, AnalyticsExperimentReportVariant, AnalyticsExperimentVariant } from '@zenith/shared/analytics';
+import type { AnalyticsExperiment, AnalyticsExperimentReportVariant, AnalyticsExperimentVariant, CreateAnalyticsExperimentInput } from '@zenith/shared/analytics';
 import { DataBar } from '@/components/data-viz/DataBar';
 import { ANALYTICS_EXPERIMENT_STATUS_LABELS, ANALYTICS_EXPERIMENT_STATUS_OPTIONS } from '@zenith/shared/analytics';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
@@ -91,8 +91,11 @@ function windowText(record: AnalyticsExperiment) {
   return `${record.startAt ? formatDateTime(record.startAt) : '立即'} ~ ${record.endAt ? formatDateTime(record.endAt) : '不限'}`;
 }
 
-function normalizePayload(values: ExperimentFormValues, variants: AnalyticsExperimentVariant[], editing: AnalyticsExperiment | null) {
-  const payload: Record<string, unknown> = {
+/** 新增 / 编辑共用载荷：运行中的实验只允许改名称 / 描述 / 结束时间，其余字段不随表单提交 */
+type ExperimentPayload = Partial<CreateAnalyticsExperimentInput>;
+
+function normalizePayload(values: ExperimentFormValues, variants: AnalyticsExperimentVariant[], editing: AnalyticsExperiment | null): ExperimentPayload {
+  const payload: ExperimentPayload = {
     expKey: values.expKey?.trim(),
     name: values.name?.trim(),
     description: trimToNull(values.description),
@@ -132,10 +135,10 @@ export default function AnalyticsExperimentsTab() {
   const pauseMutation = useExperimentAction('pause');
   const completeMutation = useExperimentAction('complete');
   const reportQuery = useExperimentReport(reporting?.id, {}, !!reporting);
-  const experimentModal = useEditModal<AnalyticsExperiment, ExperimentFormValues, Record<string, unknown>>({
+  const experimentModal = useEditModal<AnalyticsExperiment, ExperimentFormValues, ExperimentPayload>({
     save: {
       mutateAsync: ({ id, values }) => (
-        id ? updateMutation.mutateAsync({ id, values }) : createMutation.mutateAsync(values)
+        id ? updateMutation.mutateAsync({ params: { id }, body: values }) : createMutation.mutateAsync({ body: values as CreateAnalyticsExperimentInput })
       ),
       isPending: createMutation.isPending || updateMutation.isPending,
     },
@@ -200,18 +203,18 @@ export default function AnalyticsExperimentsTab() {
       actions: (record) => [
         { key: 'report', label: '报告', onClick: () => setReporting(record) },
         ...(record.status === 'running'
-          ? [{ key: 'toggle', label: '暂停', loading: pauseMutation.isPending, onClick: () => pauseMutation.mutate(record.id) }]
+          ? [{ key: 'toggle', label: '暂停', loading: pauseMutation.isPending, onClick: () => pauseMutation.mutate({ params: { id: record.id } }) }]
           : record.status === 'draft' || record.status === 'paused'
-            ? [{ key: 'toggle', label: '启动', loading: startMutation.isPending, onClick: () => startMutation.mutate(record.id) }]
+            ? [{ key: 'toggle', label: '启动', loading: startMutation.isPending, onClick: () => startMutation.mutate({ params: { id: record.id } }) }]
             : []),
         { key: 'edit', label: '编辑', disabled: record.status === 'completed', onClick: () => experimentModal.openEdit(record) },
         {
           key: 'complete', label: '完成', hidden: record.status === 'running' || record.status === 'completed',
-          onClick: () => { Modal.confirm({ title: '确定完成该实验吗？', content: '完成后不可继续启动。', onOk: () => completeMutation.mutate(record.id) }); },
+          onClick: () => { Modal.confirm({ title: '确定完成该实验吗？', content: '完成后不可继续启动。', onOk: () => completeMutation.mutate({ params: { id: record.id } }) }); },
         },
         {
           key: 'delete', label: '删除', danger: true, disabled: record.status === 'running', disabledReason: '运行中的实验不能删除',
-          onClick: () => { confirmDelete({ title: '确定要删除该实验吗？', content: '删除后不可恢复', onOk: () => deleteMutation.mutate(record.id) }); },
+          onClick: () => { confirmDelete({ title: '确定要删除该实验吗？', content: '删除后不可恢复', onOk: () => deleteMutation.mutate({ params: { id: record.id } }) }); },
         },
       ],
     }),

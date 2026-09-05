@@ -34,7 +34,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
 });
 
 vi.mock('@/hooks/queries/analytics', () => ({
-  analyticsKeys: { data: { sitesLists: ['analytics', 'data', 'sites'] } },
+  analyticsKeys: { data: { sitesLists: ['analytics', 'sites'] } },
   useAnalyticsSites: () => ({ data: { list: [mockSite], total: 1, page: 1, pageSize: 20 }, isFetching: false, refetch: refetchMock }),
   useCreateSite: () => ({ mutateAsync: createMutateAsync, isPending: false }),
   useUpdateSite: () => ({ mutateAsync: updateMutateAsync, isPending: false }),
@@ -75,6 +75,6 @@ describe('AnalyticsSitesTab', () => {
     fireEvent.change(screen.getByPlaceholderText('站点名称'), { target: { value: '管理' } });
     fireEvent.click(screen.getByText('查询'));
     fireEvent.click(screen.getByText('重置'));
-    expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ['analytics', 'data', 'sites'] });
+    expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ['analytics', 'sites'] });
   });
 });

@@ -6,9 +6,11 @@
  *     而不是复用另一口径的缓存）
  *  2. useAnalyticsRetention 默认 mode='first_seen'，且请求 URL 携带 mode 参数
  *  3. useAnalyticsRetention 显式传入 mode='window_first' 时请求 URL 与 query key 均切换
- *  4. useAnalyticsEventQuery 是 query（非 mutation），POST 到 /api/analytics/events/query 并透传 body，
+ *  4. useAnalyticsEventQuery 是 query（非 mutation），POST 到契约路径并透传 body，
  *     未提交时保持 idle，翻页产生不同 query key
- *  5. useAnalyzeFunnel 是 mutation，POST 到 /api/analytics/funnel 并透传 body（含新增的 conversionWindowHours/segmentId）
+ *  5. useAnalyzeFunnel 是 mutation，POST 到契约路径并透传 body（含 conversionWindowHours / 对比轴）
+ *
+ * 契约调用层会把请求选项作为末位实参传给 request，断言用 expect.anything() 兜住。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
@@ -20,6 +22,7 @@ const post = vi.fn();
 
 vi.mock('@/utils/request', () => ({ request: { get: (...a: unknown[]) => get(...a), post: (...a: unknown[]) => post(...a) } }));
 
+import { analyticsContract } from '@zenith/shared/analytics';
 import { analyticsKeys, useAnalyticsRetention, useAnalyticsAcquisition, useAnalyticsDrillUsers, useAnalyticsEventQuery, useAnalyzeFunnel } from './analytics';
 
 function wrapper() {
@@ -63,7 +66,7 @@ describe('useAnalyticsRetention', () => {
   it('POSTs the full query body to /api/analytics/retention', async () => {
     const { result } = renderHook(() => useAnalyticsRetention(retentionParams), { wrapper: wrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(post).toHaveBeenCalledWith('/api/analytics/retention', retentionParams);
+    expect(post).toHaveBeenCalledWith(analyticsContract.retention.fullPath, retentionParams, expect.anything());
     expect(get).not.toHaveBeenCalled();
   });
 
@@ -71,7 +74,7 @@ describe('useAnalyticsRetention', () => {
     const params = { ...retentionParams, comparison: { type: 'segments' as const, segmentIds: [3, 5] } };
     const { result } = renderHook(() => useAnalyticsRetention(params), { wrapper: wrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(post).toHaveBeenCalledWith('/api/analytics/retention', params);
+    expect(post).toHaveBeenCalledWith(analyticsContract.retention.fullPath, params, expect.anything());
   });
 });
 
@@ -97,7 +100,7 @@ describe('useAnalyticsDrillUsers — 图表下钻', () => {
     const input = { context, page: 1, pageSize: 20 };
     const { result } = renderHook(() => useAnalyticsDrillUsers(input), { wrapper: wrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(post).toHaveBeenCalledWith('/api/analytics/drill-users', input);
+    expect(post).toHaveBeenCalledWith(analyticsContract.drillUsers.fullPath, input, expect.anything());
   });
 });
 
@@ -108,8 +111,8 @@ describe('useAnalyticsAcquisition — 获客归因', () => {
       { wrapper: wrapper() },
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(get).toHaveBeenCalledWith(expect.stringContaining('model=first_touch'));
-    expect(get).toHaveBeenCalledWith(expect.stringContaining('dimension=channel'));
+    expect(get).toHaveBeenCalledWith(expect.stringContaining('model=first_touch'), expect.anything());
+    expect(get).toHaveBeenCalledWith(expect.stringContaining('dimension=channel'), expect.anything());
   });
 });
 
@@ -118,7 +121,7 @@ describe('useAnalyticsEventQuery — 通用事件分析工作台', () => {
     const body = { groupBy: ['eventName' as const], metric: 'uv' as const, days: 7, page: 2, pageSize: 20 };
     const { result } = renderHook(() => useAnalyticsEventQuery(body), { wrapper: wrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(post).toHaveBeenCalledWith('/api/analytics/events/query', body);
+    expect(post).toHaveBeenCalledWith(analyticsContract.queryEvents.fullPath, body, expect.anything());
   });
 
   it('stays idle until a query has been submitted, so opening the tab does not fire a request', () => {
@@ -134,7 +137,7 @@ describe('useAnalyticsEventQuery — 通用事件分析工作台', () => {
     const { result: p2 } = renderHook(() => useAnalyticsEventQuery({ ...base, page: 2 }), { wrapper: wrapper() });
     await waitFor(() => expect(p2.current.isSuccess).toBe(true));
     expect(post).toHaveBeenCalledTimes(2);
-    expect(post).toHaveBeenLastCalledWith('/api/analytics/events/query', { ...base, page: 2 });
+    expect(post).toHaveBeenLastCalledWith(analyticsContract.queryEvents.fullPath, { ...base, page: 2 }, expect.anything());
   });
 });
 
@@ -146,8 +149,8 @@ describe('useAnalyzeFunnel — 有序转化漏斗 mutation（转化窗口 + 对�
       conversionWindowHours: 24,
       comparison: { type: 'segments' as const, segmentIds: [7] },
     };
-    await result.current.mutateAsync(body as never);
-    expect(post).toHaveBeenCalledWith('/api/analytics/funnel', body);
+    await result.current.mutateAsync({ body });
+    expect(post).toHaveBeenCalledWith(analyticsContract.funnel.fullPath, body, expect.anything());
   });
 
   it('passes a dimension breakdown axis through unchanged', async () => {
@@ -157,7 +160,7 @@ describe('useAnalyzeFunnel — 有序转化漏斗 mutation（转化窗口 + 对�
       conversionWindowHours: 72,
       comparison: { type: 'dimension' as const, dimension: 'channel' as const },
     };
-    await result.current.mutateAsync(body as never);
-    expect(post).toHaveBeenCalledWith('/api/analytics/funnel', body);
+    await result.current.mutateAsync({ body });
+    expect(post).toHaveBeenCalledWith(analyticsContract.funnel.fullPath, body, expect.anything());
   });
 });

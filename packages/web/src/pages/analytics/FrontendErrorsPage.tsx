@@ -45,8 +45,9 @@ import {
   StatGrid,
 } from '@/components/charts';
 import AppModal from '@/components/AppModal';
-import type { ErrorAlertCondition, ErrorAlertLog, ErrorAlertRule, ErrorBreadcrumb, ErrorEvent, ErrorGroup, ErrorLevel, ErrorStatus, FrontendErrorType, SourceMapItem, AnalyticsEnvironment } from '@zenith/shared/analytics';
-import { SOURCE_MAP_MAX_BYTES } from '@zenith/shared/analytics';
+import type { ErrorAlertChannel, ErrorAlertCondition, ErrorAlertLog, ErrorAlertRule, ErrorBreadcrumb, ErrorEvent, ErrorGroup, ErrorLevel, ErrorStatus, FrontendErrorType, SourceMapItem, AnalyticsEnvironment } from '@zenith/shared/analytics';
+import { ERROR_ALERT_CHANNELS, SOURCE_MAP_MAX_BYTES } from '@zenith/shared/analytics';
+import { enumValueOf } from '@zenith/shared/core';
 import { NOTIFY_CHANNEL_OPTIONS } from '@zenith/shared/messaging';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -154,7 +155,7 @@ interface AlertFormState {
   condition: ErrorAlertCondition;
   thresholdCount: number;
   windowMinutes: number;
-  channels: string[];
+  channels: ErrorAlertChannel[];
   webhookUrl: string;
   recipients: string[];
   enabled: boolean;
@@ -185,6 +186,14 @@ const defaultSourceMapUpload: SourceMapUploadForm = {
   fileName: '',
   content: '',
 };
+
+/** 告警渠道取值收窄到契约枚举（列表实体与下拉控件的值都是宽 string） */
+function toAlertChannels(values: readonly unknown[]): ErrorAlertChannel[] {
+  return values.flatMap((value) => {
+    const channel = enumValueOf(ERROR_ALERT_CHANNELS, value);
+    return channel ? [channel] : [];
+  });
+}
 
 function labelOptions(config: Record<string, { label: string }>) {
   return Object.entries(config).map(([value, item]) => ({ label: item.label, value }));
@@ -498,7 +507,7 @@ export default function FrontendErrorsPage() {
   }, [detailVisible, detailGroupId, setIssueSearchParams]);
 
   const updateGroupStatus = useCallback(async (id: number, status: ErrorStatus) => {
-    await updateGroupMutation.mutateAsync({ id, values: { status } });
+    await updateGroupMutation.mutateAsync({ params: { id }, body: { status } });
     Toast.success('状态已更新');
     if (detail?.group.id === id) void queryClient.invalidateQueries({ queryKey: analyticsKeys.frontendErrors.groupDetail(id) });
   }, [detail?.group.id, queryClient, updateGroupMutation]);
@@ -509,7 +518,7 @@ export default function FrontendErrorsPage() {
       title: `确认批量${STATUS_CONFIG[status]?.label ?? '更新'}？`,
       content: `即将处理 ${selectedRowKeys.length} 个错误 Issue。`,
       onOk: async () => {
-        await batchStatusMutation.mutateAsync({ ids: selectedRowKeys, status });
+        await batchStatusMutation.mutateAsync({ query: { status }, body: { ids: selectedRowKeys } });
         Toast.success('更新成功');
         setSelectedRowKeys([]);
       },
@@ -522,7 +531,7 @@ export default function FrontendErrorsPage() {
       title: `确认删除选中的 ${selectedRowKeys.length} 个错误 Issue？`,
       content: '删除后无法恢复，请确认操作。',
       onOk: async () => {
-        await batchDeleteMutation.mutateAsync(selectedRowKeys);
+        await batchDeleteMutation.mutateAsync({ body: { ids: selectedRowKeys } });
         Toast.success('删除成功');
         setSelectedRowKeys([]);
       },
@@ -534,7 +543,7 @@ export default function FrontendErrorsPage() {
       title: '确认删除该错误 Issue？',
       content: `即将删除「${record.message}」，删除后无法恢复。`,
       onOk: async () => {
-        await batchDeleteMutation.mutateAsync([record.id]);
+        await batchDeleteMutation.mutateAsync({ body: { ids: [record.id] } });
         Toast.success('删除成功');
         setSelectedRowKeys((prev) => prev.filter((key) => key !== record.id));
         if (detailGroupId === record.id) {
@@ -548,8 +557,8 @@ export default function FrontendErrorsPage() {
   const saveGroupHandle = useCallback(async () => {
     if (!detail) return;
     await updateGroupMutation.mutateAsync({
-      id: detail.group.id,
-      values: {
+      params: { id: detail.group.id },
+      body: {
         status: groupForm.status,
         level: groupForm.level,
         assigneeId: groupForm.assigneeId,
@@ -561,7 +570,7 @@ export default function FrontendErrorsPage() {
   }, [detail, groupForm, queryClient, updateGroupMutation]);
 
   const deleteSourceMap = useCallback(async (id: number) => {
-    await deleteSourceMapMutation.mutateAsync(id);
+    await deleteSourceMapMutation.mutateAsync({ params: { id } });
     Toast.success('删除成功');
   }, [deleteSourceMapMutation]);
 
@@ -575,9 +584,11 @@ export default function FrontendErrorsPage() {
       return;
     }
     await submitSourceMapMutation.mutateAsync({
-      release: uploadForm.release.trim(),
-      fileName: uploadForm.fileName.trim(),
-      content: uploadForm.content,
+      body: {
+        release: uploadForm.release.trim(),
+        fileName: uploadForm.fileName.trim(),
+        content: uploadForm.content,
+      },
     });
     Toast.success('上传成功');
     setUploadVisible(false);
@@ -594,7 +605,7 @@ export default function FrontendErrorsPage() {
       condition: rule.condition,
       thresholdCount: rule.thresholdCount,
       windowMinutes: rule.windowMinutes,
-      channels: rule.channels,
+      channels: toAlertChannels(rule.channels),
       webhookUrl: rule.webhookUrl ?? '',
       recipients: rule.recipients,
       enabled: rule.enabled,
@@ -625,7 +636,7 @@ export default function FrontendErrorsPage() {
   }, [alertForm, editingAlert, saveAlertMutation]);
 
   const deleteAlert = useCallback(async (id: number) => {
-    await deleteAlertMutation.mutateAsync(id);
+    await deleteAlertMutation.mutateAsync({ params: { id } });
     Toast.success('删除成功');
   }, [deleteAlertMutation]);
 
@@ -858,7 +869,7 @@ export default function FrontendErrorsPage() {
           key: 'test',
           label: '测试',
           onClick: () => {
-            void testAlertMutation.mutateAsync(record.id).then(() => Toast.success('测试消息已发送，请检查通知渠道'));
+            void testAlertMutation.mutateAsync({ params: { id: record.id } }).then(() => Toast.success('测试消息已发送，请检查通知渠道'));
           },
         },
         {
@@ -1548,7 +1559,7 @@ export default function FrontendErrorsPage() {
                   value={alertForm.channels}
                   style={{ width: '100%' }}
                   optionList={[...NOTIFY_CHANNEL_OPTIONS]}
-                  onChange={(value) => setAlertForm((prev) => ({ ...prev, channels: toStringArray(value) }))}
+                  onChange={(value) => setAlertForm((prev) => ({ ...prev, channels: toAlertChannels(toStringArray(value)) }))}
                 />
               </Form.Slot>
             </Col>

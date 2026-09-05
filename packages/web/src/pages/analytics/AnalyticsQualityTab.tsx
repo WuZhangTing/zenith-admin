@@ -101,29 +101,29 @@ export default function AnalyticsQualityTab() {
   const handleSearch = () => {
     setPage(1);
     setSubmittedFilter(filter);
-    void queryClient.invalidateQueries({ queryKey: analyticsKeys.data.all });
+    void queryClient.invalidateQueries({ queryKey: analyticsKeys.data.quality });
   };
   const handleReset = () => {
     setFilter(defaultQualityFilter);
     setSubmittedFilter(defaultQualityFilter);
     setPage(1);
-    void queryClient.invalidateQueries({ queryKey: analyticsKeys.data.all });
+    void queryClient.invalidateQueries({ queryKey: analyticsKeys.data.quality });
   };
 
   const handleOverrideSearch = () => {
     setOverridePage(1);
     setSubmittedOverrideFilter(overrideFilter);
-    void queryClient.invalidateQueries({ queryKey: analyticsKeys.data.all });
+    void queryClient.invalidateQueries({ queryKey: analyticsKeys.data.overridesLists });
   };
   const handleOverrideReset = () => {
     setOverrideFilter(defaultOverrideFilter);
     setSubmittedOverrideFilter(defaultOverrideFilter);
     setOverridePage(1);
-    void queryClient.invalidateQueries({ queryKey: analyticsKeys.data.all });
+    void queryClient.invalidateQueries({ queryKey: analyticsKeys.data.overridesLists });
   };
 
   const handleOverrideDelete = async (record: AnalyticsEventOverride) => {
-    await deleteOverrideMutation.mutateAsync(record.id);
+    await deleteOverrideMutation.mutateAsync({ params: { id: record.id } });
     Toast.success('删除成功');
   };
 

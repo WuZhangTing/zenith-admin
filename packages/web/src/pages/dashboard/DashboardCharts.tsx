@@ -16,7 +16,7 @@ import {
   useChartPalette,
 } from '@/components/charts';
 import { ModuleOperationPie } from '@/components/logs/ModuleOperationPie';
-import type { DashboardCharts } from '@/hooks/queries/dashboard';
+import type { DashboardCharts } from '@zenith/shared/analytics';
 
 const { Text } = Typography;
 

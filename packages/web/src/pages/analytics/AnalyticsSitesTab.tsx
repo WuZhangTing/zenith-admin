@@ -94,7 +94,7 @@ export default function AnalyticsSitesTab() {
     entityName: '站点',
     save: {
       mutateAsync: ({ id, values }) => (
-        id ? updateMutation.mutateAsync({ id, values }) : createMutation.mutateAsync(values)
+        id ? updateMutation.mutateAsync({ params: { id }, body: values }) : createMutation.mutateAsync({ body: values })
       ),
       isPending: createMutation.isPending || updateMutation.isPending,
     },
@@ -128,11 +128,11 @@ export default function AnalyticsSitesTab() {
         { key: 'edit', label: '编辑', onClick: () => siteModal.openEdit(record) },
         {
           key: 'regenerate', label: '重新生成 Key', loading: regenerateMutation.isPending,
-          onClick: () => { Modal.confirm({ title: '确定重新生成 Key？', content: '旧 Key 将立即失效。', onOk: () => regenerateMutation.mutate(record.id) }); },
+          onClick: () => { Modal.confirm({ title: '确定重新生成 Key？', content: '旧 Key 将立即失效。', onOk: () => regenerateMutation.mutate({ params: { id: record.id } }) }); },
         },
         {
           key: 'delete', label: '删除', danger: true, loading: deleteMutation.isPending,
-          onClick: () => { confirmDelete({ title: '确定要删除该站点吗？', content: '删除后不可恢复', onOk: () => deleteMutation.mutate(record.id) }); },
+          onClick: () => { confirmDelete({ title: '确定要删除该站点吗？', content: '删除后不可恢复', onOk: () => deleteMutation.mutate({ params: { id: record.id } }) }); },
         },
       ],
     }),

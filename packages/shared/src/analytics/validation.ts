@@ -1,7 +1,46 @@
 import * as z from 'zod';
 import { boundedJsonRecord, dateTimeStringSchema, httpUrl, partialForUpdate, validateAlertDelivery, webhookUrlSchema } from '../core/validation';
 import { userBehaviorEventTypeEnum } from '../identity/validation';
-import { ANALYTICS_ACQUISITION_DIMENSIONS, ANALYTICS_ATTRIBUTION_MODELS, ANALYTICS_BREAKDOWN_DIMENSIONS, ANALYTICS_BREADCRUMB_DATA_MAX_BYTES, ANALYTICS_CAMPAIGN_CHANNELS, ANALYTICS_COMPARE_MAX_SEGMENTS, ANALYTICS_DRILL_FUNNEL_OUTCOMES, ANALYTICS_DRILL_PAGE_SIZE_MAX, ANALYTICS_DRILL_RETENTION_OUTCOMES, ANALYTICS_ENVIRONMENTS, ANALYTICS_EVENT_PROPERTY_TYPES, ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS, ANALYTICS_EVENT_QUERY_METRICS, ANALYTICS_EVENT_SOURCES, ANALYTICS_EXPERIMENT_STATUSES, ANALYTICS_PROPERTIES_MAX_BYTES, ANALYTICS_PROPERTY_KEY_PATTERN, ANALYTICS_RETENTION_MAX_DAYS, ANALYTICS_RETENTION_MAX_PERIODS, ANALYTICS_RETENTION_MODES, ANALYTICS_RETENTION_PERIOD_TYPES, ANALYTICS_SEGMENT_COMPARE_OPS, SOURCE_MAP_MAX_BYTES, analyticsMetricRequiresProperty } from './constants';
+import {
+  ANALYTICS_ACQUISITION_DIMENSIONS,
+  ANALYTICS_ATTRIBUTION_MODELS,
+  ANALYTICS_BREAKDOWN_DIMENSIONS,
+  ANALYTICS_BREADCRUMB_DATA_MAX_BYTES,
+  ANALYTICS_CAMPAIGN_CHANNELS,
+  ANALYTICS_COMPARE_MAX_SEGMENTS,
+  ANALYTICS_CONTEXT_MAX_BYTES,
+  ANALYTICS_DEVICE_TYPES,
+  ANALYTICS_DRILL_FUNNEL_OUTCOMES,
+  ANALYTICS_DRILL_PAGE_SIZE_MAX,
+  ANALYTICS_DRILL_RETENTION_OUTCOMES,
+  ANALYTICS_ENVIRONMENTS,
+  ANALYTICS_EVENT_META_STATUSES,
+  ANALYTICS_EVENT_OVERRIDE_STATUSES,
+  ANALYTICS_EVENT_PROPERTY_TYPES,
+  ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS,
+  ANALYTICS_EVENT_QUERY_METRICS,
+  ANALYTICS_EVENT_SOURCES,
+  ANALYTICS_EXPERIMENT_STATUSES,
+  ANALYTICS_PROPERTIES_MAX_BYTES,
+  ANALYTICS_PROPERTY_KEY_PATTERN,
+  ANALYTICS_RETENTION_MAX_DAYS,
+  ANALYTICS_RETENTION_MAX_PERIODS,
+  ANALYTICS_RETENTION_MODES,
+  ANALYTICS_RETENTION_PERIOD_TYPES,
+  ANALYTICS_SAVED_REPORT_TYPES,
+  ANALYTICS_SEGMENT_COMPARE_OPS,
+  ANALYTICS_SEGMENT_RULE_OPERATORS,
+  ERROR_ALERT_CHANNELS,
+  ERROR_ALERT_CONDITIONS,
+  ERROR_BREADCRUMB_TYPES,
+  ERROR_LEVELS,
+  ERROR_STATUSES,
+  FRONTEND_ERROR_TYPES,
+  REPLAY_MODES,
+  REPLAY_TRIGGER_TYPES,
+  SOURCE_MAP_MAX_BYTES,
+  analyticsMetricRequiresProperty,
+} from './constants';
 
 const trackEventBaseSchema = z.object({
   eventId: z.uuid().optional(),
@@ -65,29 +104,58 @@ export const batchTrackEventsSchema = z.object({
 
 // ─── 错误上报 ─────────────────────────────────────────────────────────────────
 export const errorBreadcrumbSchema = z.object({
-  type: z.enum(['navigation', 'click', 'http', 'console', 'custom']),
+  type: z.enum(ERROR_BREADCRUMB_TYPES),
   message: z.string().max(512),
-  level: z.enum(['fatal', 'error', 'warning', 'info']).optional(),
+  level: z.enum(ERROR_LEVELS).optional(),
   data: boundedJsonRecord('面包屑数据', 20, ANALYTICS_BREADCRUMB_DATA_MAX_BYTES, 4).optional(),
   timestamp: z.string().max(32),
 });
 
+export type ErrorBreadcrumb = z.infer<typeof errorBreadcrumbSchema>;
+
+/** 前端错误上报（匿名 / 登录均可） */
+export const reportFrontendErrorSchema = z.object({
+  errorType: z.enum(FRONTEND_ERROR_TYPES),
+  level: z.enum(ERROR_LEVELS).optional(),
+  message: z.string().min(1).max(2000),
+  stack: z.string().max(16_000).optional(),
+  sourceUrl: z.string().max(512).optional(),
+  lineNo: z.number().int().optional(),
+  colNo: z.number().int().optional(),
+  pageUrl: z.string().max(512).optional(),
+  release: z.string().max(64).optional(),
+  sessionId: z.string().min(1).max(36).optional(),
+  breadcrumbs: z.array(errorBreadcrumbSchema).max(50).optional(),
+  context: boundedJsonRecord('错误上下文', 50, ANALYTICS_CONTEXT_MAX_BYTES, 6).optional(),
+  httpStatus: z.number().int().optional(),
+  httpMethod: z.string().max(16).optional(),
+  httpUrl: z.string().max(512).optional(),
+  // 多端平台字段（均可选，未携带时由服务端按接入方式默认推断）
+  source: z.enum(ANALYTICS_EVENT_SOURCES).optional(),
+  appId: z.string().min(1).max(64).optional(),
+  environment: z.enum(ANALYTICS_ENVIRONMENTS).optional(),
+  /** 报错时刻活跃的回放会话 ID（SDK 注入） */
+  replayId: z.uuid().optional(),
+});
+
+export type ReportFrontendErrorInput = z.infer<typeof reportFrontendErrorSchema>;
+
 // ─── 错误处理（后台）─────────────────────────────────────────────────────────
 export const updateErrorGroupSchema = z.object({
-  status: z.enum(['unresolved', 'resolved', 'ignored', 'muted']).optional(),
-  level: z.enum(['fatal', 'error', 'warning', 'info']).optional(),
+  status: z.enum(ERROR_STATUSES).optional(),
+  level: z.enum(ERROR_LEVELS).optional(),
   assigneeId: z.number().int().positive().nullable().optional(),
   note: z.string().max(2000).nullable().optional(),
 });
 
 const errorAlertRuleBaseSchema = z.object({
   name: z.string().min(1).max(128),
-  errorType: z.enum(['js_error', 'promise_rejection', 'resource_error', 'console_error', 'http_error', 'white_screen', 'crash']).nullable().optional(),
-  level: z.enum(['fatal', 'error', 'warning', 'info']).nullable().optional(),
-  condition: z.enum(['new_error', 'threshold', 'spike']).default('threshold'),
+  errorType: z.enum(FRONTEND_ERROR_TYPES).nullable().optional(),
+  level: z.enum(ERROR_LEVELS).nullable().optional(),
+  condition: z.enum(ERROR_ALERT_CONDITIONS).default('threshold'),
   thresholdCount: z.number().int().min(1).max(100_000).default(10),
   windowMinutes: z.number().int().min(1).max(10_080).default(60),
-  channels: z.array(z.enum(['email', 'webhook', 'inapp'])).default([]),
+  channels: z.array(z.enum(ERROR_ALERT_CHANNELS)).default([]),
   webhookUrl: webhookUrlSchema.nullable().optional(),
   recipients: z.array(z.string().max(128)).default([]),
   enabled: z.boolean().default(true),
@@ -104,13 +172,18 @@ export const analyticsEventPropertyDefSchema = z.object({
   key: z.string().min(1).max(64),
   type: z.enum(ANALYTICS_EVENT_PROPERTY_TYPES),
   description: z.string().max(256).optional(),
+  /** 是否为必填属性（严格模式下用于质量校验） */
   required: z.boolean().optional(),
+  /** 枚举取值范围（仅对 string 类型有效） */
   enumValues: z.array(z.string().max(128)).max(50).optional(),
+  /** 是否含个人敏感信息，供采集/导出侧脱敏参考 */
   pii: z.boolean().optional(),
 });
 
+export type AnalyticsEventPropertyDef = z.infer<typeof analyticsEventPropertyDefSchema>;
+
 // 同一事件的属性 schema 中，key 必须唯一（否则前后定义相互覆盖，采集/校验行为不可预期）
-const analyticsPropertySchemaListSchema = z.array(analyticsEventPropertyDefSchema).max(100).superRefine((defs, ctx) => {
+export const analyticsPropertySchemaListSchema = z.array(analyticsEventPropertyDefSchema).max(100).superRefine((defs, ctx) => {
   const seen = new Set<string>();
   defs.forEach((def, index) => {
     if (seen.has(def.key)) {
@@ -126,7 +199,7 @@ export const createAnalyticsEventMetaSchema = z.object({
   category: z.string().max(64).nullable().optional(),
   description: z.string().max(1000).nullable().optional(),
   propertySchema: analyticsPropertySchemaListSchema.nullable().optional(),
-  status: z.enum(['active', 'deprecated', 'blocked']).default('active'),
+  status: z.enum(ANALYTICS_EVENT_META_STATUSES).default('active'),
   // Tracking Plan 契约负责人（版本号由服务端在结构性变更时自动递增，不作为客户端入参）
   ownerId: z.number().int().positive().nullable().optional(),
   ownerName: z.string().max(64).nullable().optional(),
@@ -138,12 +211,12 @@ export const updateAnalyticsEventMetaSchema = partialForUpdate(createAnalyticsEv
 // ─── 行为中心阶段 1：租户级事件启停覆盖 ───────────────────────────────────────
 export const createAnalyticsEventOverrideSchema = z.object({
   eventName: z.string().min(1).max(128),
-  status: z.enum(['enabled', 'disabled']).default('enabled'),
+  status: z.enum(ANALYTICS_EVENT_OVERRIDE_STATUSES).default('enabled'),
   reason: z.string().max(500).nullable().optional(),
 });
 
 export const updateAnalyticsEventOverrideSchema = z.object({
-  status: z.enum(['enabled', 'disabled']).optional(),
+  status: z.enum(ANALYTICS_EVENT_OVERRIDE_STATUSES).optional(),
   reason: z.string().max(500).nullable().optional(),
 });
 
@@ -161,7 +234,7 @@ export const createAnalyticsSiteSchema = z.object({
   appId: z.string().min(1).max(50).regex(/^[a-z][a-z0-9_-]*$/, 'appId 必须以小写字母开头，仅允许小写字母、数字、下划线和中划线'),
   allowedOrigins: z.array(analyticsOriginSchema).max(100).nullable().optional(),
   dailyEventQuota: z.number().int().positive().nullable().optional(),
-  status: z.enum(['enabled', 'disabled']).default('enabled'),
+  status: z.enum(ANALYTICS_EVENT_OVERRIDE_STATUSES).default('enabled'),
   remark: z.string().max(500).nullable().optional(),
 });
 
@@ -174,14 +247,22 @@ export const analyticsSegmentPropertyFilterSchema = z.object({
   value: z.unknown(),
 });
 
+export type AnalyticsSegmentPropertyFilter = z.infer<typeof analyticsSegmentPropertyFilterSchema>;
+
+/** 事件型条件：过滤最近 N 天内触发过指定事件（可选属性过滤 / 最小次数）的用户 */
 const analyticsSegmentEventConditionSchema = z.object({
   type: z.literal('event'),
   eventName: z.string().min(1).max(128),
+  /** 统计窗口（天） */
   days: z.number().int().min(1).max(365),
+  /** 最小触发次数，默认 1 */
   minCount: z.number().int().min(1).max(100_000).optional(),
   properties: z.array(analyticsSegmentPropertyFilterSchema).max(20).optional(),
 });
 
+export type AnalyticsSegmentEventCondition = z.infer<typeof analyticsSegmentEventConditionSchema>;
+
+/** 属性型条件：过滤画像属性（identityType / userId / memberId / properties.xxx） */
 const analyticsSegmentAttributeConditionSchema = z.object({
   type: z.literal('attribute'),
   // 'identityType' | 'userId' | 'memberId' | `property.<key>`
@@ -190,22 +271,29 @@ const analyticsSegmentAttributeConditionSchema = z.object({
   value: z.unknown(),
 });
 
+export type AnalyticsSegmentAttributeCondition = z.infer<typeof analyticsSegmentAttributeConditionSchema>;
+
+/** 分群条件：本阶段仅支持 event / attribute 两类原子条件，不支持 cohort 嵌套（无 type: 'segment'） */
 export const analyticsSegmentConditionSchema = z.discriminatedUnion('type', [
   analyticsSegmentEventConditionSchema,
   analyticsSegmentAttributeConditionSchema,
 ]);
 
-// 本阶段仅支持 event / attribute 两类原子条件，不支持 cohort 嵌套（无 type: 'segment'）
+export type AnalyticsSegmentCondition = z.infer<typeof analyticsSegmentConditionSchema>;
+
 export const analyticsSegmentRuleSchema = z.object({
-  operator: z.enum(['AND', 'OR']),
+  operator: z.enum(ANALYTICS_SEGMENT_RULE_OPERATORS),
+  /** 条件数组，长度限制 1~10 */
   conditions: z.array(analyticsSegmentConditionSchema).min(1).max(10),
 });
+
+export type AnalyticsSegmentRule = z.infer<typeof analyticsSegmentRuleSchema>;
 
 export const createAnalyticsUserSegmentSchema = z.object({
   name: z.string().min(1).max(128),
   description: z.string().max(1000).nullable().optional(),
   rules: analyticsSegmentRuleSchema,
-  status: z.enum(['enabled', 'disabled']).default('enabled'),
+  status: z.enum(ANALYTICS_EVENT_OVERRIDE_STATUSES).default('enabled'),
 });
 
 export const updateAnalyticsUserSegmentSchema = partialForUpdate(createAnalyticsUserSegmentSchema);
@@ -257,6 +345,8 @@ export const analyticsExperimentVariantSchema = z.object({
   name: z.string().min(1).max(100),
   weight: z.number().int().min(0).max(100),
 });
+
+export type AnalyticsExperimentVariant = z.infer<typeof analyticsExperimentVariantSchema>;
 
 export const analyticsExperimentVariantsSchema = z.array(analyticsExperimentVariantSchema).min(2, '至少配置 2 个变体').max(6, '最多配置 6 个变体').superRefine((variants, ctx) => {
   const seen = new Set<string>();
@@ -321,19 +411,25 @@ export const updateAnalyticsSettingsSchema = z.object({
 });
 
 // ─── 会话回放 ─────────────────────────────────────────────────────────────────
+export const replayTriggerSchema = z.object({
+  type: z.enum(REPLAY_TRIGGER_TYPES),
+  /** 触发时刻（客户端 ISO 时间） */
+  at: z.string(),
+  /** 关联业务标识（如错误 fingerprint / 反馈 ID） */
+  refId: z.string().max(128).optional(),
+});
+
+export type ReplayTrigger = z.infer<typeof replayTriggerSchema>;
+
 /** 回放分片上报 meta（multipart 的 meta 字段，与二进制 gz 数据同包提交） */
-export const replaySegmentMetaSchema = z.object({
+export const replaySegmentUploadMetaSchema = z.object({
   /** 回放会话 ID（客户端生成 UUID，首分片 upsert 会话） */
   replayId: z.uuid(),
   /** tracker 会话 ID */
   sessionId: z.string().min(1).max(36),
   seq: z.number().int().min(0).max(600),
-  mode: z.enum(['buffer', 'stream']),
-  triggers: z.array(z.object({
-    type: z.enum(['error', 'sampled', 'manual', 'rage_click', 'white_screen']),
-    at: z.string(),
-    refId: z.string().max(128).optional(),
-  })).max(50),
+  mode: z.enum(REPLAY_MODES),
+  triggers: z.array(replayTriggerSchema).max(50),
   /** 会话起点（客户端毫秒时间戳） */
   startedAt: z.number(),
   /** 分片时间范围（客户端毫秒时间戳） */
@@ -362,7 +458,7 @@ export const replaySegmentMetaSchema = z.object({
   environment: z.enum(ANALYTICS_ENVIRONMENTS).optional(),
 });
 
-export type ReplaySegmentMetaInput = z.infer<typeof replaySegmentMetaSchema>;
+export type ReplaySegmentUploadMetaInput = z.infer<typeof replaySegmentUploadMetaSchema>;
 
 // ─── 阶段 2：统一对比轴（breakdown 维度 / 群组对比）──────────────────────────
 export const analyticsBreakdownDimensionSchema = z.enum(ANALYTICS_BREAKDOWN_DIMENSIONS);
@@ -381,6 +477,12 @@ export const analyticsComparisonSchema = z.discriminatedUnion('type', [
   }),
 ]);
 
+/**
+ * 对比轴：漏斗/留存/事件分析共用。
+ * `dimension` 按事件维度拆分，`segments` 按分群对比，两者互斥（不做笛卡尔积）。
+ */
+export type AnalyticsComparison = z.infer<typeof analyticsComparisonSchema>;
+
 // ─── 漏斗 / 路径分析查询 ──────────────────────────────────────────────────────
 export const funnelStepSchema = z.object({
   eventType: userBehaviorEventTypeEnum.optional(),
@@ -395,6 +497,8 @@ export const funnelStepSchema = z.object({
   { message: '漏斗步骤至少需要一个事件或页面条件' },
 );
 
+export type FunnelStepInput = z.infer<typeof funnelStepSchema>;
+
 export const funnelQuerySchema = z.object({
   days: z.number().int().min(1).max(365).default(30),
   steps: z.array(funnelStepSchema).min(2).max(10),
@@ -402,6 +506,18 @@ export const funnelQuerySchema = z.object({
   conversionWindowHours: z.number().int().min(1).max(720).default(72),
   comparison: analyticsComparisonSchema.default({ type: 'none' }),
 });
+
+/** 漏斗查询（客户端形态：带默认值的字段可省略） */
+export type FunnelQuery = z.input<typeof funnelQuerySchema>;
+
+/** 保存的分析报表配置 */
+export const createAnalyticsSavedReportSchema = z.object({
+  name: z.string().min(1).max(128),
+  reportType: z.enum(ANALYTICS_SAVED_REPORT_TYPES).default('funnel'),
+  config: z.record(z.string(), z.unknown()),
+});
+
+export type CreateAnalyticsSavedReportInput = z.infer<typeof createAnalyticsSavedReportSchema>;
 
 // ─── 留存分析查询 ─────────────────────────────────────────────────────────────
 export const analyticsRetentionModeSchema = z.enum(ANALYTICS_RETENTION_MODES);
@@ -463,20 +579,32 @@ export const analyticsDrillUsersSchema = z.object({
   pageSize: z.number().int().min(1).max(ANALYTICS_DRILL_PAGE_SIZE_MAX).default(20),
 });
 
-// ─── 行为中心阶段 1：通用事件分析工作台 ────────────────────────────────────────
-const analyticsEventQueryDeviceTypeEnum = z.enum(['desktop', 'mobile', 'tablet', 'bot', 'unknown']);
+/**
+ * 下钻定位坐标（客户端形态）：由「分析上下文」+「图表坐标」共同确定一个用户集合。
+ * 上下文字段必须与产生该图表的查询一致，否则下钻出的人群与图上数字对不上。
+ */
+export type AnalyticsDrillContext = z.input<typeof analyticsDrillUsersSchema>['context'];
 
+export type AnalyticsDrillUsersInput = z.input<typeof analyticsDrillUsersSchema>;
+
+// ─── 行为中心阶段 1：通用事件分析工作台 ────────────────────────────────────────
 export const analyticsEventQuerySchema = z.object({
+  /** 自定义区间起止日（YYYY-MM-DD），优先于 days */
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  /** 未提供 startDate/endDate 时，最近 N 天，默认 30 */
   days: z.number().int().min(1).max(365).default(30),
+  /** 事件名过滤（最多 20 个，OR 语义） */
   eventNames: z.array(z.string().min(1).max(128)).max(20).optional(),
   source: z.enum(ANALYTICS_EVENT_SOURCES).optional(),
   appId: z.string().max(64).optional(),
   environment: z.enum(ANALYTICS_ENVIRONMENTS).optional(),
-  deviceType: analyticsEventQueryDeviceTypeEnum.optional(),
+  deviceType: z.enum(ANALYTICS_DEVICE_TYPES).optional(),
+  /** 事件属性过滤（最多 10 条，AND 语义） */
   propertyFilters: z.array(analyticsSegmentPropertyFilterSchema).max(10).optional(),
+  /** 仅统计指定分群内成员 */
   segmentId: z.number().int().positive().optional(),
+  /** 分组维度（1~2 维，来自白名单） */
   groupBy: z.array(z.enum(ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS)).min(1).max(2).default(['date']),
   metric: z.enum(ANALYTICS_EVENT_QUERY_METRICS).default('events'),
   /** 数值属性 key，与属性过滤共用白名单正则，杜绝 jsonb 路径注入 */
@@ -489,14 +617,15 @@ export const analyticsEventQuerySchema = z.object({
   { message: '该指标需要指定数值属性字段', path: ['metricProperty'] },
 );
 
+/** 事件分析查询（客户端形态：带默认值的字段可省略） */
+export type AnalyticsEventQueryInput = z.input<typeof analyticsEventQuerySchema>;
+
 export const sourceMapUploadSchema = z.object({
   release: z.string().min(1).max(64),
   fileName: z.string().min(1).max(256),
   content: z.string().min(1).max(SOURCE_MAP_MAX_BYTES)
     .refine((value) => new TextEncoder().encode(value).byteLength <= SOURCE_MAP_MAX_BYTES, 'Source Map 超出 20MB 大小限制'),
 });
-
-export type TrackEventInputZod = z.infer<typeof trackEventInputSchema>;
 
 export type UpdateErrorGroupInput = z.infer<typeof updateErrorGroupSchema>;
 
@@ -520,10 +649,6 @@ export type CreateAnalyticsExperimentInput = z.infer<typeof createAnalyticsExper
 
 export type UpdateAnalyticsExperimentInput = z.infer<typeof updateAnalyticsExperimentSchema>;
 
-export type AnalyticsSegmentConditionInput = z.infer<typeof analyticsSegmentConditionSchema>;
-
-export type AnalyticsSegmentRuleInput = z.infer<typeof analyticsSegmentRuleSchema>;
-
 export type CreateAnalyticsUserSegmentInput = z.infer<typeof createAnalyticsUserSegmentSchema>;
 
 export type UpdateAnalyticsUserSegmentInput = z.infer<typeof updateAnalyticsUserSegmentSchema>;
@@ -534,10 +659,10 @@ export type UpdateAnalyticsCampaignInput = z.infer<typeof updateAnalyticsCampaig
 
 export type UpdateAnalyticsSettingsInput = z.infer<typeof updateAnalyticsSettingsSchema>;
 
-export type FunnelQueryInput = z.infer<typeof funnelQuerySchema>;
+/** 留存查询（客户端形态：带默认值的字段可省略） */
+export type RetentionQueryInput = z.input<typeof retentionQuerySchema>;
 
-export type RetentionQueryInput = z.infer<typeof retentionQuerySchema>;
-
-export type AnalyticsEventQueryValidatedInput = z.infer<typeof analyticsEventQuerySchema>;
+/** 获客报表查询（客户端形态） */
+export type AnalyticsAcquisitionQueryInput = z.input<typeof analyticsAcquisitionQuerySchema>;
 
 export type SourceMapUploadInput = z.infer<typeof sourceMapUploadSchema>;

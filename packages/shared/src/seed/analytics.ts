@@ -1,6 +1,7 @@
 import { ANALYTICS_EXPERIMENT_EXPOSURE_EVENT, ANALYTICS_SEMANTIC_EVENT_LABELS } from '../analytics/constants';
 import type { AnalyticsSemanticEventName } from '../analytics/constants';
-import type { AnalyticsEventPropertyDef, AnalyticsSite, AnalyticsUserSegment } from '../analytics/types';
+import type { AnalyticsSite, AnalyticsUserSegment } from '../analytics/contracts';
+import type { AnalyticsEventPropertyDef } from '../analytics/validation';
 import { SEED_DATE } from './_base';
 
 // ─── 行为中心阶段 1：服务端权威语义事件 Tracking Plan 初始种子 ─────────────────

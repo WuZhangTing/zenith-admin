@@ -14,7 +14,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { replaySessions, replaySegments, replayClickPoints, replayAccessLogs, errorEvents, analyticsSettings, userEvents } from '../../db/schema';
 import type { ReplaySessionRow, ReplaySegmentRow } from '../../db/schema';
-import type { ReplaySegmentMetaInput } from '@zenith/shared/analytics';
+import type { ReplaySegmentUploadMetaInput } from '@zenith/shared/analytics';
 import { currentUserOrNull } from '../../lib/context';
 import { currentMemberOrNull } from '../../lib/member-context';
 import { tenantScope, getCreateTenantId } from '../../lib/tenant';
@@ -90,7 +90,7 @@ function mapSegmentMeta(row: Omit<ReplaySegmentRow, 'data'>) {
  * 接收一个回放分片：首分片 upsert 会话行，后续分片累加聚合。
  * 幂等：(replayId, seq) 冲突时丢弃重复分片（不重复累加聚合）。
  */
-export async function ingestReplaySegment(meta: ReplaySegmentMetaInput, data: Buffer, reqCtx: ReplayReqCtx): Promise<void> {
+export async function ingestReplaySegment(meta: ReplaySegmentUploadMetaInput, data: Buffer, reqCtx: ReplayReqCtx): Promise<void> {
   if (data.byteLength === 0) throw new HTTPException(400, { message: '分片数据为空' });
   if (data.byteLength > REPLAY_SEGMENT_MAX_BYTES) throw new HTTPException(400, { message: '分片超出大小上限' });
   if (meta.toTs < meta.fromTs) throw new HTTPException(400, { message: '分片时间范围非法' });

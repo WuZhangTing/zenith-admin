@@ -9,7 +9,8 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { KeywordInput } from '@/components/search-filters';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { usePagination } from '@/hooks/usePagination';
-import { useReplayAccessLogs, type ReplayAccessLog } from '@/hooks/queries/session-replays';
+import type { ReplayAccessLog } from '@zenith/shared/analytics';
+import { useReplayAccessLogs } from '@/hooks/queries/session-replays';
 
 const { Text } = Typography;
 
