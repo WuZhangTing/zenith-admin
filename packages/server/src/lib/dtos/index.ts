@@ -40,7 +40,6 @@ export * from './frontend-errors';
 export * from './session-replays';
 export * from './payment';
 export * from './payment-journals';
-export * from './member';
 export * from './mp';
 export * from './ssl-certificates';
 export * from './nginx-sites';

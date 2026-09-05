@@ -1,4 +1,6 @@
 import { http } from 'msw';
+import { memberRenewalContract } from '@zenith/shared/member';
+import { mock } from '@/mocks/utils/contract';
 import { mockDeductPlans, mockPaymentContracts, mockVipRenewals, getNextContractId, getNextPlanId } from '@/mocks/data/payment-contracts';
 import { mockDateTime } from '@/mocks/utils/date';
 import { ok, notFound, badRequest, paginate } from '@/mocks/utils/handlers';
@@ -252,21 +254,15 @@ function memberVipExpireAt(): string | null {
 }
 
 const memberRenewalHandlers = [
-  http.get('/api/member/renewal/plans', ({ request }) => {
-    if (!new URL(request.url).searchParams.get('applicationId')) return badRequest('请选择支付应用');
-    return ok(mockDeductPlans.filter((p) => p.status === 'enabled').map((p) => ({ id: p.id, name: p.name, period: p.period, customDays: p.customDays ?? null, amount: p.amount, remark: p.remark ?? null })));
-  }),
-  http.get('/api/member/renewal', ({ request }) => {
-    if (!new URL(request.url).searchParams.get('applicationId')) return badRequest('请选择支付应用');
-    return ok({ vipExpireAt: memberVipExpireAt(), contract: findMemberContract() ?? null, renewals: mockVipRenewals.slice(0, 20) });
-  }),
-  http.post('/api/member/renewal/sign', async ({ request }) => {
-    const b = (await request.json()) as { applicationId: number; planId: number; payMethod?: PaymentDeductMethod };
-    if (!b.applicationId) return badRequest('请选择支付应用');
+  mock(memberRenewalContract.plans, ({ ok }) =>
+    ok(mockDeductPlans.filter((p) => p.status === 'enabled').map((p) => ({ id: p.id, name: p.name, period: p.period, customDays: p.customDays ?? null, amount: p.amount, remark: p.remark ?? null })))),
+  mock(memberRenewalContract.info, ({ ok }) =>
+    ok({ vipExpireAt: memberVipExpireAt(), contract: findMemberContract() ?? null, renewals: mockVipRenewals.slice(0, 20) })),
+  mock(memberRenewalContract.sign, ({ body, ok }) => {
     if (findMemberContract()) return badRequest('该业务已存在生效中的签约协议');
-    const plan = mockDeductPlans.find((p) => p.id === b.planId);
+    const plan = mockDeductPlans.find((p) => p.id === body.planId);
     if (!plan) return notFound('扣款计划不存在');
-    const payMethod = b.payMethod ?? 'wechat_papay';
+    const payMethod = body.payMethod;
     const now = mockDateTime();
     const contract: PaymentContract = {
       id: getNextContractId(),
@@ -303,8 +299,7 @@ const memberRenewalHandlers = [
     const firstDeduct = simulateDeduct(contract);
     return ok({ contract, firstDeduct }, '签约完成');
   }),
-  http.post('/api/member/renewal/terminate', ({ request }) => {
-    if (!new URL(request.url).searchParams.get('applicationId')) return badRequest('请选择支付应用');
+  mock(memberRenewalContract.terminate, ({ ok }) => {
     const c = findMemberContract();
     if (!c) return notFound('未开通自动续费');
     c.status = 'terminated';
@@ -313,8 +308,7 @@ const memberRenewalHandlers = [
     c.nextDeductAt = null;
     return ok(null, '已关闭自动续费');
   }),
-  http.post('/api/member/renewal/deduct', ({ request }) => {
-    if (!new URL(request.url).searchParams.get('applicationId')) return badRequest('请选择支付应用');
+  mock(memberRenewalContract.deduct, ({ ok }) => {
     const c = findMemberContract();
     if (!c) return notFound('未开通自动续费');
     if (c.status !== 'signed') return badRequest('协议未生效，无法扣款');

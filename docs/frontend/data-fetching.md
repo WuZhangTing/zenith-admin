@@ -163,7 +163,7 @@ const modal = useEditModal<Xxx, Partial<CreateXxxInput>>({
 
 ## 会员端（member SPA）
 
-`src/member/` 是独立入口，使用 `memberQueryClient` 与 `memberRequest`。域 hooks 集中在 `member/hooks/queries.ts`，`unwrap` / `toQueryString` 从 `@/lib/query` 复用。会员端移动列表可使用 `useInfiniteQuery` 实现加载更多。
+`src/member/` 是独立入口，使用 `memberQueryClient` 与 `memberRequest`。域 hooks 集中在 `member/hooks/queries.ts`：会员端契约（`memberAuthContract` / `memberSelfContract` / `memberRenewalContract`）经 `apiQueryOptions` / `useApiMutation` 驱动，并统一通过 `requestOptions: { client: memberRequest }` 指定会员请求实例，不得混用后台 `request`。登录 / 注册 / 验证码等需要直接消费响应包络（`code` / `message`）的调用按 `memberRequest.post(urlOf(op), body satisfies BodyOf<typeof op>)` 书写。会员端移动列表可使用 `useInfiniteQuery` 实现加载更多。
 
 ## 不走 TanStack Query 的场景
 
