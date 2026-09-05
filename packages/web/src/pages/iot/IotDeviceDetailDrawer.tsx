@@ -12,10 +12,11 @@ import { usePermission } from '@/hooks/usePermission';
 import { EMPTY_PLACEHOLDER, dateTimeColumn } from '@/utils/table-columns';
 import { confirmDanger } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
+import { enumValueOf } from '@zenith/shared/core';
 import {
-  IOT_ACCESS_MODE_LABELS, IOT_COMMAND_STATUS_LABELS, IOT_DEVICE_EVENT_KIND_LABELS,
-  IOT_DEVICE_EVENT_KIND_OPTIONS, IOT_EVENT_LEVEL_LABELS, IOT_EVENT_LEVEL_OPTIONS,
-  IOT_LOG_LEVEL_LABELS, IOT_LOG_LEVEL_OPTIONS, IOT_PROPERTY_TYPE_LABELS,
+  IOT_ACCESS_MODE_LABELS, IOT_COMMAND_STATUS_LABELS, IOT_DEVICE_EVENT_KINDS, IOT_DEVICE_EVENT_KIND_LABELS,
+  IOT_DEVICE_EVENT_KIND_OPTIONS, IOT_EVENT_LEVELS, IOT_EVENT_LEVEL_LABELS, IOT_EVENT_LEVEL_OPTIONS,
+  IOT_LOG_LEVELS, IOT_LOG_LEVEL_LABELS, IOT_LOG_LEVEL_OPTIONS, IOT_PROPERTY_TYPE_LABELS, iotIngestContract,
 } from '@zenith/shared/iot';
 import type {
   IotCommand, IotDevice, IotDeviceEvent, IotDeviceLog, IotDeviceShadow, IotMetricValue, IotParamDef,
@@ -136,8 +137,8 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
       abortSubmit();
     }
     await setDesiredMutation.mutateAsync({
-      deviceId,
-      values: { desired: { [desiredTarget.identifier]: value as IotMetricValue } },
+      params: { id: deviceId },
+      body: { desired: { [desiredTarget.identifier]: value as IotMetricValue } },
     });
     Toast.success('期望值已下发，设备确认后自动收敛');
     setDesiredTarget(null);
@@ -293,8 +294,8 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
   async function doSendCommand(service: IotProductService, params: Record<string, unknown> | null) {
     if (!deviceId) return;
     const row = await sendCommandMutation.mutateAsync({
-      deviceId,
-      values: { service: service.identifier, params },
+      params: { id: deviceId },
+      body: { service: service.identifier, params },
     });
     Toast.success(row.status === 'delivered' ? '指令已实时送达设备' : '设备离线，指令将在上线后送达');
     setCommandPage(1);
@@ -354,8 +355,8 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
   const eventsQuery = useIotDeviceEvents(deviceId, {
     page: eventPage,
     pageSize: 10,
-    kind: eventKind || undefined,
-    level: eventLevel || undefined,
+    kind: enumValueOf(IOT_DEVICE_EVENT_KINDS, eventKind),
+    level: enumValueOf(IOT_EVENT_LEVELS, eventLevel),
   });
 
   const eventColumns: ColumnProps<IotDeviceEvent>[] = [
@@ -392,7 +393,7 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
   const logsQuery = useIotDeviceLogs(deviceId, {
     page: logPage,
     pageSize: 10,
-    level: logLevel || undefined,
+    level: enumValueOf(IOT_LOG_LEVELS, logLevel),
   });
 
   const logColumns: ColumnProps<IotDeviceLog>[] = [
@@ -420,7 +421,7 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
 
   function handleResetSecret() {
     if (!device) return;
-    void resetSecretMutation.mutateAsync(device.id).then(() => {
+    void resetSecretMutation.mutateAsync({ params: { id: device.id } }).then(() => {
       Toast.success('密钥已重置，请更新设备侧配置');
     });
   }
@@ -476,7 +477,7 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
           />
           <Banner
             type="info" closeIcon={null} style={{ margin: '12px 0' }}
-            description={'设备侧以 HMAC-SHA256(secret, sn + 时间戳 + 请求体) 签名调用 /api/iot/ingest/*，或携带同款签名参数连接 /api/iot/ws 获得指令与期望属性实时推送。'}
+            description={`设备侧以 HMAC-SHA256(secret, sn + 时间戳 + 请求体) 签名调用 ${iotIngestContract.basePath}/*，或携带同款签名参数连接 /api/iot/ws 获得指令与期望属性实时推送。`}
           />
 
           {/* lazyRender：拓扑等重型 Tab 首次激活才挂载（避免在隐藏容器中初始化 ReactFlow 导致 fitView 失效） */}
@@ -492,7 +493,7 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
                     content="设备将不再收到这些期望变更"
                     onConfirm={() => {
                       if (deviceId) {
-                        void clearDesiredMutation.mutateAsync(deviceId).then(() => Toast.success('期望值已清空'));
+                        void clearDesiredMutation.mutateAsync({ params: { id: deviceId } }).then(() => Toast.success('期望值已清空'));
                       }
                     }}
                   >
@@ -649,7 +650,7 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
                 rowKey="id"
                 size="small"
                 loading={logsQuery.isFetching}
-                empty="暂无设备日志（设备侧通过 log 帧 / POST /api/iot/ingest/logs 上报）"
+                empty={`暂无设备日志（设备侧通过 log 帧 / POST ${iotIngestContract.logs.fullPath} 上报）`}
                 pagination={{
                   currentPage: logPage,
                   pageSize: 10,

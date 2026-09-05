@@ -14,10 +14,11 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useDictItems } from '@/hooks/useDictItems';
 import { confirmDelete } from '@/utils/confirm';
+import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
 import {
-  IOT_FORWARD_SOURCE_LABELS, IOT_FORWARD_SOURCE_OPTIONS,
+  IOT_FORWARD_SOURCES, IOT_FORWARD_SOURCE_LABELS, IOT_FORWARD_SOURCE_OPTIONS, IOT_FORWARD_STATUSES, IOT_FORWARD_STATUS_OPTIONS,
 } from '@zenith/shared/iot';
-import type { IotForwardLog, IotForwardRule } from '@zenith/shared/iot';
+import type { CreateIotForwardRuleInput, IotForwardLog, IotForwardRule } from '@zenith/shared/iot';
 import { useAllIotProducts } from '@/hooks/queries/iot-products';
 import { useAllIotGroups } from '@/hooks/queries/iot-groups';
 import {
@@ -36,6 +37,11 @@ interface ForwardSearchParams {
 
 const defaultSearch: ForwardSearchParams = { keyword: '', source: undefined, status: '' };
 
+/** 流转规则表单值：请求头以 JSON 文本编辑，提交前由 beforeSave 解析；密钥留空表示不变更 */
+interface ForwardRuleFormValues extends Partial<Omit<CreateIotForwardRuleInput, 'headers'>> {
+  headersText?: string;
+}
+
 function ForwardRulesTab({ onShowLogs }: Readonly<{ onShowLogs: (rule: IotForwardRule) => void }>) {
   const { hasPermission } = usePermission();
   const {
@@ -48,14 +54,14 @@ function ForwardRulesTab({ onShowLogs }: Readonly<{ onShowLogs: (rule: IotForwar
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    source: submittedParams.source || undefined,
-    status: submittedParams.status || undefined,
+    source: enumValueOf(IOT_FORWARD_SOURCES, submittedParams.source),
+    status: enumValueOf(USER_STATUSES, submittedParams.status),
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
   const { items: statusItems } = useDictItems('common_status');
 
-  const modal = useEditModal<IotForwardRule, Record<string, unknown>, Partial<IotForwardRule> & { secret?: string | null }>({
+  const modal = useEditModal<IotForwardRule, ForwardRuleFormValues, Partial<CreateIotForwardRuleInput>>({
     entityName: '流转规则',
     save: useSaveIotForwardRule(),
     toValues: (r) => ({
@@ -71,7 +77,7 @@ function ForwardRulesTab({ onShowLogs }: Readonly<{ onShowLogs: (rule: IotForwar
     defaults: { source: 'telemetry', status: 'enabled', secret: '', headersText: '' },
     beforeSave: (values, { isEdit }) => {
       let headers: Record<string, string> | null = null;
-      const headersText = (values.headersText as string | undefined)?.trim();
+      const headersText = values.headersText?.trim();
       if (headersText) {
         try {
           const parsed: unknown = JSON.parse(headersText);
@@ -82,17 +88,17 @@ function ForwardRulesTab({ onShowLogs }: Readonly<{ onShowLogs: (rule: IotForwar
           throw new Error('invalid headers');
         }
       }
-      const secret = (values.secret as string | undefined)?.trim();
+      const secret = values.secret?.trim();
       return {
-        name: values.name as string,
-        ...(isEdit ? {} : { source: values.source as IotForwardRule['source'] }),
-        productId: (values.productId as number | undefined) ?? null,
-        groupId: (values.groupId as number | undefined) ?? null,
-        url: values.url as string,
+        name: values.name,
+        ...(isEdit ? {} : { source: values.source }),
+        productId: values.productId ?? null,
+        groupId: values.groupId ?? null,
+        url: values.url,
         // 编辑时留空 = 不变更密钥；填写 = 覆盖
         ...(secret ? { secret } : (isEdit ? {} : { secret: null })),
         headers,
-        status: values.status as IotForwardRule['status'],
+        status: values.status,
       };
     },
     labelWidth: 110,
@@ -304,7 +310,7 @@ function ForwardLogsTab({ filterRule, onClearFilter }: Readonly<{
     page,
     pageSize,
     ruleId: filterRule?.id,
-    status: statusFilter || undefined,
+    status: enumValueOf(IOT_FORWARD_STATUSES, statusFilter),
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -356,7 +362,7 @@ function ForwardLogsTab({ filterRule, onClearFilter }: Readonly<{
           )}
           <FilterSelect
             placeholder="全部结果"
-            items={[{ value: 'succeeded', label: '成功' }, { value: 'failed', label: '失败' }]}
+            items={IOT_FORWARD_STATUS_OPTIONS}
             value={statusFilter}
             onChange={(v) => { setStatusFilter(v); setPage(1); }}
           />

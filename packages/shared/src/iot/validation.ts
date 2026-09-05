@@ -37,6 +37,9 @@ export const iotParamDefSchema = z.object({
   enumOptions: z.record(z.string().min(1).max(64), z.string().min(1).max(64)).nullable().optional(),
 });
 
+/** 服务/事件的参数定义（jsonb 内嵌，物模型实体与入参共用同一形状） */
+export type IotParamDef = z.infer<typeof iotParamDefSchema>;
+
 // ─── 物模型：属性 ─────────────────────────────────────────────────────────────
 export const createIotPropertySchema = z.object({
   identifier: identifierSchema,
@@ -332,6 +335,13 @@ export const createIotFirmwareSchema = z.object({
 export const updateIotFirmwareSchema = z.object({
   releaseNotes: z.string().max(4000).nullable().optional(),
   status: z.enum(['enabled', 'disabled']).optional(),
+});
+
+/** 固件上传（multipart）的文本字段；文件字段由契约层以 fileField 追加 */
+export const uploadIotFirmwareFieldsSchema = z.object({
+  productId: z.coerce.number().int().positive(),
+  version: z.string().regex(IOT_FIRMWARE_VERSION_PATTERN, '版本号需为语义化格式，如 1.2.3'),
+  releaseNotes: z.string().max(4000).optional(),
 });
 
 export const createIotOtaTaskSchema = z.object({

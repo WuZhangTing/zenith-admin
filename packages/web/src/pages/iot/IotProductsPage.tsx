@@ -13,8 +13,9 @@ import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useDictItems } from '@/hooks/useDictItems';
 import { confirmDelete } from '@/utils/confirm';
+import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
 import { IOT_VALIDATION_MODE_OPTIONS } from '@zenith/shared/iot';
-import type { IotProduct } from '@zenith/shared/iot';
+import type { CreateIotProductInput, IotProduct } from '@zenith/shared/iot';
 import {
   iotProductKeys, useDeleteIotProducts, useIotProductList, useSaveIotProduct,
 } from '@/hooks/queries/iot-products';
@@ -28,6 +29,9 @@ interface SearchParams {
 }
 
 const defaultSearchParams: SearchParams = { keyword: '', status: '' };
+
+/** 产品表单值：记录里的 null 描述在表单中归一为空串 */
+type IotProductFormValues = Partial<CreateIotProductInput>;
 
 export default function IotProductsPage() {
   const { hasPermission } = usePermission();
@@ -44,12 +48,12 @@ export default function IotProductsPage() {
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    status: submittedParams.status || undefined,
+    status: enumValueOf(USER_STATUSES, submittedParams.status),
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
-  const modal = useEditModal<IotProduct, Record<string, unknown>, Partial<IotProduct>>({
+  const modal = useEditModal<IotProduct, IotProductFormValues, Partial<CreateIotProductInput>>({
     entityName: '产品',
     save: useSaveIotProduct(),
     toValues: (r) => ({
@@ -60,10 +64,10 @@ export default function IotProductsPage() {
     }),
     defaults: { status: 'enabled', validationMode: 'loose' },
     beforeSave: (values) => ({
-      name: values.name as string,
-      validationMode: values.validationMode as IotProduct['validationMode'],
-      status: values.status as IotProduct['status'],
-      description: (values.description as string) || null,
+      name: values.name,
+      validationMode: values.validationMode,
+      status: values.status,
+      description: values.description || null,
     }),
     labelWidth: 100,
   });

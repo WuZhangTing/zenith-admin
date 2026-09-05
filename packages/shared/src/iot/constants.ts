@@ -307,6 +307,18 @@ export const IOT_FORWARD_SOURCE_LABELS: Record<IotForwardSource, string> = {
 
 export const IOT_FORWARD_SOURCE_OPTIONS = createLabelOptions(IOT_FORWARD_SOURCES, IOT_FORWARD_SOURCE_LABELS);
 
+/** 单次投递结果 */
+export const IOT_FORWARD_STATUSES = ['succeeded', 'failed'] as const;
+
+export type IotForwardStatus = (typeof IOT_FORWARD_STATUSES)[number];
+
+export const IOT_FORWARD_STATUS_LABELS: Record<IotForwardStatus, string> = {
+  succeeded: '成功',
+  failed: '失败',
+};
+
+export const IOT_FORWARD_STATUS_OPTIONS = createLabelOptions(IOT_FORWARD_STATUSES, IOT_FORWARD_STATUS_LABELS);
+
 /** 连续投递失败达到该次数后规则自动停用 */
 export const IOT_FORWARD_AUTO_DISABLE_THRESHOLD = 10;
 

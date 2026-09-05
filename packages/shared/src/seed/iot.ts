@@ -3,11 +3,11 @@ import type {
   IotDeviceLog, IotFirmware, IotForwardLog, IotForwardRule, IotMaintenanceWindow,
   IotOtaTask, IotOtaTaskDevice, IotProduct, IotProductEvent, IotProductProperty, IotProductService,
   IotSchedule, IotScheduleRun, IotWhitelistEntry,
-} from '../iot/types';
+} from '../iot/contracts';
 import { SEED_DATE } from './_base';
 
 /**
- * IoT 演示数据：DB seed 与 MSW mock 共用。
+ * IoT 演示数据：DB seed 与 MSW mock 共用（productName / 计数 / 在线态等派生字段 DB seed 时忽略）。
  * 设备 SN / 密钥为固定演示值，配合 scripts/simulate-iot-device.ts 可直接跑通接入链路。
  */
 export const SEED_IOT_PRODUCTS: IotProduct[] = [
@@ -17,6 +17,7 @@ export const SEED_IOT_PRODUCTS: IotProduct[] = [
     description: '演示产品：机房环境监测传感器，每 30 秒上报一次温湿度。',
     validationMode: 'loose',
     status: 'enabled',
+    registrationEnabled: false,
     deviceCount: 2,
     propertyCount: 4,
     serviceCount: 2,
@@ -87,6 +88,8 @@ export const SEED_IOT_DEVICES: IotDevice[] = [
     status: 'enabled',
     nodeType: 'direct',
     gatewayId: null,
+    gatewayName: null,
+    subDeviceCount: 0,
     latitude: 39.9087,
     longitude: 116.3975,
     address: '北京市东城区 A 栋机房',
@@ -112,6 +115,8 @@ export const SEED_IOT_DEVICES: IotDevice[] = [
     status: 'enabled',
     nodeType: 'direct',
     gatewayId: null,
+    gatewayName: null,
+    subDeviceCount: 0,
     latitude: 31.2304,
     longitude: 121.4737,
     address: '上海市黄浦区 B 栋机房',
@@ -137,6 +142,8 @@ export const SEED_IOT_DEVICES: IotDevice[] = [
     status: 'enabled',
     nodeType: 'gateway',
     gatewayId: null,
+    gatewayName: null,
+    subDeviceCount: 2,
     latitude: 22.5431,
     longitude: 114.0579,
     address: '深圳市福田区 C 栋园区',
@@ -146,7 +153,8 @@ export const SEED_IOT_DEVICES: IotDevice[] = [
     lastSeenAt: SEED_DATE,
     reported: null,
     desired: {},
-    subDeviceCount: 2,
+    groupIds: [],
+    groupNames: [],
     remark: '演示网关：代理 C 栋两台子设备接入',
     createdAt: SEED_DATE,
     updatedAt: SEED_DATE,
@@ -162,6 +170,7 @@ export const SEED_IOT_DEVICES: IotDevice[] = [
     nodeType: 'sub',
     gatewayId: 3,
     gatewayName: '园区 C 栋网关',
+    subDeviceCount: 0,
     latitude: null,
     longitude: null,
     address: null,
@@ -171,6 +180,8 @@ export const SEED_IOT_DEVICES: IotDevice[] = [
     lastSeenAt: SEED_DATE,
     reported: { temperature: 25.1, humidity: 52 },
     desired: {},
+    groupIds: [],
+    groupNames: [],
     remark: '演示子设备：经网关代理接入（免密）',
     createdAt: SEED_DATE,
     updatedAt: SEED_DATE,
@@ -186,6 +197,7 @@ export const SEED_IOT_DEVICES: IotDevice[] = [
     nodeType: 'sub',
     gatewayId: 3,
     gatewayName: '园区 C 栋网关',
+    subDeviceCount: 0,
     latitude: null,
     longitude: null,
     address: null,
@@ -195,6 +207,8 @@ export const SEED_IOT_DEVICES: IotDevice[] = [
     lastSeenAt: null,
     reported: null,
     desired: {},
+    groupIds: [],
+    groupNames: [],
     remark: '演示子设备：经网关代理接入（免密）',
     createdAt: SEED_DATE,
     updatedAt: SEED_DATE,
@@ -247,8 +261,8 @@ export const SEED_IOT_ALARMS: IotAlarm[] = [
     message: 'temperature 当前值 36.2 > 35（连续 2 次）',
     context: { value: 36.2, operator: 'gt', threshold: 35, property: 'temperature' },
     firedAt: '2024-01-01 10:00:00',
-    acknowledgedAt: '2024-01-01 10:05:00', acknowledgedBy: 1, escalatedAt: null,
-    resolvedAt: '2024-01-01 10:30:00', resolvedBy: 1, resolveNote: '已到场检查，空调故障修复后温度回落',
+    acknowledgedAt: '2024-01-01 10:05:00', acknowledgedBy: 1, acknowledgedByName: 'admin', escalatedAt: null,
+    resolvedAt: '2024-01-01 10:30:00', resolvedBy: 1, resolvedByName: 'admin', resolveNote: '已到场检查，空调故障修复后温度回落',
     createdAt: '2024-01-01 10:00:00',
   },
   {
@@ -258,8 +272,8 @@ export const SEED_IOT_ALARMS: IotAlarm[] = [
     message: '设备离线超过 5 分钟（最后在线 2024-01-01 00:00:00）',
     context: { offlineMinutes: 5, lastSeenAt: '2024-01-01 00:00:00' },
     firedAt: '2024-01-01 12:00:00',
-    acknowledgedAt: null, acknowledgedBy: null, escalatedAt: null,
-    resolvedAt: null, resolvedBy: null, resolveNote: null,
+    acknowledgedAt: null, acknowledgedBy: null, acknowledgedByName: null, escalatedAt: null,
+    resolvedAt: null, resolvedBy: null, resolvedByName: null, resolveNote: null,
     createdAt: '2024-01-01 12:00:00',
   },
 ];
@@ -286,14 +300,14 @@ export const SEED_IOT_OTA_TASKS: IotOtaTask[] = [
     id: 1, title: '升级到 v2.0.0（1 台）', firmwareId: 1, productId: 1,
     productName: '温湿度传感器 TH-100', firmwareVersion: '2.0.0', status: 'running',
     timeoutMinutes: 30, batchSize: null, currentBatch: 1, totalBatches: 1, failureThreshold: null,
-    totalCount: 1, succeededCount: 0, failedCount: 0,
+    totalCount: 1, succeededCount: 0, failedCount: 0, createdBy: null,
     createdAt: SEED_DATE, updatedAt: SEED_DATE,
   },
 ];
 
 export const SEED_IOT_OTA_TASK_DEVICES: IotOtaTaskDevice[] = [
   {
-    id: 1, taskId: 1, deviceId: 1, deviceName: '机房 A-01 温湿度', deviceSn: 'SN-DEMO-TH100-0001',
+    id: 1, taskId: 1, deviceId: 1, deviceName: '机房 A-01 温湿度', deviceSn: 'SN-DEMO-TH100-0001', online: false,
     status: 'notified', progress: 0, fromVersion: '1.2.0', batchIndex: 1, errorMsg: null,
     notifiedAt: SEED_DATE, finishedAt: null,
   },
