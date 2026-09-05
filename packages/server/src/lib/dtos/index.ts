@@ -69,4 +69,3 @@ export * from './app-releases';
 export * from './push';
 export * from './iot';
 export * from './trace';
-export * from './drive';
