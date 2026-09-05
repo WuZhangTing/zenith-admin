@@ -1,8 +1,12 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import type { Menu } from '@zenith/shared/identity';
-import { request } from '@/utils/request';
-import { LOOKUP_STALE_TIME, unwrap } from '@/lib/query';
+import type { BodyOf } from '@zenith/shared/core';
+import { menuContract, type Menu } from '@zenith/shared/identity';
+import { api, useApiMutation } from '@/lib/contract-query';
+import { LOOKUP_STALE_TIME } from '@/lib/query';
 import { authKeys } from './auth';
+
+/** 保存载荷：创建入参的部分形态，同一表单同时服务新增与编辑，必填字段由表单 rules 与服务端 schema 保证 */
+export type MenuFormValues = Partial<BodyOf<typeof menuContract.create>>;
 
 export const menuKeys = {
   all: ['menus'] as const,
@@ -19,7 +23,7 @@ export const menuKeys = {
 export function useMenuTree(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: menuKeys.tree,
-    queryFn: () => request.get<Menu[]>('/api/menus', { silent: true }).then(unwrap),
+    queryFn: () => api(menuContract.tree, { silent: true }),
     staleTime: LOOKUP_STALE_TIME,
     enabled: options?.enabled ?? true,
   });
@@ -29,7 +33,7 @@ export function useMenuTree(options?: { enabled?: boolean }) {
 export function useCurrentUserMenuTree() {
   return useQuery({
     queryKey: menuKeys.userTree,
-    queryFn: () => request.get<Menu[]>('/api/menus/user', { silent: true }).then(unwrap),
+    queryFn: () => api(menuContract.userTree, { silent: true }),
     staleTime: LOOKUP_STALE_TIME,
   });
 }
@@ -37,19 +41,18 @@ export function useCurrentUserMenuTree() {
 export function useMenuDetail(id: number | undefined, enabled = true) {
   return useQuery({
     queryKey: menuKeys.detail(id),
-    queryFn: () => request.get<Menu>(`/api/menus/${id}`).then(unwrap),
+    queryFn: () => api(menuContract.detail, { params: { id: id ?? 0 } }),
     enabled: enabled && id !== undefined,
   });
 }
 
 export function useSaveMenu() {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Partial<Menu> }) =>
-      (id === undefined
-        ? request.post<Menu>('/api/menus', values)
-        : request.put<Menu>(`/api/menus/${id}`, values)
-      ).then(unwrap),
+  return useMutation<Menu, Error, { id?: number; values: MenuFormValues }>({
+    mutationFn: ({ id, values }) =>
+      id === undefined
+        ? api(menuContract.create, { body: values as BodyOf<typeof menuContract.create> })
+        : api(menuContract.update, { params: { id }, body: values }),
     onSuccess: (saved) => {
       void qc.invalidateQueries({ queryKey: menuKeys.detail(saved.id) });
       void qc.invalidateQueries({ queryKey: menuKeys.tree });
@@ -60,11 +63,9 @@ export function useSaveMenu() {
 }
 
 export function useDeleteMenu() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/menus/${id}`).then(unwrap),
-    onSuccess: (_data, id) => {
-      qc.removeQueries({ queryKey: menuKeys.detail(id) });
+  return useApiMutation(menuContract.remove, {
+    invalidate: (qc, _output, { params }) => {
+      qc.removeQueries({ queryKey: menuKeys.detail(params.id) });
       void qc.invalidateQueries({ queryKey: menuKeys.tree });
       void qc.invalidateQueries({ queryKey: menuKeys.userTree });
     },

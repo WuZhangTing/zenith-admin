@@ -1,46 +1,8 @@
 /**
- * 日志相关 DTO：登录日志、操作日志、统计
+ * 日志相关 DTO：IP 拦截日志、操作日志统计、日志文件
  */
 import { z } from '@hono/zod-openapi';
-
-export const LoginLogDTO = z
-  .object({
-    id: z.number().int(),
-    userId: z.number().int().nullable(),
-    username: z.string(),
-    ip: z.string().nullable(),
-    location: z.string().nullable(),
-    browser: z.string().nullable(),
-    os: z.string().nullable(),
-    userAgent: z.string().nullable(),
-    eventType: z.enum(['login', 'logout']),
-    status: z.enum(['success', 'fail']),
-    message: z.string().nullable(),
-    screenWidth: z.number().int().nullable().optional(),
-    screenHeight: z.number().int().nullable().optional(),
-    devicePixelRatio: z.string().nullable().optional(),
-    gpu: z.string().nullable().optional(),
-    cpuCores: z.number().int().nullable().optional(),
-    memoryGb: z.string().nullable().optional(),
-    createdAt: z.string(),
-  })
-  .openapi('LoginLog');
-
-export const MemberLoginLogDTO = z
-  .object({
-    id: z.number().int(),
-    memberId: z.number().int().nullable(),
-    memberNickname: z.string().nullable().optional(),
-    ip: z.string().nullable(),
-    location: z.string().nullable(),
-    browser: z.string().nullable(),
-    os: z.string().nullable(),
-    userAgent: z.string().nullable(),
-    status: z.enum(['success', 'fail']),
-    message: z.string().nullable(),
-    createdAt: z.string(),
-  })
-  .openapi('MemberLoginLog');
+import { operationLogSchema } from '@zenith/shared/platform';
 
 export const IpAccessLogDTO = z
   .object({
@@ -54,43 +16,8 @@ export const IpAccessLogDTO = z
   })
   .openapi('IpAccessLog');
 
-export const OperationLogDTO = z
-  .object({
-    id: z.number().int(),
-    userId: z.number().int().nullable(),
-    username: z.string().nullable(),
-    module: z.string().nullable(),
-    description: z.string(),
-    method: z.string(),
-    path: z.string(),
-    requestId: z.string().nullable().optional(),
-    requestBody: z.string().nullable(),
-    beforeData: z.string().nullable(),
-    afterData: z.string().nullable(),
-    responseCode: z.number().int().nullable(),
-    responseBody: z.string().nullable(),
-    durationMs: z.number().int().nullable(),
-    ip: z.string().nullable(),
-    location: z.string().nullable(),
-    userAgent: z.string().nullable(),
-    os: z.string().nullable(),
-    browser: z.string().nullable(),
-    createdAt: z.string(),
-  })
-  .openapi('OperationLog');
-
-export const LogRowDTO = z
-  .object({
-    id: z.number().int(),
-    userId: z.number().int().nullable().optional(),
-    username: z.string().nullable().optional(),
-    ip: z.string().nullable().optional(),
-    eventType: z.enum(['login', 'logout']).optional(),
-    status: z.string().optional(),
-    message: z.string().nullable().optional(),
-    createdAt: z.string(),
-  })
-  .openapi('LogRow');
+/** 操作日志实体：由 platform 契约定义，此处别名供尚未契约化的路由复用（同名组件只允许一个 schema 实例） */
+export const OperationLogDTO = operationLogSchema;
 
 export const OperationLogStatsDTO = z
   .object({
@@ -124,35 +51,6 @@ export const OperationLogStatsDTO = z
     userModuleFlows: z.array(z.object({ username: z.string(), module: z.string(), count: z.number() })),
   })
   .openapi('OperationLogStats');
-
-export const LoginLogStatsDTO = z
-  .object({
-    summary: z.object({
-      total: z.number(),
-      successCount: z.number(),
-      failCount: z.number(),
-      uniqueUsers: z.number(),
-    }),
-    prevSummary: z.object({
-      total: z.number(),
-      successCount: z.number(),
-      failCount: z.number(),
-      uniqueUsers: z.number(),
-    }),
-    dailyStats: z.array(z.object({ date: z.string(), count: z.number(), successCount: z.number(), failCount: z.number() })),
-    userStats: z.array(z.object({ username: z.string(), count: z.number() })),
-    ipStats: z.array(z.object({ ip: z.string(), count: z.number() })),
-    ipFailStats: z.array(z.object({ ip: z.string(), count: z.number() })),
-    browserStats: z.array(z.object({ browser: z.string(), count: z.number() })),
-    osStats: z.array(z.object({ os: z.string(), count: z.number() })),
-    hourlyStats: z.array(z.object({ hour: z.number(), count: z.number() })),
-    failReasonStats: z.array(z.object({ message: z.string(), count: z.number() })),
-    locationStats: z.array(z.object({ location: z.string(), count: z.number() })),
-    dowHourStats: z.array(z.object({ dow: z.number(), hour: z.number(), count: z.number() })),
-    resolutionStats: z.array(z.object({ resolution: z.string(), count: z.number() })),
-    gpuStats: z.array(z.object({ gpu: z.string(), count: z.number() })),
-  })
-  .openapi('LoginLogStats');
 
 export const LogFileDTO = z
   .object({

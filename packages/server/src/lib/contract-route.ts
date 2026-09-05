@@ -15,8 +15,42 @@
 import { createRoute, defineOpenAPIRoute, type OpenAPIRoute, type RouteConfig, type RouteHandler, type RouteHook } from '@hono/zod-openapi';
 import type { MiddlewareHandler } from 'hono';
 import type { z } from 'zod';
-import { isMultipart, MULTIPART_CONTENT_TYPE, type AnyOperation, type MultipartBody, type ParamsSchema } from '@zenith/shared/core';
+import { isMultipart, MULTIPART_CONTENT_TYPE, type AnyOperation, type MultipartBody, type ParamsSchema, type SecurityScheme } from '@zenith/shared/core';
+import { IOT_SIGN_HEADER, IOT_SN_HEADER, IOT_TIMESTAMP_HEADER } from '@zenith/shared/iot';
+import { OPEN_SIGNATURE_HEADERS } from '@zenith/shared/open-platform';
 import { apiResponse, commonErrorResponses, jsonContent, okCsv, okExcel, okFile } from './openapi-schemas';
+
+/**
+ * 契约凭证类型对应的 OpenAPI securitySchemes 组件（`BearerAuth` 为全局默认方案，由 app.ts 注册）。
+ * 契约路由引用到的方案都在这里声明，app.ts 装配时整体注册。
+ */
+export const CONTRACT_SECURITY_SCHEMES = {
+  IotDeviceSignature: {
+    type: 'apiKey',
+    in: 'header',
+    name: IOT_SIGN_HEADER,
+    description: `设备 HMAC 签名（基于原始请求体）；须同时携带 ${IOT_SN_HEADER} 与 ${IOT_TIMESTAMP_HEADER}`,
+  },
+  OpenGatewayToken: {
+    type: 'http',
+    scheme: 'bearer',
+    description: '开放平台 OAuth2 access_token',
+  },
+  OpenGatewaySignature: {
+    type: 'apiKey',
+    in: 'header',
+    name: OPEN_SIGNATURE_HEADERS.signature,
+    description: `AppKey + HMAC 签名；须同时携带 ${OPEN_SIGNATURE_HEADERS.appKey} / ${OPEN_SIGNATURE_HEADERS.timestamp} / ${OPEN_SIGNATURE_HEADERS.nonce}`,
+  },
+} as const;
+
+/** 契约凭证类型 → OpenAPI security 要求；数组内多项为「任一满足即可」 */
+const SECURITY_REQUIREMENTS: Record<SecurityScheme, Array<Record<string, string[]>>> = {
+  none: [],
+  bearer: [{ BearerAuth: [] }],
+  'device-signature': [{ IotDeviceSignature: [] }],
+  'open-gateway': [{ OpenGatewayToken: [] }, { OpenGatewaySignature: [] }],
+};
 
 type JsonBody<B extends z.ZodType> = {
   readonly content: { readonly 'application/json': { readonly schema: B } };
@@ -122,7 +156,7 @@ export function toRoute<
     summary: op.summary,
     ...(op.description ? { description: op.description } : {}),
     ...(op.deprecated ? { deprecated: true } : {}),
-    security: op.public ? [] : [{ BearerAuth: [] }],
+    security: SECURITY_REQUIREMENTS[op.security],
     middleware: [...options.middleware],
     ...(options.hide ? { hide: true } : {}),
     request: buildRequest(op),

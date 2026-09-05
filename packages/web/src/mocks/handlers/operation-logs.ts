@@ -1,4 +1,5 @@
 import { http } from 'msw';
+import { analyticsContract } from '@zenith/shared/analytics';
 import { ok, pageParams } from '@/mocks/utils/handlers';
 import { removeWhere } from '@/mocks/utils/array';
 import { mockOperationLogs } from '@/mocks/data/logs';
@@ -39,7 +40,7 @@ const MOCK_HOURLY_BASE = [1,1,0,0,1,2,5,18,32,38,35,28,22,30,36,40,38,34,28,20,1
 
 const MOCK_SLOW_PATHS = [
   { path: '/api/reports/export', avgMs: 1240, maxMs: 4820 },
-  { path: '/api/analytics/overview', avgMs: 860, maxMs: 2410 },
+  { path: analyticsContract.overview.fullPath, avgMs: 860, maxMs: 2410 },
   { path: '/api/files/upload', avgMs: 640, maxMs: 3150 },
   { path: '/api/users', avgMs: 320, maxMs: 980 },
   { path: '/api/operation-logs', avgMs: 210, maxMs: 720 },

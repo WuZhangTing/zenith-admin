@@ -6,20 +6,22 @@
  *   POST /api/oauth2/token/revoke    — 令牌撤销（RFC 7009）
  *   POST /api/oauth2/token/introspect — 令牌自省（RFC 7662）
  *   GET  /api/oauth2/userinfo        — UserInfo（OIDC Core）
+ *
+ * 前两个走业务信封，由契约定义；后四个是 RFC 协议端点（表单入参 + 顶层响应，无业务信封），
+ * 契约 DSL 不表达，保持 createRoute 声明。
  */
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
+import { oauth2AuthContract } from '@zenith/shared/open-platform';
 import { OAuth2Error } from '../../lib/oauth2-error';
 import { authMiddleware } from '../../middleware/auth';
+import { defineContractRoute } from '../../lib/contract-route';
 import {
-  jsonContent,
   validationHook,
   commonErrorResponses,
-  ok,
   okBody,
 } from '../../lib/openapi-schemas';
 import {
-  OAuth2AuthorizeInfoDTO,
   OAuth2TokenResponseDTO,
   OAuth2UserInfoDTO,
   OAuth2IntrospectResponseDTO,
@@ -39,25 +41,8 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 
 // ─── 查询应用信息（供同意页面展示）────────────────────────────────────────────
 
-const AuthorizeInfoQuery = z.object({
-  client_id: z.string(),
-  redirect_uri: z.string(),
-  response_type: z.string(),
-  scope: z.string(),
-  state: z.string().optional(),
-});
-
-const authorizeInfo = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get',
-    path: '/authorize/info',
-    tags: ['OAuth2'],
-    summary: '获取 OAuth2 应用授权信息（供同意页面展示）',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware] as const,
-    request: { query: AuthorizeInfoQuery },
-    responses: { ...commonErrorResponses, ...ok(OAuth2AuthorizeInfoDTO, '应用信息') },
-  }),
+const authorizeInfo = defineContractRoute(oauth2AuthContract.authorizeInfo, {
+  middleware: [authMiddleware],
   handler: async (c) => {
     const { client_id, redirect_uri, response_type, scope } = c.req.valid('query');
     return c.json(okBody(await getAuthorizeInfo({ clientId: client_id, redirectUri: redirect_uri, responseType: response_type, scope })), 200);
@@ -66,29 +51,8 @@ const authorizeInfo = defineOpenAPIRoute({
 
 // ─── 用户确认授权（POST /authorize）──────────────────────────────────────────
 
-const AuthorizeBody = z.object({
-  client_id: z.string(),
-  redirect_uri: z.string(),
-  response_type: z.literal('code'),
-  scope: z.string(),
-  state: z.string().optional(),
-  code_challenge: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
-  code_challenge_method: z.literal('S256'),
-});
-
-const AuthorizeResponseDTO = z.object({ redirectUrl: z.string() }).openapi('OAuth2AuthorizeResponse');
-
-const authorize = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post',
-    path: '/authorize',
-    tags: ['OAuth2'],
-    summary: '用户确认授权（OAuth 2.1 授权码模式）',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware] as const,
-    request: { body: { content: jsonContent(AuthorizeBody), required: true } },
-    responses: { ...commonErrorResponses, ...ok(AuthorizeResponseDTO, '授权成功，返回跳转 URL') },
-  }),
+const authorize = defineContractRoute(oauth2AuthContract.authorize, {
+  middleware: [authMiddleware],
   handler: async (c) => {
     const body = c.req.valid('json');
     const result = await createAuthorizationCode({

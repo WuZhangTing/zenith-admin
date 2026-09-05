@@ -18,7 +18,7 @@ export function useTenantSwitch(isPlatformAdmin: boolean | undefined, initialVie
   const tenantList = (tenants ?? []).filter((t) => t.status === 'enabled');
 
   const handleSwitchTenant = async (tenantId: number | null) => {
-    const data = await switchMutation.mutateAsync(tenantId);
+    const data = await switchMutation.mutateAsync({ body: { tenantId } });
     localStorage.setItem(TOKEN_KEY, data.accessToken);
     localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
     setViewingTenantId(tenantId);

@@ -3,9 +3,14 @@ import { Button, Form, Typography, Banner, Tag, Card, Space, Spin } from '@douyi
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { RefreshCw, KeyRound } from 'lucide-react';
 import { usePermission } from '@/hooks/usePermission';
+import { openGatewayContract } from '@zenith/shared/open-platform';
+import { urlOf } from '@/lib/contract-query';
 import { useSignatureAlgorithm, useVerifySignature, type SignatureVerifyValues } from '@/hooks/queries/open-platform';
 
 const { Text, Title, Paragraph } = Typography;
+
+/** 表单示例路径：网关连通性测试端点 */
+const PING_PATH = urlOf(openGatewayContract.ping);
 
 const codeBlockStyle: React.CSSProperties = {
   background: 'var(--semi-color-fill-0)',
@@ -43,13 +48,13 @@ export default function SignatureToolPage() {
   }
 
   async function handleSign() {
-    let values: Record<string, string>;
+    let values: SignatureVerifyValues;
     try {
-      values = (await formApi.current?.validate()) as Record<string, string>;
+      values = (await formApi.current?.validate()) as SignatureVerifyValues;
     } catch {
       return;
     }
-    await verifyMutation.mutateAsync(values as unknown as SignatureVerifyValues);
+    await verifyMutation.mutateAsync({ body: values });
   }
 
   if (!canUse) {
@@ -97,11 +102,11 @@ export default function SignatureToolPage() {
           getFormApi={(api) => { formApi.current = api; }}
           labelPosition="left"
           labelWidth={110}
-          initValues={{ method: 'GET', path: '/api/open/v1/ping' }}
+          initValues={{ method: 'GET', path: PING_PATH }}
         >
           <Form.Input field="appKey" label="AppKey" placeholder="应用的 clientId" rules={[{ required: true, message: '请输入 AppKey' }]} />
           <Form.Select field="method" label="请求方法" style={{ width: '100%' }} optionList={['GET', 'POST', 'PUT', 'DELETE'].map((m) => ({ value: m, label: m }))} />
-          <Form.Input field="path" label="请求路径" placeholder="/api/open/v1/ping" rules={[{ required: true, message: '请输入请求路径' }]} />
+          <Form.Input field="path" label="请求路径" placeholder={PING_PATH} rules={[{ required: true, message: '请输入请求路径' }]} />
           <Form.Input field="query" label="Query" placeholder="如 a=1&b=2（可空）" />
           <Form.TextArea field="body" label="Body" placeholder="请求体原文（GET 可空）" rows={2} />
           <Form.Input

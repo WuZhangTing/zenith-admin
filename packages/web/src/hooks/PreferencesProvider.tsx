@@ -2,7 +2,8 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useDebouncer } from '@tanstack/react-pacer';
 import { PREFERENCES_KEY } from '@zenith/shared/core';
-import { request } from '@/utils/request';
+import { authContract } from '@zenith/shared/identity';
+import { api } from '@/lib/contract-query';
 import { defaultPreferences, isLoadingStyle, PreferencesContext } from './usePreferences';
 import type { UserPreferences } from './usePreferences';
 
@@ -49,7 +50,7 @@ export function PreferencesProvider({ children }: Readonly<{ children: ReactNode
   }, []);
 
   const putPreferences = useCallback((next: UserPreferences) => {
-    request.put('/api/auth/preferences', next, { silent: true }).catch(() => { /* ignore */ });
+    api(authContract.savePreferences, { body: { ...next } }, { silent: true }).catch(() => { /* ignore */ });
   }, []);
 
   const syncDebouncer = useDebouncer(putPreferences, { wait: 500 });
@@ -66,11 +67,11 @@ export function PreferencesProvider({ children }: Readonly<{ children: ReactNode
   // 组件挂载时（用户已登录）从服务器拉取偏好，覆盖本地缓存
   useEffect(() => {
     let cancelled = false;
-    request.get<Record<string, unknown> | null>('/api/auth/preferences', { silent: true })
-      .then((res) => {
-        if (cancelled || res.code !== 0) return;
-        if (res.code === 0 && res.data) {
-          const merged = mergePreferences(res.data);
+    api(authContract.preferences, { silent: true })
+      .then((data) => {
+        if (cancelled) return;
+        if (data) {
+          const merged = mergePreferences(data);
           applyLocalPreferences(merged);
           return;
         }

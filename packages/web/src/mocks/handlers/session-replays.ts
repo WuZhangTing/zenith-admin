@@ -1,6 +1,6 @@
-import { http } from 'msw';
-import { ok, paginate } from '@/mocks/utils/handlers';
 import type { ReplaySession, ReplaySessionDetail } from '@zenith/shared/analytics';
+import { sessionReplayContract } from '@zenith/shared/analytics';
+import { mock } from '@/mocks/utils/contract';
 import { mockDateTimeOffset } from '../utils/date';
 
 const sessions: ReplaySession[] = [
@@ -67,11 +67,11 @@ const sessions: ReplaySession[] = [
 ];
 
 export const sessionReplaysHandlers = [
-  http.get('/api/session-replays/stats', () => ok({
+  mock(sessionReplayContract.stats, ({ ok }) => ok({
     totalBytes: 2_254_000, totalCount: 2, todayBytes: 384_000, todayCount: 1, quotaMb: 4096, usagePercent: 1,
   })),
-  http.get('/api/session-replays/heatmap/pages', () => ok(['/orders', '/dashboard'])),
-  http.get('/api/session-replays/heatmap', () => ok({
+  mock(sessionReplayContract.heatmapPages, ({ ok }) => ok(['/orders', '/dashboard'])),
+  mock(sessionReplayContract.heatmap, ({ ok }) => ok({
     points: [
       { x: 20, y: 15, count: 12 },
       { x: 48, y: 32, count: 30 },
@@ -80,17 +80,11 @@ export const sessionReplaysHandlers = [
     ],
     total: 67,
   })),
-  http.get('/api/session-replays/access-logs', ({ request }) => {
-    const url = new URL(request.url);
-    return ok(paginate([
-      { id: 1, replayId: '11111111-1111-4111-8111-111111111111', replayOwner: '管理员', userId: 1, username: '管理员', action: 'view', ip: '127.0.0.1', createdAt: mockDateTimeOffset(-1800_000) },
-    ], url));
-  }),
-  http.get('/api/session-replays', ({ request }) => {
-    const url = new URL(request.url);
-    return ok(paginate(sessions, url));
-  }),
-  http.get('/api/session-replays/:id', ({ params }) => {
+  mock(sessionReplayContract.accessLogs, ({ ok, paginate }) => ok(paginate([
+    { id: 1, replayId: '11111111-1111-4111-8111-111111111111', replayOwner: '管理员', userId: 1, username: '管理员', action: 'view', ip: '127.0.0.1', createdAt: mockDateTimeOffset(-1800_000) },
+  ]))),
+  mock(sessionReplayContract.list, ({ ok, paginate }) => ok(paginate(sessions))),
+  mock(sessionReplayContract.detail, ({ params, ok }) => {
     const found = sessions.find((s) => s.id === params.id) ?? sessions[0];
     const detail: ReplaySessionDetail = {
       ...found,
@@ -107,5 +101,5 @@ export const sessionReplaysHandlers = [
     };
     return ok(detail);
   }),
-  http.delete('/api/session-replays/batch', () => ok(null, '已删除 1 条回放')),
+  mock(sessionReplayContract.removeBatch, ({ ok }) => ok(null, '已删除 1 条回放')),
 ];

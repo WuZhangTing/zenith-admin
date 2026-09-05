@@ -8,8 +8,7 @@ import { UserRound, Shield, Monitor, List, Key, LogOut, Plus, Copy, CheckCircle,
 import { QRCodeSVG } from 'qrcode.react';
 
 import { OAUTH_PROVIDERS, OAUTH_PROVIDER_LABELS } from '@zenith/shared/identity';
-import type { User as UserType, OAuthProviderType, UserSession, UserApiTokenCreated } from '@zenith/shared/identity';
-import type { MfaFactor, TotpSetupResult } from '@zenith/shared/platform';
+import type { User as UserType, OAuthProviderType, UserSession, UserApiTokenCreated, MfaFactor, TotpSetupResult } from '@zenith/shared/identity';
 import { fileContract } from '@zenith/shared/platform';
 import { useApiMutation } from '@/lib/contract-query';
 import { AppModal } from '@/components/AppModal';
@@ -187,7 +186,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
   const myGrantsLoading = myGrantsQuery.isFetching;
 
   async function handleRevokeGrant(id: number) {
-    await revokeGrantMutation.mutateAsync(id);
+    await revokeGrantMutation.mutateAsync({ params: { id } });
     Toast.success('已撤销该应用的授权');
   }
 
@@ -237,20 +236,19 @@ export default function ProfilePage({ user }: ProfilePageProps) {
   // ─── 事件处理 ────────────────────────────────────────────────────────────────
 
   async function handleUpdateProfile(values: { nickname: string; email: string; phone?: string; gender?: string | null }) {
-    const payload = { ...values, gender: values.gender ?? null };
-    await updateProfileMutation.mutateAsync(payload);
+    await updateProfileMutation.mutateAsync({ body: { ...values, gender: values.gender ?? null } });
     Toast.success('资料已更新');
   }
 
   async function handleChangePassword(values: { oldPassword: string; newPassword: string; confirmPassword: string }) {
     if (values.newPassword !== values.confirmPassword) { Toast.error('两次密码输入不一致'); return; }
-    await changePasswordMutation.mutateAsync({ oldPassword: values.oldPassword, newPassword: values.newPassword });
+    await changePasswordMutation.mutateAsync({ body: { oldPassword: values.oldPassword, newPassword: values.newPassword } });
     Toast.success('密码修改成功，请重新登录');
     setChangePwdVal('');
   }
 
   async function handleOAuthBind(provider: OAuthProviderType) {
-    const res = await oauthBindUrlMutation.mutateAsync(provider);
+    const res = await oauthBindUrlMutation.mutateAsync({ params: { provider } });
     if (res.authUrl) {
       // 绑定意图 + state 暂存：回调页据此走 POST /bind，保持当前会话不被替换
       rememberOAuthPending({ state: res.state, provider, intent: 'bind' });
@@ -259,31 +257,31 @@ export default function ProfilePage({ user }: ProfilePageProps) {
   }
 
   async function handleOAuthUnbind(provider: OAuthProviderType) {
-    await oauthUnbindMutation.mutateAsync(provider);
+    await oauthUnbindMutation.mutateAsync({ params: { provider } });
     Toast.success('已解绑');
   }
 
   async function handleBeginTotpSetup() {
-    const res = await beginTotpSetupMutation.mutateAsync();
+    const res = await beginTotpSetupMutation.mutateAsync({});
     setTotpSetup(res);
     setTotpCode('');
   }
 
   async function handleVerifyTotpSetup() {
     if (!totpSetup) return;
-    await verifyTotpSetupMutation.mutateAsync({ factorId: totpSetup.factorId, code: totpCode });
+    await verifyTotpSetupMutation.mutateAsync({ body: { factorId: totpSetup.factorId, code: totpCode } });
     Toast.success('TOTP 已绑定');
     setTotpSetup(null);
     setTotpCode('');
   }
 
   async function handleDisableMfaFactor(id: number) {
-    await disableMfaMutation.mutateAsync(id);
+    await disableMfaMutation.mutateAsync({ params: { id } });
     Toast.success('已停用');
   }
 
   async function handleDeleteMfaFactor(id: number) {
-    await deleteMfaMutation.mutateAsync(id);
+    await deleteMfaMutation.mutateAsync({ params: { id } });
     Toast.success('已删除');
   }
 
@@ -304,18 +302,18 @@ export default function ProfilePage({ user }: ProfilePageProps) {
       Toast.error(err instanceof Error && err.message ? err.message : '上传失败');
       return;
     }
-    await updateAvatarMutation.mutateAsync({ avatar: uploadedUrl });
+    await updateAvatarMutation.mutateAsync({ body: { avatar: uploadedUrl } });
     Toast.success('头像已更新');
     setCropFile(null);
   }
 
   async function handleKickOthers() {
-    await kickOthersMutation.mutateAsync();
+    await kickOthersMutation.mutateAsync({});
     Toast.success('操作成功');
   }
 
   async function handleKickSession(tokenId: string) {
-    await kickSessionMutation.mutateAsync(tokenId);
+    await kickSessionMutation.mutateAsync({ params: { tokenId } });
     Toast.success('已退出该设备');
   }
 
@@ -328,7 +326,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
     if (!values.name.trim()) { Toast.error('请填写 Token 名称'); return; }
     const body: { name: string; expiresAt?: string } = { name: values.name.trim() };
     if (values.expiresAt) body.expiresAt = formatDateTimeForApi(values.expiresAt);
-    const res = await createTokenMutation.mutateAsync(body);
+    const res = await createTokenMutation.mutateAsync({ body });
     setCreatedToken(res);
     closeNewTokenModal();
   }
@@ -345,7 +343,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
   }
 
   async function handleDeleteToken(id: number) {
-    await deleteTokenMutation.mutateAsync(id);
+    await deleteTokenMutation.mutateAsync({ params: { id } });
     Toast.success('Token 已撤销');
   }
 
@@ -362,7 +360,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
       title: '确定要移除头像吗？',
       content: '移除后将使用昵称缩写作为默认头像。',
       onOk: async () => {
-        await updateAvatarMutation.mutateAsync({ avatar: null });
+        await updateAvatarMutation.mutateAsync({ body: { avatar: null } });
         Toast.success('头像已移除');
       },
     });
@@ -374,7 +372,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 
   async function handleApplyPreset(url: string) {
     setPresetModalVisible(false);
-    await updateAvatarMutation.mutateAsync({ avatar: url });
+    await updateAvatarMutation.mutateAsync({ body: { avatar: url } });
     Toast.success('头像已更新');
   }
 

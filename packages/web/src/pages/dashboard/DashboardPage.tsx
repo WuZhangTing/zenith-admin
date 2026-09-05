@@ -22,12 +22,8 @@ import { useDictItems } from '@/hooks/useDictItems';
 import AnnouncementDetailModal from '@/components/AnnouncementDetailModal';
 import { UserAvatar } from '@/components/UserAvatar';
 import MonthCalendar from '@/components/MonthCalendar';
-import {
-  type DashboardCharts,
-  type DashboardStats,
-  useDashboardCharts,
-  useDashboardStats,
-} from '@/hooks/queries/dashboard';
+import type { DashboardCharts, DashboardStats } from '@zenith/shared/analytics';
+import { useDashboardCharts, useDashboardStats } from '@/hooks/queries/dashboard';
 import {
   useMarkMyAnnouncementRead,
   useMyAnnouncementDetail,

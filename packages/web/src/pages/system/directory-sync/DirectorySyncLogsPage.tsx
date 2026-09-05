@@ -16,6 +16,7 @@ import {
   useRetryDirectorySyncRun, useDirectorySyncSourceList,
 } from '@/hooks/queries/directory-sync';
 import type { DirectorySyncRun, DirectorySyncRunItem } from '@zenith/shared/identity';
+import { enumValueOf } from '@zenith/shared/core';
 import {
   DIRECTORY_SYNC_RUN_STATUSES, DIRECTORY_SYNC_RUN_STATUS_LABELS,
   DIRECTORY_SYNC_TRIGGER_TYPE_LABELS,
@@ -77,7 +78,7 @@ export default function DirectorySyncLogsPage() {
     page,
     pageSize,
     sourceId: submittedParams.sourceId ? Number(submittedParams.sourceId) : undefined,
-    status: submittedParams.status || undefined,
+    status: enumValueOf(DIRECTORY_SYNC_RUN_STATUSES, submittedParams.status),
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
   });
   const list = listQuery.data?.list ?? [];
@@ -98,7 +99,7 @@ export default function DirectorySyncLogsPage() {
   const itemsPagination = usePagination(20);
   const itemsQuery = useDirectorySyncRunItems(
     detailRun?.id,
-    { page: itemsPagination.page, pageSize: itemsPagination.pageSize, action: itemAction || undefined },
+    { page: itemsPagination.page, pageSize: itemsPagination.pageSize, action: enumValueOf(DIRECTORY_SYNC_ITEM_ACTIONS, itemAction) },
     detailRun !== null,
   );
 
@@ -109,7 +110,7 @@ export default function DirectorySyncLogsPage() {
   }
 
   function handleRetry(run: DirectorySyncRun) {
-    retryMutation.mutate(run.id, {
+    retryMutation.mutate({ params: { id: run.id } }, {
       onSuccess: () => Toast.success('重试任务已提交，将对该源重新执行一次同步'),
     });
   }

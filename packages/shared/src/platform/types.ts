@@ -1,8 +1,6 @@
-import type { AnalyticsDeviceType, AnalyticsEnvironment, AnalyticsEventSource } from '../analytics/types';
 import type { ChatMessage, ChatReactionGroup, ChatVoteData } from '../chat/contracts';
 import type { RtcIceCandidateInit, RtcInvitePayload, RtcPeerInfo } from '../chat/types';
 import type { EntityStatus } from '../core/types';
-import type { UserBehaviorEventType } from '../identity/types';
 import type { Announcement, ChannelMessage, InAppMessage } from '../messaging/contracts';
 import type { MpKfSession, MpMessageDirection, MpMessageType } from '../mp/types';
 import type { AsyncTask } from '../tasks/contracts';
@@ -81,32 +79,6 @@ export interface IpAccessLog {
 }
 
 // ─── Operation Logs ──────────────────────────────────────
-export interface OperationLog {
-  id: number;
-  userId: number | null;
-  username: string | null;
-  /** 用户当前昵称（按 username 关联补充；用户已删除时为 null） */
-  nickname?: string | null;
-  module: string | null;
-  description: string;
-  method: string;
-  path: string;
-  /** 链路 ID（= 请求的 X-Request-Id），可跳转链路追踪 */
-  requestId?: string | null;
-  requestBody: string | null;
-  beforeData: string | null;
-  afterData: string | null;
-  responseCode: number | null;
-  responseBody: string | null;
-  durationMs: number | null;
-  ip: string | null;
-  location?: string | null;
-  userAgent: string | null;
-  os: string | null;
-  browser: string | null;
-  createdAt: string;
-}
-
 export interface OperationLogStats {
   summary: {
     total: number;
@@ -277,56 +249,6 @@ export interface MonitorHistory {
   points: MonitorHistoryPoint[];
 }
 
-export interface SessionListItem {
-  id: number;
-  sessionId: string;
-  userId: number | null;
-  username: string | null;
-  startedAt: string;
-  endedAt: string;
-  durationMs: number;
-  pageCount: number;
-  eventCount: number;
-  entryPage: string | null;
-  exitPage: string | null;
-  referrer: string | null;
-  browser: string | null;
-  os: string | null;
-  deviceType: AnalyticsDeviceType | null;
-  region: string | null;
-  isBounce: boolean;
-  memberId: number | null;
-  source: AnalyticsEventSource;
-  appId: string;
-  environment: AnalyticsEnvironment;
-}
-
-export interface SessionTimelineEvent {
-  id: number;
-  eventType: UserBehaviorEventType;
-  eventName: string | null;
-  pagePath: string;
-  pageTitle: string | null;
-  elementLabel: string | null;
-  componentArea: string | null;
-  durationMs: number | null;
-  properties: Record<string, unknown> | null;
-  createdAt: string;
-}
-
-export interface SessionTimeline {
-  sessionId: string;
-  username: string | null;
-  userId: number | null;
-  startedAt: string | null;
-  durationMs: number | null;
-  entryPage: string | null;
-  deviceType: string | null;
-  browser: string | null;
-  os: string | null;
-  items: SessionTimelineEvent[];
-}
-
 // ─── 系统参数配置 ──────────────────────────────────────────
 export type ConfigType = 'string' | 'number' | 'boolean' | 'json';
 
@@ -339,68 +261,6 @@ export interface SystemConfig {
   description: string;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface IdentitySecurityPolicy {
-  password: {
-    minLength: number;
-    requireUppercase: boolean;
-    requireSpecialChar: boolean;
-    expiryEnabled: boolean;
-    expiryDays: number;
-  };
-  lockout: {
-    maxAttempts: number;
-    durationMinutes: number;
-  };
-  mfa: {
-    enabled: boolean;
-    mode: 'off' | 'optional' | 'required';
-    rememberDeviceDays: number;
-  };
-  risk: {
-    enabled: boolean;
-    newDeviceAction: 'allow' | 'challenge';
-  };
-}
-
-export interface MfaFactor {
-  id: number;
-  type: 'totp' | 'passkey' | 'recovery_code';
-  name: string;
-  status: 'pending' | 'enabled' | 'disabled';
-  verifiedAt: string | null;
-  lastUsedAt: string | null;
-  createdAt: string;
-}
-
-export interface TotpSetupResult {
-  factorId: number;
-  secret: string;
-  otpauthUrl: string;
-}
-
-export interface TrustedDevice {
-  id: number;
-  deviceName: string | null;
-  ip: string | null;
-  userAgent: string | null;
-  trustedUntil: string;
-  lastSeenAt: string;
-  createdAt: string;
-}
-
-export interface OnlineUser {
-  tokenId: string;
-  userId: number;
-  username: string;
-  nickname: string;
-  tenantId?: number | null;
-  ip: string;
-  location?: string | null;
-  browser: string;
-  os: string;
-  loginAt: string;
 }
 
 export type WsMessage =

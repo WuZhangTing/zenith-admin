@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Button, Select, Space, Modal, Form, Toast, Tag, Row, Col, Tree, Spin, Switch } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Trash2, ChevronsUpDown, ChevronsDownUp, Building2, KeyRound, ToggleLeft, ToggleRight } from 'lucide-react';
-import type { User, Role, Department, Position } from '@zenith/shared/identity';
+import type { CreateUserInput, User, Role, Department, Position } from '@zenith/shared/identity';
+import { USER_STATUSES, enumValueOf, type BodyOf } from '@zenith/shared/core';
+import { userContract } from '@zenith/shared/identity';
 import { UserAvatar } from '@/components/UserAvatar';
 import { formatDateTimeRangeForApi } from '@/utils/date';
 import { formatPasswordPolicyHint, type PasswordPolicy } from '@/utils/password-policy';
@@ -33,10 +35,9 @@ import { useSystemPasswordPolicy } from '@/hooks/queries/system-configs';
 import { useListSearch } from '@/hooks/useListSearch';
 import {
   useAssignUserRoles,
-  useBatchDeleteUsers,
   useBatchUserPassword,
   useBatchUserStatus,
-  useDeleteUser,
+  useDeleteUsers,
   useKickUserSessions,
   useResetUserPassword,
   useSaveUser,
@@ -59,12 +60,14 @@ interface SearchParams {
   departmentId: number | null;
 }
 
-interface UserFormValues extends Partial<User> {
-  password?: string;
-  departmentId?: number | null;
-  positionIds?: number[];
-  roleIds?: number[];
+/** 用户表单值：记录里的 null 在提交时归一为未填 / null，与创建入参对齐 */
+interface UserFormValues extends Partial<Omit<CreateUserInput, 'email' | 'phone' | 'gender'>> {
+  email?: string | null;
+  phone?: string | null;
+  gender?: string | null;
 }
+
+type UserSavePayload = Partial<BodyOf<typeof userContract.create>>;
 
 interface ResetPasswordFormValues {
   password: string;
@@ -124,7 +127,7 @@ export default function UsersPage() {
     keyword: submittedParams.keyword || undefined,
     phone: submittedParams.phone || undefined,
     departmentId: submittedParams.departmentId ?? undefined,
-    status: submittedParams.status || undefined,
+    status: enumValueOf(USER_STATUSES, submittedParams.status),
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
   });
   const data = listQuery.data ?? null;
@@ -132,15 +135,14 @@ export default function UsersPage() {
   const total = data?.total ?? 0;
   const saveMutation = useSaveUser();
   const resetPasswordMutation = useResetUserPassword();
-  const deleteMutation = useDeleteUser();
+  const deleteMutation = useDeleteUsers();
   const unlockMutation = useUnlockUser();
-  const batchDeleteMutation = useBatchDeleteUsers();
   const batchStatusMutation = useBatchUserStatus();
   const toggleStatusMutation = useBatchUserStatus();
   const batchPasswordMutation = useBatchUserPassword();
   const assignRolesMutation = useAssignUserRoles();
   const kickSessionsMutation = useKickUserSessions();
-  const modal = useEditModal<User, UserFormValues, Record<string, unknown>>({
+  const modal = useEditModal<User, UserFormValues, UserSavePayload>({
     entityName: '用户',
     save: saveMutation,
     useDetail: useUserDetail,
@@ -161,20 +163,21 @@ export default function UsersPage() {
       status: user.status,
     }),
     beforeSave: (values, { editing }) => {
-      const payload = {
+      const payload: UserSavePayload = {
         ...values,
+        email: values.email ?? undefined,
+        phone: values.phone ?? undefined,
         departmentId: values.departmentId ?? null,
-        gender: (values as { gender?: string }).gender ?? null,
+        gender: values.gender ?? null,
         positionIds: values.positionIds ?? [],
         roleIds: values.roleIds ?? [],
       };
-      const nextStatus = (values as { status?: string }).status;
 
-      if (editing && isAdminUser(editing) && nextStatus === 'disabled') {
+      if (editing && isAdminUser(editing) && values.status === 'disabled') {
         Toast.warning('admin 账号不允许禁用');
         abortSubmit('admin_status_forbidden');
       }
-      return payload as Record<string, unknown>;
+      return payload;
     },
     labelWidth: 72,
   });
@@ -183,7 +186,7 @@ export default function UsersPage() {
     save: {
       mutateAsync: async ({ id, values }) => {
         if (id == null) abortSubmit('missing_user');
-        await resetPasswordMutation.mutateAsync({ id, password: values.password });
+        await resetPasswordMutation.mutateAsync({ params: { id }, body: { password: values.password } });
         return {} as User;
       },
       isPending: false,
@@ -211,7 +214,7 @@ export default function UsersPage() {
     return userList.filter((item) => selectedSet.has(item.id) && !isAdminUser(item)).map((item) => item.id);
   }, [userList, selectedRowKeys]);
 
-  const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
+  const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.body.ids[0] ?? null) : null;
 
   const handleBatchStatus = (status: 'enabled' | 'disabled') => {
     if (selectedNonAdminIds.length === 0) return;
@@ -221,7 +224,7 @@ export default function UsersPage() {
       content: status === 'disabled' ? '停用后该用户将无法登录。' : '启用后该用户可正常登录。',
       okButtonProps: { type: status === 'disabled' ? 'danger' : 'primary', theme: 'solid' },
       onOk: async () => {
-        await batchStatusMutation.mutateAsync({ ids: selectedNonAdminIds, status });
+        await batchStatusMutation.mutateAsync({ body: { ids: selectedNonAdminIds, status } });
         Toast.success(`批量${label}成功`);
         setSelectedRowKeys([]);
       },
@@ -242,7 +245,7 @@ export default function UsersPage() {
       title: `确认删除选中的 ${deletableIds.length} 个用户？`,
       content: '删除后无法恢复，请谨慎操作。',
       onOk: async () => {
-        await batchDeleteMutation.mutateAsync(deletableIds);
+        await deleteMutation.mutateAsync(deletableIds);
         Toast.success('批量删除成功');
         setSelectedRowKeys([]);
       },
@@ -321,7 +324,7 @@ export default function UsersPage() {
       if (!confirmed) return;
     }
     toggleStatus(
-      { id: user.id, ids: [user.id], status: newStatus },
+      { body: { ids: [user.id], status: newStatus } },
       { onSuccess: () => Toast.success(newStatus === 'enabled' ? '已启用' : '已停用') },
     );
   }, [toggleStatus]);
@@ -340,15 +343,15 @@ export default function UsersPage() {
   const openEdit = modal.openEdit;
   const openPassword = passwordModal.openEdit;
 
-  const { mutateAsync: deleteUser } = deleteMutation;
+  const { mutateAsync: deleteUsers } = deleteMutation;
   const handleDelete = useCallback(async (id: number) => {
-    await deleteUser(id);
+    await deleteUsers([id]);
     Toast.success('删除成功');
-  }, [deleteUser]);
+  }, [deleteUsers]);
 
   const { mutateAsync: unlockUser } = unlockMutation;
   const handleUnlock = useCallback(async (id: number) => {
-    await unlockUser(id);
+    await unlockUser({ params: { id } });
     Toast.success('解锁成功');
   }, [unlockUser]);
 
@@ -545,7 +548,7 @@ export default function UsersPage() {
                 title: '强制下线',
                 content: `确定要强制下线用户「${record.nickname}（${record.username}）」的全部会话吗？`,
                 onOk: async () => {
-                  await kickUserSessions(record.id);
+                  await kickUserSessions({ params: { id: record.id } });
                   Toast.success('已强制下线');
                   void refetchUserList();
                 },
@@ -953,7 +956,7 @@ export default function UsersPage() {
               batchPasswordFormApi.current.setError('confirmPassword', '两次密码输入不一致');
               return;
             }
-            await batchPasswordMutation.mutateAsync({ ids: selectedNonAdminIds, password: values.password });
+            await batchPasswordMutation.mutateAsync({ body: { ids: selectedNonAdminIds, password: values.password } });
             Toast.success('密码修改成功');
             setBatchPasswordModalVisible(false);
             batchPasswordFormApi.current.setValues({ password: '', confirmPassword: '' });
@@ -1031,7 +1034,7 @@ export default function UsersPage() {
         confirmLoading={assignRolesMutation.isPending}
         onOk={async () => {
           if (!roleAssignUser) return;
-          await assignRolesMutation.mutateAsync({ id: roleAssignUser.id, roleIds: roleAssignIds });
+          await assignRolesMutation.mutateAsync({ params: { id: roleAssignUser.id }, body: { roleIds: roleAssignIds } });
           Toast.success('角色分配成功');
           setRoleAssignVisible(false);
         }}

@@ -26,7 +26,7 @@ export const mockIotServices: IotProductService[] = SEED_IOT_PRODUCT_SERVICES.ma
 
 export const mockIotEvents: IotProductEvent[] = SEED_IOT_PRODUCT_EVENTS.map((e) => ({ ...e }));
 
-export const mockIotGroups: IotDeviceGroup[] = SEED_IOT_DEVICE_GROUPS.map((g) => ({ ...g, deviceIds: [...(g.deviceIds ?? [])] }));
+export const mockIotGroups: IotDeviceGroup[] = SEED_IOT_DEVICE_GROUPS.map((g) => ({ ...g, deviceIds: [...g.deviceIds] }));
 
 export const mockIotDevices: IotDevice[] = SEED_IOT_DEVICES.map((d, i) => ({
   ...d,
@@ -77,12 +77,12 @@ export const mockIotCommands: IotCommand[] = [
   {
     id: 1, deviceId: 1, service: 'calibrate', params: { offset: 0.5 },
     status: 'acked', expireAt: mockDateTime(), sentAt: mockDateTime(), ackedAt: mockDateTime(),
-    response: { applied: true }, errorMsg: null, createdAt: mockDateTime(),
+    response: { applied: true }, errorMsg: null, createdBy: 1, createdAt: mockDateTime(),
   },
   {
     id: 2, deviceId: 1, service: 'reboot', params: null,
     status: 'delivered', expireAt: mockDateTime(), sentAt: mockDateTime(), ackedAt: null,
-    response: null, errorMsg: null, createdAt: mockDateTime(),
+    response: null, errorMsg: null, createdBy: 1, createdAt: mockDateTime(),
   },
 ];
 
@@ -123,7 +123,7 @@ export function getNextIotDeviceEventId(): number {
 
 /** 设备行上派生分组冗余字段（列表展示） */
 export function withGroupInfo(device: IotDevice): IotDevice {
-  const groups = mockIotGroups.filter((g) => (g.deviceIds ?? []).includes(device.id));
+  const groups = mockIotGroups.filter((g) => g.deviceIds.includes(device.id));
   const shadow = mockIotShadows.get(device.id);
   return {
     ...device,

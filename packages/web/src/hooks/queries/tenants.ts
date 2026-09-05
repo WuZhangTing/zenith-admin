@@ -1,8 +1,6 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { tenantContract } from '@zenith/shared/identity';
-import { apiQueryOptions, createResourceQueries } from '@/lib/contract-query';
-import { unwrap } from '@/lib/query';
-import { request } from '@/utils/request';
+import { useQuery } from '@tanstack/react-query';
+import { authContract, tenantContract } from '@zenith/shared/identity';
+import { apiQueryOptions, createResourceQueries, useApiMutation } from '@/lib/contract-query';
 
 export const {
   keys: tenantKeys,
@@ -19,8 +17,5 @@ export function useTenantStats(id: number | undefined, enabled = true) {
 
 /** 切换当前查看的租户——换发 token 后整页重载，故不做缓存失效 */
 export function useSwitchTenant() {
-  return useMutation({
-    mutationFn: (tenantId: number | null) =>
-      request.post<{ accessToken: string; refreshToken: string }>('/api/auth/switch-tenant', { tenantId }).then(unwrap),
-  });
+  return useApiMutation(authContract.switchTenant);
 }

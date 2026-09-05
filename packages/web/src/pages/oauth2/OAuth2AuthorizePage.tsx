@@ -11,8 +11,9 @@ import { Spin, Card, Avatar, Tag, Button, Space, Typography, Divider, Toast } fr
 import { ShieldCheck, X } from 'lucide-react';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import { isSafeOAuthRedirectUri } from '@zenith/shared/identity';
+import { oauth2AuthContract } from '@zenith/shared/open-platform';
 import type { OAuth2AuthorizeInfo } from '@zenith/shared/open-platform';
-import { request } from '@/utils/request';
+import { api } from '@/lib/contract-query';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -75,19 +76,14 @@ export default function OAuth2AuthorizePage() {
       return;
     }
 
-    const qs = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      response_type: responseType ?? 'code',
-      scope: scope ?? 'openid',
-    }).toString();
-    request.get<OAuth2AuthorizeInfo>(`/api/oauth2/authorize/info?${qs}`).then((res) => {
-      if (res.code === 0 && res.data) {
-        setInfo(res.data);
-      } else {
-        setError(res.message || '获取应用信息失败');
-      }
-    }).catch((err: Error) => {
+    api(oauth2AuthContract.authorizeInfo, {
+      query: {
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        response_type: responseType,
+        scope,
+      },
+    }).then(setInfo).catch((err: Error) => {
       setError(err.message || '应用信息加载失败');
     }).finally(() => setLoading(false));
   }, [clientId, redirectUri, responseType, scope, codeChallenge, codeChallengeMethod, navigate]);
@@ -95,24 +91,22 @@ export default function OAuth2AuthorizePage() {
   const handleApprove = async () => {
     setSubmitting(true);
     try {
-      const res = await request.post<{ redirectUrl: string }>('/api/oauth2/authorize', {
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        response_type: 'code',
-        scope,
-        state: state || undefined,
-        code_challenge: codeChallenge,
-        code_challenge_method: 'S256',
+      const { redirectUrl } = await api(oauth2AuthContract.authorize, {
+        body: {
+          client_id: clientId,
+          redirect_uri: redirectUri,
+          response_type: 'code',
+          scope,
+          state: state || undefined,
+          code_challenge: codeChallenge,
+          code_challenge_method: 'S256',
+        },
       }, { silent: true });
-      if (res.code === 0 && res.data?.redirectUrl) {
-        if (!isSafeOAuthRedirectUri(res.data.redirectUrl)) {
-          Toast.error('服务端返回了不安全的跳转地址');
-          return;
-        }
-        globalThis.location.href = res.data.redirectUrl;
-      } else {
-        Toast.error(res.message || '授权失败');
+      if (!isSafeOAuthRedirectUri(redirectUrl)) {
+        Toast.error('服务端返回了不安全的跳转地址');
+        return;
       }
+      globalThis.location.href = redirectUrl;
     } catch (err) {
       // silent:true 关闭了拦截器提示，这里必须自行反馈，否则点击「同意授权」会毫无反应
       Toast.error(err instanceof Error && err.message ? err.message : '授权失败，请稍后重试');

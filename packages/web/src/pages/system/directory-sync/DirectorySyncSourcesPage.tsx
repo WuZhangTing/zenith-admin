@@ -16,11 +16,12 @@ import { confirmDelete } from '@/utils/confirm';
 import {
   directorySyncSourceKeys, useDirectorySyncSourceList, useDirectorySyncSourceDetail,
   useSaveDirectorySyncSource, useDeleteDirectorySyncSources,
-  useTestDirectorySyncSource, useRunDirectorySyncSource,
+  useTestDirectorySyncSource, useRunDirectorySyncSource, usePreviewDirectorySyncSource,
 } from '@/hooks/queries/directory-sync';
 import { useIdentityProviderList } from '@/hooks/queries/identity-providers';
 import { useAllRoles } from '@/hooks/queries/roles';
-import type { DirectorySyncSource } from '@zenith/shared/identity';
+import { directorySyncSourceContract, type DirectorySyncSource } from '@zenith/shared/identity';
+import { USER_STATUSES, enumValueOf, type BodyOf } from '@zenith/shared/core';
 import {
   SUPER_ADMIN_CODE,
   DIRECTORY_SYNC_SOURCE_TYPES, DIRECTORY_SYNC_SOURCE_TYPE_LABELS,
@@ -32,6 +33,16 @@ import {
 } from '@zenith/shared/identity';
 
 const CALLBACK_TYPE_SET = new Set<string>(DIRECTORY_SYNC_CALLBACK_TYPES);
+
+/** 保存载荷：创建入参的部分形态；密钥字段空串表示不修改，提交前在 beforeSave 收敛 */
+type DirectorySyncSourceSavePayload = Partial<BodyOf<typeof directorySyncSourceContract.create>>;
+
+/** 表单值：以实体字段为底，另带三个只写的密钥字段 */
+type DirectorySyncSourceFormValues = Partial<DirectorySyncSource> & {
+  contactSecret?: string | null;
+  callbackToken?: string | null;
+  callbackAesKey?: string | null;
+};
 
 const MAPPING_SOURCE_OPTIONS = DIRECTORY_SYNC_MAPPABLE_SOURCE_FIELDS.map((f) => ({
   value: f,
@@ -67,8 +78,8 @@ export default function DirectorySyncSourcesPage() {
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    type: submittedParams.type || undefined,
-    status: submittedParams.status || undefined,
+    type: enumValueOf(DIRECTORY_SYNC_SOURCE_TYPES, submittedParams.type),
+    status: enumValueOf(USER_STATUSES, submittedParams.status),
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -85,7 +96,7 @@ export default function DirectorySyncSourcesPage() {
     .filter((r) => r.code !== SUPER_ADMIN_CODE)
     .map((r) => ({ value: r.id, label: r.name }));
 
-  const modal = useEditModal<DirectorySyncSource>({
+  const modal = useEditModal<DirectorySyncSource, DirectorySyncSourceFormValues, DirectorySyncSourceSavePayload>({
     entityName: '同步源',
     save: useSaveDirectorySyncSource(),
     useDetail: useDirectorySyncSourceDetail,
@@ -114,13 +125,7 @@ export default function DirectorySyncSourcesPage() {
       fieldMapping: r.fieldMapping,
       remark: r.remark,
     }),
-    beforeSave: (values) => {
-      const v = values as Partial<DirectorySyncSource> & {
-        type: string;
-        contactSecret?: string | null;
-        callbackToken?: string | null;
-        callbackAesKey?: string | null;
-      };
+    beforeSave: (v): DirectorySyncSourceSavePayload => {
       const isPlatform = v.type !== 'ldap' && v.type !== 'scim';
       // 清掉映射里的空值（= 跟随默认）
       const fieldMapping = Object.fromEntries(
@@ -128,6 +133,7 @@ export default function DirectorySyncSourcesPage() {
       );
       return {
         ...v,
+        remark: v.remark ?? undefined,
         fieldMapping,
         // 绑定字段按类型收敛，避免残留另一类型的绑定
         identityProviderId: v.type === 'ldap' ? v.identityProviderId : null,
@@ -146,6 +152,7 @@ export default function DirectorySyncSourcesPage() {
   const deleteMutation = useDeleteDirectorySyncSources();
   const testMutation = useTestDirectorySyncSource();
   const runMutation = useRunDirectorySyncSource();
+  const previewMutation = usePreviewDirectorySyncSource();
   const togglingId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
   const [testingId, setTestingId] = useState<number | null>(null);
 
@@ -173,7 +180,7 @@ export default function DirectorySyncSourcesPage() {
 
   function handleTest(record: DirectorySyncSource) {
     setTestingId(record.id);
-    testMutation.mutate(record.id, {
+    testMutation.mutate({ params: { id: record.id } }, {
       onSuccess: (result) => {
         if (result.ok) {
           const sample = result.sampleUsers.map((u) => u.nickname || u.username).join('、');
@@ -192,7 +199,8 @@ export default function DirectorySyncSourcesPage() {
 
   function handleRun(record: DirectorySyncSource, dryRun: boolean) {
     const doRun = () => {
-      runMutation.mutate({ id: record.id, dryRun }, {
+      const submit = dryRun ? previewMutation : runMutation;
+      submit.mutate({ params: { id: record.id } }, {
         onSuccess: () => Toast.success(
           dryRun ? '预览任务已提交，请稍后在「同步记录」查看差异（预览不落库）' : '同步任务已提交，可在「同步记录」跟踪进度',
         ),

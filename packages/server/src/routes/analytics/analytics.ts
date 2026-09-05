@@ -1,27 +1,12 @@
-import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
-import { ANALYTICS_ACQUISITION_DIMENSIONS, ANALYTICS_ATTRIBUTION_MODELS, ANALYTICS_QUALITY_ISSUE_TYPES, ANALYTICS_SITE_KEY_HEADER } from '@zenith/shared/analytics';
-import { asyncTaskSchema } from '@zenith/shared/tasks';
+import { ANALYTICS_SITE_KEY_HEADER, analyticsContract } from '@zenith/shared/analytics';
 import { authMiddleware } from '../../middleware/auth';
 import { optionalAuthMiddleware } from '../../middleware/optional-auth';
 import { guard } from '../../middleware/guard';
 import { namedRateLimit } from '../../middleware/rate-limit';
-import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
-import {
-  BatchUserEventsBodyDTO, AnalyticsPublicConfigDTO, AnalyticsOverviewDTO, TrendSeriesDTO,
-  PageStatsDTO, FeatureStatsDTO, HeatmapDataDTO, HeatmapPageListDTO, UserStatsDTO,
-  SessionListItemDTO, FunnelResultDTO, FunnelQueryBodyDTO, RetentionResultDTO, PathResultDTO,
-  UserTimelineDTO, PerfStatsDTO, RealtimeStatsDTO,
-  EventListItemDTO, EventDetailDTO, AnalyticsEventMetaDTO, CreateAnalyticsEventMetaDTO,
-  UpdateAnalyticsEventMetaDTO, AnalyticsSettingsDTO, UpdateAnalyticsSettingsDTO, AnalyticsRollupSummaryDTO,
-  AnalyticsEventMetaReferencesDTO,
-  SessionTimelineDTO, AnalyticsSavedReportDTO, CreateAnalyticsSavedReportDTO,
-  AnalyticsEventOverrideDTO, CreateAnalyticsEventOverrideDTO, UpdateAnalyticsEventOverrideDTO,
-  AnalyticsQualityQueryResultDTO, AnalyticsDebugEventDTO,
-  AnalyticsEventQueryBodyDTO, AnalyticsEventQueryResultDTO,
-  RetentionQueryBodyDTO, AnalyticsAcquisitionResultDTO, AnalyticsDrillUsersBodyDTO, AnalyticsDrillUsersResultDTO,
-  AnalyticsUserSegmentDTO, CreateAnalyticsUserSegmentDTO, UpdateAnalyticsUserSegmentDTO, AnalyticsSegmentMemberDTO,
-} from '../../lib/openapi-dtos';
+import { defineContractRoute } from '../../lib/contract-route';
+import { okBody, validationHook } from '../../lib/openapi-schemas';
 import { getClientIp } from '../../lib/request-helpers';
 import { parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import {
@@ -53,321 +38,166 @@ import { ANALYTICS_ROLLUP_REBUILD_TASK_TYPE, ANALYTICS_SEGMENT_MATERIALIZE_TASK_
 
 const r = new OpenAPIHono({ defaultHook: validationHook });
 
-const daysQuery = z.object({ days: z.coerce.number().int().min(1).max(365).default(30) });
-const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-const rangeQuery = daysQuery.extend({ startDate: dateStr.optional(), endDate: dateStr.optional() });
+const view = [authMiddleware, guard({ permission: 'analytics:view' })] as const;
+const manage = [authMiddleware, guard({ permission: 'analytics:manage' })] as const;
 
 // ─── 采集 ─────────────────────────────────────────────────────────────────────
-const ingestRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/events', tags: ['Analytics'], summary: '批量上报用户行为事件（匿名/登录均可）', security: [],
-    middleware: [optionalAuthMiddleware, namedRateLimit('analytics-ingest')] as const,
-    request: { body: { content: { 'application/json': { schema: BatchUserEventsBodyDTO } }, required: true } },
-    responses: { ...okMsg('上报成功'), ...commonErrorResponses },
-  }),
+// 采集入口是全站最高频公开解析点：在 server 使用点对契约请求体做 AOT 预编译换事件循环余量
+// （不在 shared 定义点编译，避免把 zod 编译器带进 web 包；strict 保证 schema 不可编译时启动即报错）
+const trackOp = { ...analyticsContract.track, body: z.compile(analyticsContract.track.body, { strict: true }) };
+
+const ingestRoute = defineContractRoute(trackOp, {
+  middleware: [optionalAuthMiddleware, namedRateLimit('analytics-ingest')],
   handler: async (c) => {
     const { events } = c.req.valid('json');
     await batchInsertEvents(events, {
       ip: getClientIp(c),
       ua: c.req.header('user-agent') ?? '',
-      siteKey: c.req.header(ANALYTICS_SITE_KEY_HEADER) ?? c.req.query('siteKey') ?? null,
+      siteKey: c.req.header(ANALYTICS_SITE_KEY_HEADER) ?? c.req.valid('query').siteKey ?? null,
       origin: c.req.header('origin') ?? null,
     });
     return c.json(okBody(null, '上报成功'), 200);
   },
 });
 
-const configRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/config', tags: ['Analytics'], summary: 'SDK 公开采集配置', security: [],
-    middleware: [optionalAuthMiddleware] as const,
-    responses: { ...ok(AnalyticsPublicConfigDTO, '采集配置'), ...commonErrorResponses },
-  }),
-  handler: async (c) => c.json(okBody(await getPublicConfig(c.req.header(ANALYTICS_SITE_KEY_HEADER) ?? c.req.query('siteKey') ?? null)), 200),
+const configRoute = defineContractRoute(analyticsContract.config, {
+  middleware: [optionalAuthMiddleware],
+  handler: async (c) => c.json(okBody(await getPublicConfig(c.req.header(ANALYTICS_SITE_KEY_HEADER) ?? c.req.valid('query').siteKey ?? null)), 200),
 });
 
 // ─── 概览 / 趋势 / 实时 ───────────────────────────────────────────────────────
-const overviewRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/overview', tags: ['Analytics'], summary: '概览 KPI', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const, request: { query: rangeQuery },
-    responses: { ...ok(AnalyticsOverviewDTO, '概览'), ...commonErrorResponses },
-  }),
+const overviewRoute = defineContractRoute(analyticsContract.overview, {
+  middleware: view,
   handler: async (c) => c.json(okBody(await getOverview(c.req.valid('query'))), 200),
 });
 
-const trendsRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/trends', tags: ['Analytics'], summary: 'PV/UV/会话/事件趋势', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: rangeQuery.extend({ compare: z.enum(['true', 'false']).default('false') }) },
-    responses: { ...ok(TrendSeriesDTO, '趋势'), ...commonErrorResponses },
-  }),
+const trendsRoute = defineContractRoute(analyticsContract.trends, {
+  middleware: view,
   handler: async (c) => {
     const q = c.req.valid('query');
     return c.json(okBody(await getTrends({ ...q, compare: q.compare === 'true' })), 200);
   },
 });
 
-const realtimeRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/realtime', tags: ['Analytics'], summary: '实时概况', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const, responses: { ...ok(RealtimeStatsDTO, '实时'), ...commonErrorResponses },
-  }),
+const realtimeRoute = defineContractRoute(analyticsContract.realtime, {
+  middleware: view,
   handler: async (c) => c.json(okBody(await getRealtime()), 200),
 });
 
 // ─── 页面/功能/热力图/用户 ────────────────────────────────────────────────────
-const pageStatsRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/page-stats', tags: ['Analytics'], summary: '页面停留统计', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: PaginationQuery.extend({ days: z.coerce.number().int().min(1).max(365).default(30) }) },
-    responses: { ...ok(PageStatsDTO, '页面停留'), ...commonErrorResponses },
-  }),
+const pageStatsRoute = defineContractRoute(analyticsContract.pageStats, {
+  middleware: view,
   handler: async (c) => c.json(okBody(await getPageStats(c.req.valid('query'))), 200),
 });
 
-const featureStatsRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/feature-stats', tags: ['Analytics'], summary: '功能使用统计', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: PaginationQuery.extend({ days: z.coerce.number().int().min(1).max(365).default(30), pagePath: z.string().optional() }) },
-    responses: { ...ok(FeatureStatsDTO, '功能使用'), ...commonErrorResponses },
-  }),
+const featureStatsRoute = defineContractRoute(analyticsContract.featureStats, {
+  middleware: view,
   handler: async (c) => c.json(okBody(await getFeatureStats(c.req.valid('query'))), 200),
 });
 
-const heatmapRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/heatmap', tags: ['Analytics'], summary: '点击热力图', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: {
-      query: z.object({
-        pagePath: z.string().min(1),
-        componentArea: z.string().optional(),
-        days: z.coerce.number().int().min(1).max(365).default(30),
-        deviceType: z.enum(['desktop', 'mobile', 'tablet', 'bot', 'unknown']).or(z.literal('')).optional(),
-        source: z.enum(['web_admin', 'web_member', 'server']).or(z.literal('')).optional(),
-      }),
-    },
-    responses: { ...ok(HeatmapDataDTO, '热力图'), ...commonErrorResponses },
-  }),
-  handler: async (c) => {
-    const q = c.req.valid('query');
-    return c.json(okBody(await getHeatmapData({ ...q, deviceType: q.deviceType || undefined, source: q.source || undefined })), 200);
-  },
+const heatmapRoute = defineContractRoute(analyticsContract.heatmap, {
+  middleware: view,
+  handler: async (c) => c.json(okBody(await getHeatmapData(c.req.valid('query'))), 200),
 });
 
-const heatmapPagesRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/heatmap-pages', tags: ['Analytics'], summary: '热力图页面列表', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const, request: { query: daysQuery },
-    responses: { ...ok(HeatmapPageListDTO, '页面列表'), ...commonErrorResponses },
-  }),
+const heatmapPagesRoute = defineContractRoute(analyticsContract.heatmapPages, {
+  middleware: view,
   handler: async (c) => c.json(okBody(await getHeatmapPageList(c.req.valid('query'))), 200),
 });
 
-const userStatsRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/user-stats', tags: ['Analytics'], summary: '用户行为统计', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: PaginationQuery.extend({ days: z.coerce.number().int().min(1).max(365).default(30) }) },
-    responses: { ...ok(UserStatsDTO, '用户统计'), ...commonErrorResponses },
-  }),
+const userStatsRoute = defineContractRoute(analyticsContract.userStats, {
+  middleware: view,
   handler: async (c) => c.json(okBody(await getUserStats(c.req.valid('query'))), 200),
 });
 
-// ─── 会话 / 漏斗 / 留存 / 路径 / 时间线 / 维度 / 性能 ──────────────────────────
-const sessionsRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/sessions', tags: ['Analytics'], summary: '会话列表', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: PaginationQuery.extend({ username: z.string().optional(), deviceType: z.enum(['desktop', 'mobile', 'tablet', 'bot', 'unknown']).or(z.literal('')).optional() }) },
-    responses: { ...okPaginated(SessionListItemDTO, '会话列表'), ...commonErrorResponses },
-  }),
+// ─── 会话 / 漏斗 / 留存 / 获客 / 下钻 / 事件分析 / 路径 / 时间线 / 性能 ────────
+const sessionsRoute = defineContractRoute(analyticsContract.sessions, {
+  middleware: view,
   handler: async (c) => c.json(okBody(await listSessions(c.req.valid('query'))), 200),
 });
 
-const funnelRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/funnel', tags: ['Analytics'], summary: '漏斗分析', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { body: { content: { 'application/json': { schema: FunnelQueryBodyDTO } }, required: true } },
-    responses: { ...ok(FunnelResultDTO, '漏斗'), ...commonErrorResponses },
-  }),
+const funnelRoute = defineContractRoute(analyticsContract.funnel, {
+  middleware: view,
   handler: async (c) => c.json(okBody(await getFunnel(c.req.valid('json'))), 200),
 });
 
-const retentionRoute = defineOpenAPIRoute({
-  route: createRoute({
-    // 含对比轴（判别联合对象），query string 无法自然承载，故用 POST 传查询体
-    method: 'post', path: '/retention', tags: ['Analytics'], summary: '留存分析', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { body: { content: { 'application/json': { schema: RetentionQueryBodyDTO } }, required: true } },
-    responses: { ...ok(RetentionResultDTO, '留存'), ...commonErrorResponses },
-  }),
+const retentionRoute = defineContractRoute(analyticsContract.retention, {
+  middleware: view,
   handler: async (c) => c.json(okBody(await getRetention(c.req.valid('json'))), 200),
 });
 
-// ─── 阶段 2：获客与归因报表 ───────────────────────────────────────────────────
-const acquisitionRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/acquisition', tags: ['Analytics'], summary: '获客渠道与归因报表', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: {
-      query: z.object({
-        days: z.coerce.number().int().min(1).max(365).default(30),
-        dimension: z.enum(ANALYTICS_ACQUISITION_DIMENSIONS).default('channel'),
-        model: z.enum(ANALYTICS_ATTRIBUTION_MODELS).default('last_touch'),
-        conversionEvent: z.string().max(128).optional(),
-        limit: z.coerce.number().int().min(1).max(50).default(20),
-      }),
-    },
-    responses: { ...ok(AnalyticsAcquisitionResultDTO, '获客报表'), ...commonErrorResponses },
-  }),
+const acquisitionRoute = defineContractRoute(analyticsContract.acquisition, {
+  middleware: view,
   handler: async (c) => c.json(okBody(await getAcquisitionReport(c.req.valid('query'))), 200),
 });
 
-// ─── 阶段 2：图表下钻用户列表 ─────────────────────────────────────────────────
-const drillUsersRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/drill-users', tags: ['Analytics'], summary: '图表下钻用户列表', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { body: { content: { 'application/json': { schema: AnalyticsDrillUsersBodyDTO } }, required: true } },
-    responses: { ...ok(AnalyticsDrillUsersResultDTO, '下钻用户列表'), ...commonErrorResponses },
-  }),
+const drillUsersRoute = defineContractRoute(analyticsContract.drillUsers, {
+  middleware: view,
   handler: async (c) => c.json(okBody(await drillUsers(c.req.valid('json'))), 200),
 });
 
-// ─── 通用事件分析工作台（行为中心阶段 1）──────────────────────────────────────
-const eventQueryRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/events/query', tags: ['Analytics'], summary: '通用事件分析查询', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { body: { content: { 'application/json': { schema: AnalyticsEventQueryBodyDTO } }, required: true } },
-    responses: { ...ok(AnalyticsEventQueryResultDTO, '事件分析结果'), ...commonErrorResponses },
-  }),
+const eventQueryRoute = defineContractRoute(analyticsContract.queryEvents, {
+  middleware: view,
   handler: async (c) => c.json(okBody(await queryEvents(c.req.valid('json'))), 200),
 });
 
-const pathRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/path', tags: ['Analytics'], summary: '路径分析', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: {
-      query: z.object({
-        days: z.coerce.number().int().min(1).max(365).default(30),
-        limit: z.coerce.number().int().min(1).max(100).default(30),
-        startPage: z.string().max(256).optional(),
-      }),
-    },
-    responses: { ...ok(PathResultDTO, '路径'), ...commonErrorResponses },
-  }),
+const pathRoute = defineContractRoute(analyticsContract.path, {
+  middleware: view,
   handler: async (c) => c.json(okBody(await getPathAnalysis(c.req.valid('query'))), 200),
 });
 
-const userTimelineRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/user-timeline', tags: ['Analytics'], summary: '用户行为时间线', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: z.object({ userId: z.coerce.number().int().optional(), username: z.string().optional(), limit: z.coerce.number().int().min(1).max(500).default(100) }) },
-    responses: { ...ok(UserTimelineDTO, '时间线'), ...commonErrorResponses },
-  }),
+const userTimelineRoute = defineContractRoute(analyticsContract.userTimeline, {
+  middleware: view,
   handler: async (c) => c.json(okBody(await getUserTimeline(c.req.valid('query'))), 200),
 });
 
-const sessionTimelineRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/session-timeline', tags: ['Analytics'], summary: '会话事件时间轴', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: z.object({ sessionId: z.string().min(1).max(36), limit: z.coerce.number().int().min(1).max(1000).default(300) }) },
-    responses: { ...ok(SessionTimelineDTO, '会话时间轴'), ...commonErrorResponses },
-  }),
+const sessionTimelineRoute = defineContractRoute(analyticsContract.sessionTimeline, {
+  middleware: view,
   handler: async (c) => {
     const q = c.req.valid('query');
     return c.json(okBody(await getSessionTimeline(q.sessionId, q.limit)), 200);
   },
 });
 
+const perfRoute = defineContractRoute(analyticsContract.perfStats, {
+  middleware: view,
+  handler: async (c) => c.json(okBody(await getPerfStats(c.req.valid('query').days)), 200),
+});
+
 // ─── 保存的分析报表 ───────────────────────────────────────────────────────────
-const reportListRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/reports', tags: ['Analytics'], summary: '保存的报表列表', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: z.object({ type: z.enum(['funnel']).default('funnel') }) },
-    responses: { ...ok(z.object({ list: z.array(AnalyticsSavedReportDTO) }), '报表列表'), ...commonErrorResponses },
-  }),
+const reportListRoute = defineContractRoute(analyticsContract.reports, {
+  middleware: view,
   handler: async (c) => c.json(okBody({ list: await listSavedReports(c.req.valid('query').type) }), 200),
 });
 
-const reportCreateRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/reports', tags: ['Analytics'], summary: '保存报表配置', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { body: { content: { 'application/json': { schema: CreateAnalyticsSavedReportDTO } }, required: true } },
-    responses: { ...ok(AnalyticsSavedReportDTO, '保存成功'), ...commonErrorResponses },
-  }),
+const reportCreateRoute = defineContractRoute(analyticsContract.createReport, {
+  middleware: view,
   handler: async (c) => c.json(okBody(await createSavedReport(c.req.valid('json')), '保存成功'), 200),
 });
 
-const reportDeleteRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/reports/{id}', tags: ['Analytics'], summary: '删除保存的报表', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const, request: { params: IdParam },
-    responses: { ...okMsg('删除成功'), ...commonErrorResponses },
-  }),
+const reportDeleteRoute = defineContractRoute(analyticsContract.removeReport, {
+  middleware: view,
   handler: async (c) => {
     await deleteSavedReport(c.req.valid('param').id);
     return c.json(okBody(null, '删除成功'), 200);
   },
 });
 
-const perfRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/perf-stats', tags: ['Analytics'], summary: 'Web Vitals 性能统计', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const, request: { query: daysQuery },
-    responses: { ...ok(PerfStatsDTO, '性能'), ...commonErrorResponses },
-  }),
-  handler: async (c) => c.json(okBody(await getPerfStats(c.req.valid('query').days)), 200),
-});
-
 // ─── 事件数据管理 ─────────────────────────────────────────────────────────────
-const eventListQuery = PaginationQuery.extend({
-  eventType: z.enum(['page_view', 'page_leave', 'feature_use', 'area_click', 'custom', 'perf', 'api_request', 'identify']).or(z.literal('')).optional(),
-  eventName: z.string().optional(),
-  username: z.string().optional(),
-  pagePath: z.string().optional(),
-  deviceType: z.enum(['desktop', 'mobile', 'tablet', 'bot', 'unknown']).or(z.literal('')).optional(),
-  startTime: dateRangeBound('起始时间'),
-  endTime: dateRangeBound('结束时间'),
+const eventListRoute = defineContractRoute(analyticsContract.events, {
+  middleware: manage,
+  handler: async (c) => {
+    const q = c.req.valid('query');
+    return c.json(okBody(await listAnalyticsEvents({
+      ...q,
+      startTime: parseDateRangeStart(q.startTime) ?? undefined,
+      endTime: parseDateRangeEnd(q.endTime) ?? undefined,
+    })), 200);
+  },
 });
 
-function parseEventQuery(q: z.infer<typeof eventListQuery>) {
-  return {
-    ...q,
-    eventType: q.eventType || undefined,
-    deviceType: q.deviceType || undefined,
-    startTime: parseDateRangeStart(q.startTime) ?? undefined,
-    endTime: parseDateRangeEnd(q.endTime) ?? undefined,
-  };
-}
-
-const eventListRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/events', tags: ['Analytics'], summary: '埋点事件列表', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const, request: { query: eventListQuery },
-    responses: { ...okPaginated(EventListItemDTO, '事件列表'), ...commonErrorResponses },
-  }),
-  handler: async (c) => c.json(okBody(await listAnalyticsEvents(parseEventQuery(c.req.valid('query')))), 200),
-});
-
-const eventDetailRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/events/{id}', tags: ['Analytics'], summary: '事件详情', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const, request: { params: IdParam },
-    responses: { ...ok(EventDetailDTO, '事件详情'), ...commonErrorResponses },
-  }),
+const eventDetailRoute = defineContractRoute(analyticsContract.eventDetail, {
+  middleware: manage,
   handler: async (c) => {
     const detail = await getEventDetail(c.req.valid('param').id);
     if (!detail) throw new HTTPException(404, { message: '事件不存在' });
@@ -375,12 +205,8 @@ const eventDetailRoute = defineOpenAPIRoute({
   },
 });
 
-const cleanRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/clean', tags: ['Analytics'], summary: '清除埋点数据', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:clean', audit: { module: '行为分析', description: '清除埋点数据' } })] as const, request: { query: z.object({ days: z.coerce.number().int().min(0).default(0) }) },
-    responses: { ...okMsg('清除成功'), ...commonErrorResponses },
-  }),
+const cleanRoute = defineContractRoute(analyticsContract.clean, {
+  middleware: [authMiddleware, guard({ permission: 'analytics:clean', audit: { module: '行为分析', description: '清除埋点数据' } })],
   handler: async (c) => {
     const deleted = await cleanAnalyticsEvents(c.req.valid('query').days);
     return c.json(okBody(null, `共删除 ${deleted} 条事件数据`), 200);
@@ -388,166 +214,88 @@ const cleanRoute = defineOpenAPIRoute({
 });
 
 // ─── 事件元数据 ───────────────────────────────────────────────────────────────
-const metaListRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/event-meta', tags: ['Analytics'], summary: '事件字典列表', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const,
-    request: { query: PaginationQuery.extend({ keyword: z.string().optional(), status: z.enum(['active', 'deprecated', 'blocked']).optional(), category: z.string().optional() }) },
-    responses: { ...okPaginated(AnalyticsEventMetaDTO, '事件字典'), ...commonErrorResponses },
-  }),
+const metaListRoute = defineContractRoute(analyticsContract.eventMeta, {
+  middleware: manage,
   handler: async (c) => c.json(okBody(await listEventMeta(c.req.valid('query'))), 200),
 });
 
-const metaCreateRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/event-meta', tags: ['Analytics'], summary: '新增事件字典', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const,
-    request: { body: { content: { 'application/json': { schema: CreateAnalyticsEventMetaDTO } }, required: true } },
-    responses: { ...ok(AnalyticsEventMetaDTO, '创建成功'), ...commonErrorResponses },
-  }),
+const metaCreateRoute = defineContractRoute(analyticsContract.createEventMeta, {
+  middleware: manage,
   handler: async (c) => c.json(okBody(await createEventMeta(c.req.valid('json')), '创建成功'), 200),
 });
 
-const metaUpdateRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/event-meta/{id}', tags: ['Analytics'], summary: '更新事件字典', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const,
-    request: { params: IdParam, body: { content: { 'application/json': { schema: UpdateAnalyticsEventMetaDTO } }, required: true } },
-    responses: { ...ok(AnalyticsEventMetaDTO, '更新成功'), ...commonErrorResponses },
-  }),
+const metaUpdateRoute = defineContractRoute(analyticsContract.updateEventMeta, {
+  middleware: manage,
   handler: async (c) => c.json(okBody(await updateEventMeta(c.req.valid('param').id, c.req.valid('json')), '更新成功'), 200),
 });
 
-const metaDeleteRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/event-meta/{id}', tags: ['Analytics'], summary: '删除事件字典', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const, request: { params: IdParam },
-    responses: { ...okMsg('删除成功'), ...commonErrorResponses },
-  }),
+const metaDeleteRoute = defineContractRoute(analyticsContract.removeEventMeta, {
+  middleware: manage,
   handler: async (c) => {
     await deleteEventMeta(c.req.valid('param').id);
     return c.json(okBody(null, '删除成功'), 200);
   },
 });
 
-const metaReferencesRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/event-meta/references', tags: ['Analytics'], summary: '事件字典下游引用（漏斗报表 / 分群 / 实验）', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const,
-    request: { query: z.object({ eventName: z.string().min(1).max(128) }) },
-    responses: { ...ok(AnalyticsEventMetaReferencesDTO, '下游引用'), ...commonErrorResponses },
-  }),
+const metaReferencesRoute = defineContractRoute(analyticsContract.eventMetaReferences, {
+  middleware: manage,
   handler: async (c) => c.json(okBody(await getEventMetaReferences(c.req.valid('query').eventName)), 200),
 });
 
 // ─── 租户级事件启停覆盖 ───────────────────────────────────────────────────────
-const overrideListRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/event-overrides', tags: ['Analytics'], summary: '事件覆盖列表', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const,
-    request: { query: PaginationQuery.extend({ eventName: z.string().optional(), status: z.enum(['enabled', 'disabled']).optional() }) },
-    responses: { ...okPaginated(AnalyticsEventOverrideDTO, '事件覆盖列表'), ...commonErrorResponses },
-  }),
+const overrideListRoute = defineContractRoute(analyticsContract.eventOverrides, {
+  middleware: manage,
   handler: async (c) => c.json(okBody(await listEventOverrides(c.req.valid('query'))), 200),
 });
 
-const overrideCreateRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/event-overrides', tags: ['Analytics'], summary: '新增事件覆盖', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '新增事件覆盖' } })] as const,
-    request: { body: { content: { 'application/json': { schema: CreateAnalyticsEventOverrideDTO } }, required: true } },
-    responses: { ...ok(AnalyticsEventOverrideDTO, '创建成功'), ...commonErrorResponses },
-  }),
+const overrideCreateRoute = defineContractRoute(analyticsContract.createEventOverride, {
+  middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '新增事件覆盖' } })],
   handler: async (c) => c.json(okBody(await createEventOverride(c.req.valid('json')), '创建成功'), 200),
 });
 
-const overrideUpdateRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/event-overrides/{id}', tags: ['Analytics'], summary: '更新事件覆盖', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '更新事件覆盖' } })] as const,
-    request: { params: IdParam, body: { content: { 'application/json': { schema: UpdateAnalyticsEventOverrideDTO } }, required: true } },
-    responses: { ...ok(AnalyticsEventOverrideDTO, '更新成功'), ...commonErrorResponses },
-  }),
+const overrideUpdateRoute = defineContractRoute(analyticsContract.updateEventOverride, {
+  middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '更新事件覆盖' } })],
   handler: async (c) => c.json(okBody(await updateEventOverride(c.req.valid('param').id, c.req.valid('json')), '更新成功'), 200),
 });
 
-const overrideDeleteRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/event-overrides/{id}', tags: ['Analytics'], summary: '删除事件覆盖', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '删除事件覆盖' } })] as const,
-    request: { params: IdParam },
-    responses: { ...okMsg('删除成功'), ...commonErrorResponses },
-  }),
+const overrideDeleteRoute = defineContractRoute(analyticsContract.removeEventOverride, {
+  middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '删除事件覆盖' } })],
   handler: async (c) => {
     await deleteEventOverride(c.req.valid('param').id);
     return c.json(okBody(null, '删除成功'), 200);
   },
 });
 
-// ─── 埋点质量看板 ─────────────────────────────────────────────────────────────
-const qualityRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/quality', tags: ['Analytics'], summary: '埋点质量看板', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const,
-    request: {
-      query: PaginationQuery.extend({
-        days: z.coerce.number().int().min(1).max(90).optional(),
-        eventName: z.string().optional(),
-        issueType: z.enum(ANALYTICS_QUALITY_ISSUE_TYPES).optional(),
-      }),
-    },
-    responses: { ...ok(AnalyticsQualityQueryResultDTO, '质量看板数据'), ...commonErrorResponses },
-  }),
+// ─── 埋点质量看板 / 事件调试流 ────────────────────────────────────────────────
+const qualityRoute = defineContractRoute(analyticsContract.quality, {
+  middleware: manage,
   handler: async (c) => c.json(okBody(await queryQuality(c.req.valid('query'))), 200),
 });
 
-// ─── 事件调试流 ───────────────────────────────────────────────────────────────
-const debugEventsRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/debug/events', tags: ['Analytics'], summary: '事件调试查询', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const,
-    request: { query: PaginationQuery.extend({ eventName: z.string().optional() }) },
-    responses: { ...okPaginated(AnalyticsDebugEventDTO, '事件分页数据'), ...commonErrorResponses },
-  }),
+const debugEventsRoute = defineContractRoute(analyticsContract.debugEvents, {
+  middleware: manage,
   handler: async (c) => c.json(okBody(await listDebugEvents(c.req.valid('query'))), 200),
 });
 
 // ─── 采集设置 ─────────────────────────────────────────────────────────────────
-const settingsGetRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/settings', tags: ['Analytics'], summary: '获取采集设置', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const, responses: { ...ok(AnalyticsSettingsDTO, '采集设置'), ...commonErrorResponses },
-  }),
+const settingsGetRoute = defineContractRoute(analyticsContract.settings, {
+  middleware: manage,
   handler: async (c) => c.json(okBody(await getSettings()), 200),
 });
 
-const settingsUpdateRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/settings', tags: ['Analytics'], summary: '更新采集设置', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const,
-    request: { body: { content: { 'application/json': { schema: UpdateAnalyticsSettingsDTO } }, required: true } },
-    responses: { ...ok(AnalyticsSettingsDTO, '更新成功'), ...commonErrorResponses },
-  }),
+const settingsUpdateRoute = defineContractRoute(analyticsContract.updateSettings, {
+  middleware: manage,
   handler: async (c) => c.json(okBody(await updateSettings(c.req.valid('json')), '更新成功'), 200),
 });
 
 // ─── 数据聚合 ─────────────────────────────────────────────────────────────────
-const rollupGetRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/rollup', tags: ['Analytics'], summary: '每日聚合数据', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const, request: { query: z.object({ days: z.coerce.number().int().min(1).max(730).default(30) }) },
-    responses: { ...ok(AnalyticsRollupSummaryDTO, '聚合数据'), ...commonErrorResponses },
-  }),
+const rollupGetRoute = defineContractRoute(analyticsContract.rollup, {
+  middleware: manage,
   handler: async (c) => c.json(okBody({ items: await getRollupSummary(c.req.valid('query').days) }), 200),
 });
 
-const rollupRebuildRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/rollup/rebuild', tags: ['Analytics'], summary: '重建每日聚合', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '提交重建每日聚合任务' } })] as const,
-    request: { query: z.object({ days: z.coerce.number().int().min(1).max(730).default(30) }) },
-    responses: { ...ok(asyncTaskSchema, '任务已提交'), ...commonErrorResponses },
-  }),
+const rollupRebuildRoute = defineContractRoute(analyticsContract.rebuildRollup, {
+  middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '提交重建每日聚合任务' } })],
   handler: async (c) => {
     const { days } = c.req.valid('query');
     const user = currentUser();
@@ -563,77 +311,42 @@ const rollupRebuildRoute = defineOpenAPIRoute({
   },
 });
 
-// ─── 用户分群 CRUD + 成员物化（行为中心阶段 1）────────────────────────────────
-const segmentListRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/segments', tags: ['Analytics'], summary: '用户分群列表', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const,
-    request: { query: PaginationQuery.extend({ keyword: z.string().optional(), status: z.enum(['enabled', 'disabled']).optional() }) },
-    responses: { ...okPaginated(AnalyticsUserSegmentDTO, '分群列表'), ...commonErrorResponses },
-  }),
+// ─── 用户分群 CRUD + 成员物化 ─────────────────────────────────────────────────
+const segmentListRoute = defineContractRoute(analyticsContract.segments, {
+  middleware: manage,
   handler: async (c) => c.json(okBody(await listSegments(c.req.valid('query'))), 200),
 });
 
-const segmentCreateRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/segments', tags: ['Analytics'], summary: '创建用户分群', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '创建用户分群' } })] as const,
-    request: { body: { content: { 'application/json': { schema: CreateAnalyticsUserSegmentDTO } }, required: true } },
-    responses: { ...ok(AnalyticsUserSegmentDTO, '创建成功'), ...commonErrorResponses },
-  }),
+const segmentCreateRoute = defineContractRoute(analyticsContract.createSegment, {
+  middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '创建用户分群' } })],
   handler: async (c) => c.json(okBody(await createSegment(c.req.valid('json')), '创建成功'), 200),
 });
 
-const segmentDetailRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/segments/{id}', tags: ['Analytics'], summary: '分群详情', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const,
-    request: { params: IdParam },
-    responses: { ...ok(AnalyticsUserSegmentDTO, '分群详情'), ...commonErrorResponses },
-  }),
+const segmentDetailRoute = defineContractRoute(analyticsContract.segmentDetail, {
+  middleware: manage,
   handler: async (c) => c.json(okBody(await getSegmentDetail(c.req.valid('param').id)), 200),
 });
 
-const segmentUpdateRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/segments/{id}', tags: ['Analytics'], summary: '更新分群', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '更新用户分群' } })] as const,
-    request: { params: IdParam, body: { content: { 'application/json': { schema: UpdateAnalyticsUserSegmentDTO } }, required: true } },
-    responses: { ...ok(AnalyticsUserSegmentDTO, '更新成功'), ...commonErrorResponses },
-  }),
+const segmentUpdateRoute = defineContractRoute(analyticsContract.updateSegment, {
+  middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '更新用户分群' } })],
   handler: async (c) => c.json(okBody(await updateSegment(c.req.valid('param').id, c.req.valid('json')), '更新成功'), 200),
 });
 
-const segmentDeleteRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/segments/{id}', tags: ['Analytics'], summary: '删除分群', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '删除用户分群' } })] as const,
-    request: { params: IdParam },
-    responses: { ...okMsg('删除成功'), ...commonErrorResponses },
-  }),
+const segmentDeleteRoute = defineContractRoute(analyticsContract.removeSegment, {
+  middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '删除用户分群' } })],
   handler: async (c) => {
     await deleteSegment(c.req.valid('param').id);
     return c.json(okBody(null, '删除成功'), 200);
   },
 });
 
-const segmentMembersRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/segments/{id}/members', tags: ['Analytics'], summary: '分群成员分页', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const,
-    request: { params: IdParam, query: PaginationQuery },
-    responses: { ...okPaginated(AnalyticsSegmentMemberDTO, '分群成员'), ...commonErrorResponses },
-  }),
+const segmentMembersRoute = defineContractRoute(analyticsContract.segmentMembers, {
+  middleware: manage,
   handler: async (c) => c.json(okBody(await listSegmentMembers(c.req.valid('param').id, c.req.valid('query'))), 200),
 });
 
-const segmentMaterializeRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/segments/{id}/materialize', tags: ['Analytics'], summary: '重算分群成员（异步任务）', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '提交分群重算任务' } })] as const,
-    request: { params: IdParam },
-    responses: { ...ok(asyncTaskSchema, '任务已提交'), ...commonErrorResponses },
-  }),
+const segmentMaterializeRoute = defineContractRoute(analyticsContract.materializeSegment, {
+  middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '提交分群重算任务' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const segment = await ensureSegmentExists(id); // 校验 tenant，并用规则版本打破旧任务幂等键
@@ -649,21 +362,25 @@ const segmentMaterializeRoute = defineOpenAPIRoute({
   },
 });
 
+// 注册顺序即匹配顺序；同一路由器的多次 openapiRoutes() 按主题分批，避免单个元组过深导致类型实例化超限
 r.openapiRoutes([
   ingestRoute, configRoute,
   overviewRoute, trendsRoute, realtimeRoute,
   pageStatsRoute, featureStatsRoute, heatmapRoute, heatmapPagesRoute, userStatsRoute,
   sessionsRoute, funnelRoute, retentionRoute, acquisitionRoute, drillUsersRoute, eventQueryRoute, pathRoute, userTimelineRoute, sessionTimelineRoute, perfRoute,
+] as const);
+
+r.openapiRoutes([
   reportListRoute, reportCreateRoute, reportDeleteRoute,
   eventListRoute, eventDetailRoute, cleanRoute,
   metaListRoute, metaCreateRoute, metaUpdateRoute, metaDeleteRoute, metaReferencesRoute,
   overrideListRoute, overrideCreateRoute, overrideUpdateRoute, overrideDeleteRoute,
-  qualityRoute, debugEventsRoute,
-  settingsGetRoute, settingsUpdateRoute,
-  rollupGetRoute, rollupRebuildRoute,
 ] as const);
 
 r.openapiRoutes([
+  qualityRoute, debugEventsRoute,
+  settingsGetRoute, settingsUpdateRoute,
+  rollupGetRoute, rollupRebuildRoute,
   segmentListRoute, segmentCreateRoute, segmentDetailRoute, segmentUpdateRoute, segmentDeleteRoute,
   segmentMembersRoute, segmentMaterializeRoute,
 ] as const);

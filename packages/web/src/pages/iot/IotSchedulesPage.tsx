@@ -15,11 +15,12 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useDictItems } from '@/hooks/useDictItems';
 import { confirmDelete } from '@/utils/confirm';
+import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
 import {
   IOT_SCHEDULE_ACTION_LABELS, IOT_SCHEDULE_ACTION_OPTIONS,
   IOT_SCHEDULE_TYPE_LABELS, IOT_SCHEDULE_TYPE_OPTIONS,
 } from '@zenith/shared/iot';
-import type { IotSchedule, IotScheduleRun } from '@zenith/shared/iot';
+import type { CreateIotScheduleInput, IotSchedule, IotScheduleRun } from '@zenith/shared/iot';
 import { useAllIotProducts, useIotThingModel } from '@/hooks/queries/iot-products';
 import { useIotDeviceList } from '@/hooks/queries/iot-devices';
 import { useAllIotGroups } from '@/hooks/queries/iot-groups';
@@ -66,6 +67,13 @@ function formatDateValue(v: string | Date | undefined | null): string | null {
   return `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())} ${pad(v.getHours())}:${pad(v.getMinutes())}:${pad(v.getSeconds())}`;
 }
 
+/** 计划表单值：执行时刻在表单里可为 Date，参数 / 期望属性以 JSON 文本编辑，提交前由 beforeSave 解析 */
+interface ScheduleFormValues extends Partial<Omit<CreateIotScheduleInput, 'runAt' | 'params' | 'desired'>> {
+  runAt?: string | Date | null;
+  paramsText?: string;
+  desiredText?: string;
+}
+
 // ─── 计划列表 Tab ─────────────────────────────────────────────────────────────
 interface ScheduleSearchParams {
   keyword: string;
@@ -86,13 +94,13 @@ function SchedulesTab({ onShowRuns }: Readonly<{ onShowRuns: (schedule: IotSched
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    status: submittedParams.status || undefined,
+    status: enumValueOf(USER_STATUSES, submittedParams.status),
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
   const { items: statusItems } = useDictItems('common_status');
 
-  const modal = useEditModal<IotSchedule, Record<string, unknown>, Partial<IotSchedule>>({
+  const modal = useEditModal<IotSchedule, ScheduleFormValues, Partial<CreateIotScheduleInput>>({
     entityName: '计划任务',
     save: useSaveIotSchedule(),
     toValues: (r) => ({
@@ -111,20 +119,20 @@ function SchedulesTab({ onShowRuns }: Readonly<{ onShowRuns: (schedule: IotSched
     }),
     defaults: { scheduleType: 'cron', actionType: 'desired', cronExpression: '0 22 * * *', status: 'enabled' },
     beforeSave: (values, { isEdit }) => ({
-      name: values.name as string,
+      name: values.name,
       ...(isEdit ? {} : {
-        scheduleType: values.scheduleType as IotSchedule['scheduleType'],
-        productId: values.productId as number,
-        actionType: values.actionType as IotSchedule['actionType'],
+        scheduleType: values.scheduleType,
+        productId: values.productId,
+        actionType: values.actionType,
       }),
-      cronExpression: values.scheduleType === 'cron' ? ((values.cronExpression as string)?.trim() || null) : null,
-      runAt: values.scheduleType === 'once' ? formatDateValue(values.runAt as string | Date | undefined) : null,
-      groupId: (values.groupId as number | undefined) ?? null,
-      deviceId: (values.deviceId as number | undefined) ?? null,
-      service: values.actionType === 'command' ? ((values.service as string) || null) : null,
-      params: values.actionType === 'command' ? (parseJsonObject(values.paramsText as string, '服务参数') ?? null) : null,
-      desired: values.actionType === 'desired' ? (parseJsonObject(values.desiredText as string, '期望属性') ?? null) : null,
-      status: values.status as IotSchedule['status'],
+      cronExpression: values.scheduleType === 'cron' ? (values.cronExpression?.trim() || null) : null,
+      runAt: values.scheduleType === 'once' ? formatDateValue(values.runAt) : null,
+      groupId: values.groupId ?? null,
+      deviceId: values.deviceId ?? null,
+      service: values.actionType === 'command' ? (values.service || null) : null,
+      params: values.actionType === 'command' ? (parseJsonObject(values.paramsText, '服务参数') ?? null) : null,
+      desired: values.actionType === 'desired' ? (parseJsonObject(values.desiredText, '期望属性') ?? null) : null,
+      status: values.status,
     }),
     labelWidth: 110,
   });

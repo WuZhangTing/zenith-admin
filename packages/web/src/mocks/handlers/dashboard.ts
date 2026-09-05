@@ -1,5 +1,5 @@
-import { http } from 'msw';
-import { ok } from '@/mocks/utils/handlers';
+import { dashboardContract } from '@zenith/shared/analytics';
+import { mock } from '@/mocks/utils/contract';
 import { mockDate } from '@/mocks/utils/date';
 
 function pastDates(days: number): string[] {
@@ -13,16 +13,14 @@ function pastDates(days: number): string[] {
 const dates = pastDates(7);
 
 export const dashboardHandlers = [
-  http.get('/api/dashboard/stats', () => {
-    return ok({
-      totalUsers: 12,
-      onlineUsers: 3,
-      todayLogins: 8,
-      todayOperations: 45,
-    }, 'success');
-  }),
+  mock(dashboardContract.stats, ({ ok }) => ok({
+    totalUsers: 12,
+    onlineUsers: 3,
+    todayLogins: 8,
+    todayOperations: 45,
+  }, 'success')),
 
-  http.get('/api/dashboard/charts', () => {
+  mock(dashboardContract.charts, ({ ok }) => {
     const loginTrend = dates.map((date) => ({
       date,
       successCount: Math.floor(Math.random() * 12) + 2,

@@ -9,7 +9,9 @@ import {
   TABS_STORAGE_KEY,
   TOKEN_KEY,
 } from '@zenith/shared/core';
-import type { LoginResponse, LoginResult } from '@zenith/shared/identity';
+import { authContract, type LoginResponse, type LoginResult, type RefreshTokenResult } from '@zenith/shared/identity';
+import type { BodyOf } from '@zenith/shared/core';
+import { urlOf } from '@/lib/contract-query';
 import { AuthContext, type AuthContextValue, type AuthStatus } from '@/hooks/useAuth';
 import { PermissionContext } from '@/hooks/usePermission';
 import {
@@ -153,7 +155,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
       userId: u.id,
       username: u.username,
       nickname: u.nickname,
-      avatar: u.avatar,
+      avatar: u.avatar ?? undefined,
       tenantName: u.tenantName ?? null,
       refreshToken,
       lastUsedAt: Date.now(),
@@ -175,9 +177,9 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     const target = getParkedAccount(userId);
     if (!target) return { ok: false, message: '该账号不在已登录列表中' };
     // 用停靠的 refreshToken 换发新令牌：既拿到凭证也校验了会话有效性（服务端会轮换 refreshToken，旧值随即失效）
-    const res = await request.post<{ accessToken: string; refreshToken?: string }>(
-      '/api/auth/refresh',
-      { refreshToken: target.refreshToken },
+    const res = await request.post<RefreshTokenResult>(
+      urlOf(authContract.refresh),
+      { refreshToken: target.refreshToken } satisfies BodyOf<typeof authContract.refresh>,
       { silent: true, skipAuth: true },
     );
     if (res.code !== 0 || !res.data?.accessToken) {
@@ -205,9 +207,9 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
         transitionToAnonymous();
         return;
       }
-      const res = await request.post<{ accessToken: string; refreshToken?: string }>(
-        '/api/auth/refresh',
-        { refreshToken: next.refreshToken },
+      const res = await request.post<RefreshTokenResult>(
+        urlOf(authContract.refresh),
+        { refreshToken: next.refreshToken } satisfies BodyOf<typeof authContract.refresh>,
         { silent: true, skipAuth: true },
       );
       if (res.code === 0 && res.data?.accessToken) {
@@ -231,7 +233,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     const target = getParkedAccount(userId);
     if (!target) return;
     // 服务端按 refreshToken 注销对应会话；网络失败也照常移除本地条目
-    await request.post('/api/auth/logout-by-refresh', { refreshToken: target.refreshToken }, { silent: true, skipAuth: true }).catch(() => {});
+    await request.post(urlOf(authContract.logoutByRefresh), { refreshToken: target.refreshToken }, { silent: true, skipAuth: true }).catch(() => {});
     removeParkedAccount(userId);
     syncParkedAccounts();
   }, [syncParkedAccounts]);
@@ -239,11 +241,11 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   const logoutAllAccounts = useCallback<AuthContextValue['logoutAllAccounts']>(async () => {
     const parked = listParkedAccounts();
     await Promise.allSettled(parked.map((a) =>
-      request.post('/api/auth/logout-by-refresh', { refreshToken: a.refreshToken }, { silent: true, skipAuth: true }),
+      request.post(urlOf(authContract.logoutByRefresh), { refreshToken: a.refreshToken }, { silent: true, skipAuth: true }),
     ));
     clearParkedAccounts();
     syncParkedAccounts();
-    request.post('/api/auth/logout', {}, { silent: true, skipAuth: true }).catch(() => {});
+    request.post(urlOf(authContract.logout), {}, { silent: true, skipAuth: true }).catch(() => {});
     transitionToAnonymous();
   }, [syncParkedAccounts, transitionToAnonymous]);
 
@@ -321,8 +323,9 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     tenantCode,
     options,
   ) => {
+    // 登录类接口保留原始响应包络：限流 429 的 retryAfterSeconds 由登录页展示倒计时，不能被 api() 解包吞掉
     const res = await request.post<LoginResult>(
-      '/api/auth/login',
+      urlOf(authContract.login),
       {
         username,
         password,
@@ -332,7 +335,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
         deviceInfo: collectDeviceInfo(),
         deviceId: getDeviceId(),
         rememberDevice: true,
-      },
+      } satisfies BodyOf<typeof authContract.login>,
       { silent: true },
     );
     if (res.code === 0 && isLoginResponse(res.data)) {
@@ -349,8 +352,8 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     options,
   ) => {
     const res = await request.post<LoginResponse>(
-      '/api/auth/mfa/verify',
-      { challengeId, code, rememberDevice },
+      urlOf(authContract.mfaVerify),
+      { challengeId, code, rememberDevice } satisfies BodyOf<typeof authContract.mfaVerify>,
       { silent: true },
     );
     if (res.code === 0) {
@@ -361,7 +364,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   }, [activateAddedAccount, activateSession]);
 
   const register = useCallback<AuthContextValue['register']>(async (data, options) => {
-    const res = await request.post<LoginResponse>('/api/auth/register', data, { silent: true });
+    const res = await request.post<LoginResponse>(urlOf(authContract.register), data satisfies BodyOf<typeof authContract.register>, { silent: true });
     if (res.code === 0) {
       if (options?.addAccount) activateAddedAccount(res.data);
       else await activateSession(res.data.token);
@@ -370,7 +373,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   }, [activateAddedAccount, activateSession]);
 
   const logout = useCallback(() => {
-    request.post('/api/auth/logout', {}, { silent: true, skipAuth: true }).catch(() => {});
+    request.post(urlOf(authContract.logout), {}, { silent: true, skipAuth: true }).catch(() => {});
     // 还有停靠账号时对齐 GitHub：退出当前账号后自动回落到最近使用的账号
     if (listParkedAccounts().length > 0) {
       void switchToNextParked();

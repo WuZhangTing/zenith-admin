@@ -26,7 +26,7 @@ const deleteCampaignMutateAsync = vi.fn().mockResolvedValue({});
 const invalidateQueriesMock = vi.fn();
 
 vi.mock('@/hooks/queries/analytics', () => ({
-  analyticsKeys: { data: { segmentsLists: ['analytics', 'data', 'segments', 'list'] } },
+  analyticsKeys: { data: { segmentsLists: ['analytics', 'segments'] } },
   useAnalyticsSegments: (...args: unknown[]) => useAnalyticsSegmentsMock(...args),
   useAnalyticsSegmentMembers: (...args: unknown[]) => useAnalyticsSegmentMembersMock(...args),
   useCampaigns: (...args: unknown[]) => useCampaignsMock(...args),
@@ -144,7 +144,7 @@ describe('AnalyticsSegmentsTab', () => {
     fireEvent.click(screen.getByLabelText('更多操作'));
     const deleteItem = await screen.findByText('删除');
     fireEvent.click(deleteItem);
-    await waitFor(() => expect(deleteMutateAsync).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(deleteMutateAsync).toHaveBeenCalledWith({ params: { id: 1 } }));
   });
 
   it('submits a materialize task for the segment and shows a task-submitted hint', async () => {
@@ -153,7 +153,7 @@ describe('AnalyticsSegmentsTab', () => {
     fireEvent.click(screen.getByLabelText('更多操作'));
     const materializeItem = await screen.findByText('重算');
     fireEvent.click(materializeItem);
-    await waitFor(() => expect(materializeMutateAsync).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(materializeMutateAsync).toHaveBeenCalledWith({ params: { id: 1 } }));
   });
 
   it('opens the members SideSheet and renders member rows when clicking 成员', async () => {

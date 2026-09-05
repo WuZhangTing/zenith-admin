@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { Banner, Button, Checkbox, Col, Form, Modal, Row, SideSheet, Spin, Tag, TagGroup, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Activity } from 'lucide-react';
+import { enumValueOf } from '@zenith/shared/core';
 import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS, OPEN_APP_REVIEW_STATUS_LABELS, OPEN_APP_REVIEW_STATUSES } from '@zenith/shared/open-platform';
-import type { OAuth2Client } from '@zenith/shared/open-platform';
+import type { OAuth2Client, OAuth2GrantType } from '@zenith/shared/open-platform';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -36,7 +37,7 @@ interface FormValues {
   logoUrl?: string;
   redirectUris: string[];
   allowedScopes: string[];
-  grantTypes: Array<'authorization_code' | 'client_credentials' | 'refresh_token'>;
+  grantTypes: OAuth2GrantType[];
   isPublic: boolean;
   signEnabled: boolean;
   ipAllowlist: string[];
@@ -97,7 +98,7 @@ export default function MyAppsPage() {
   const submitMutation = useSubmitMyApp();
   const rotateMutation = useRotateMyAppSecret();
   const data = listQuery.data;
-  const modal = useEditModal<OAuth2Client, FormValues, Record<string, unknown>>({
+  const modal = useEditModal<OAuth2Client, FormValues>({
     save: saveMutation,
     useDetail: useMyAppDetail,
     defaults: {
@@ -109,19 +110,19 @@ export default function MyAppsPage() {
       ipAllowlist: [],
       environment: 'sandbox',
     },
+    // 记录里的 null 描述 / Logo 在表单中视为未填；授权类型按常量目录收窄
     toValues: (record) => ({
       name: record.name,
-      description: record.description ?? '',
-      logoUrl: record.logoUrl ?? '',
+      description: record.description ?? undefined,
+      logoUrl: record.logoUrl ?? undefined,
       redirectUris: record.redirectUris,
       allowedScopes: record.allowedScopes,
-      grantTypes: record.grantTypes as FormValues['grantTypes'],
+      grantTypes: record.grantTypes.flatMap((type) => enumValueOf(OAUTH2_GRANT_TYPES, type) ?? []),
       isPublic: record.isPublic,
-      signEnabled: record.signEnabled ?? false,
+      signEnabled: record.signEnabled,
       ipAllowlist: record.ipAllowlist,
       environment: record.environment,
     }),
-    beforeSave: (values) => ({ ...values }),
     onSaved: (result) => {
       if ('clientSecret' in result && typeof result.clientSecret === 'string' && result.clientSecret) {
         setSecret({ clientId: result.clientId, value: result.clientSecret });
@@ -143,7 +144,7 @@ export default function MyAppsPage() {
     void queryClient.invalidateQueries({ queryKey: developerAppKeys.lists });
   };
   const rotateSecret = async (app: OAuth2Client) => {
-    const result = await rotateMutation.mutateAsync(app.id);
+    const result = await rotateMutation.mutateAsync({ params: { id: app.id } });
     setSecret({
       clientId: result.clientId,
       value: result.clientSecret,
@@ -195,7 +196,7 @@ export default function MyAppsPage() {
               title: '提交应用审核？',
               content: '审核期间将暂时无法修改应用配置。',
               onOk: async () => {
-                await submitMutation.mutateAsync(app.id);
+                await submitMutation.mutateAsync({ params: { id: app.id } });
                 Toast.success('已提交审核');
               },
             });
@@ -223,7 +224,7 @@ export default function MyAppsPage() {
             confirmDelete({
               title: '确认删除应用？',
               onOk: async () => {
-                await deleteMutation.mutateAsync(app.id);
+                await deleteMutation.mutateAsync({ params: { id: app.id } });
                 Toast.success('应用已删除');
               },
             });

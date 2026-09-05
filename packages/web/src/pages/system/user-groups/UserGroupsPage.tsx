@@ -3,7 +3,8 @@ import { Banner, Button, Form, Select, Space, Toast, SideSheet, Empty, Tag, Spin
 import { RefreshCw, Trash2, Users } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
-import type { User, UserGroup, UserGroupMemberRule } from '@zenith/shared/identity';
+import type { CreateUserGroupInput, User, UserGroup, UserGroupMemberRule, UserGroupRulePreview } from '@zenith/shared/identity';
+import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
 import { usePermission } from '@/hooks/usePermission';
 import { UserTransferSelect } from '@/components/UserTransferSelect';
 import type { UserTransferUser } from '@/components/UserTransferSelect';
@@ -27,7 +28,6 @@ import {
   useUserGroupMembers,
   useUserGroupRulePreview,
   useUserGroupRoles,
-  type UserGroupRulePreview,
 } from '@/hooks/queries/user-groups';
 import { useAllUsers } from '@/hooks/queries/users';
 import { useAllRoles } from '@/hooks/queries/roles';
@@ -62,7 +62,7 @@ export default function UserGroupsPage() {
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    status: submittedParams.status || undefined,
+    status: enumValueOf(USER_STATUSES, submittedParams.status),
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -99,7 +99,7 @@ export default function UserGroupsPage() {
   const rulePreviewMutation = useUserGroupRulePreview();
   const syncMutation = useSyncUserGroup();
   const positionsQuery = useAllPositions();
-  const groupModal = useEditModal<UserGroup>({
+  const groupModal = useEditModal<UserGroup, Partial<CreateUserGroupInput>>({
     entityName: '用户组',
     save: saveMutation,
     useDetail: useUserGroupDetail,
@@ -207,7 +207,7 @@ export default function UserGroupsPage() {
 
   const handleSaveRoles = async () => {
     if (!roleGroup) return;
-    await assignRolesMutation.mutateAsync({ id: roleGroup.id, roleIds });
+    await assignRolesMutation.mutateAsync({ params: { id: roleGroup.id }, body: { roleIds } });
     Toast.success('角色已更新，组内成员即时生效');
     setRoleModalVisible(false);
     setRoleGroup(null);
@@ -215,7 +215,7 @@ export default function UserGroupsPage() {
 
   const handleSaveMembers = async () => {
     if (!memberGroup) return;
-    await assignMembersMutation.mutateAsync({ id: memberGroup.id, userIds: memberIds });
+    await assignMembersMutation.mutateAsync({ params: { id: memberGroup.id }, body: { userIds: memberIds } });
     Toast.success('保存成功');
     setMemberSheetVisible(false);
   };
@@ -284,7 +284,7 @@ export default function UserGroupsPage() {
           label: '同步',
           hidden: record.memberMode !== 'dynamic' || !hasPermission('system:user-groups:assign'),
           onClick: () => {
-            syncMutation.mutate(record.id, { onSuccess: () => Toast.success('成员已按规则同步') });
+            syncMutation.mutate({ params: { id: record.id } }, { onSuccess: () => Toast.success('成员已按规则同步') });
           },
         },
         {
@@ -464,7 +464,7 @@ export default function UserGroupsPage() {
                         onClick={() => {
                           const memberRule = ((formState.values as { memberRule?: UserGroupMemberRule }).memberRule ?? {});
                           rulePreviewMutation.mutate(
-                            { groupId: groupModal.editing?.id, memberRule },
+                            { body: { groupId: groupModal.editing?.id, memberRule } },
                             { onSuccess: setRulePreview },
                           );
                         }}
@@ -529,7 +529,7 @@ export default function UserGroupsPage() {
                   loading={syncMutation.isPending}
                   onClick={() => {
                     if (!memberGroup) return;
-                    syncMutation.mutate(memberGroup.id, { onSuccess: () => Toast.success('成员已按规则同步') });
+                    syncMutation.mutate({ params: { id: memberGroup.id } }, { onSuccess: () => Toast.success('成员已按规则同步') });
                   }}
                 >
                   立即同步

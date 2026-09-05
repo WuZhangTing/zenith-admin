@@ -25,6 +25,15 @@ export const OAUTH2_CODE_CHALLENGE_METHODS = ['S256'] as const;
 
 export type OAuth2CodeChallengeMethod = typeof OAUTH2_CODE_CHALLENGE_METHODS[number];
 
+export const OAUTH2_TOKEN_TYPES = ['access', 'refresh'] as const;
+
+export type OAuth2TokenType = typeof OAUTH2_TOKEN_TYPES[number];
+
+/** 管理端审核开发者应用的动作 */
+export const OAUTH2_REVIEW_ACTIONS = ['approve', 'reject'] as const;
+
+export type OAuth2ReviewAction = typeof OAUTH2_REVIEW_ACTIONS[number];
+
 export const OPEN_APP_ENVIRONMENTS = ['production', 'sandbox'] as const;
 
 export type OpenAppEnvironment = typeof OPEN_APP_ENVIRONMENTS[number];
@@ -66,6 +75,21 @@ export const OPEN_SIGNATURE_ALGORITHM = 'HMAC-SHA256';
 
 /** 允许的时间戳偏移窗口（秒），超出视为过期，防重放 */
 export const OPEN_SIGNATURE_TIMESTAMP_WINDOW = 300;
+
+/** 开放网关鉴权通道：bearer = OAuth2 令牌；signature = AppKey + HMAC */
+export const OPEN_AUTH_CHANNELS = ['bearer', 'signature'] as const;
+
+export type OpenAuthChannel = (typeof OPEN_AUTH_CHANNELS)[number];
+
+/** API 调试台可发起的请求方法 */
+export const OPEN_API_DEBUG_METHODS = ['GET', 'POST', 'PUT', 'DELETE'] as const;
+
+export type OpenApiDebugMethod = (typeof OPEN_API_DEBUG_METHODS)[number];
+
+/** 调用趋势的聚合粒度 */
+export const OPEN_API_STATS_GRANULARITIES = ['hour', 'day'] as const;
+
+export type OpenApiStatsGranularity = (typeof OPEN_API_STATS_GRANULARITIES)[number];
 
 /** API Scope 推荐分组（scopeGroup 为自由文本，此处仅供界面下拉建议） */
 export const API_SCOPE_GROUPS = ['general', 'user', 'order', 'payment', 'member', 'data', 'system'] as const;

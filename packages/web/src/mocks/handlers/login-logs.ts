@@ -1,5 +1,5 @@
-import { http } from 'msw';
-import { ok, pageParams } from '@/mocks/utils/handlers';
+import { loginLogContract } from '@zenith/shared/identity';
+import { mock } from '@/mocks/utils/contract';
 import { removeWhere } from '@/mocks/utils/array';
 import { mockLoginLogs } from '@/mocks/data/logs';
 
@@ -78,34 +78,24 @@ function buildLoginLogStats(days: number) {
 }
 
 export const loginLogsHandlers = [
-  http.get('/api/login-logs', ({ request }) => {
-    const url = new URL(request.url);
-    const { page, pageSize } = pageParams(url);
-    const username = url.searchParams.get('username') ?? '';
-    const eventType = url.searchParams.get('eventType') ?? '';
-    const status = url.searchParams.get('status') ?? '';
-
-    let list = mockLoginLogs.filter((log) => {
+  mock(loginLogContract.list, ({ query, ok, paginate }) => {
+    const { username, eventType, status } = query;
+    const list = mockLoginLogs.filter((log) => {
       if (username && !log.username.includes(username)) return false;
       if (eventType && log.eventType !== eventType) return false;
       if (status && log.status !== status) return false;
       return true;
     });
-    const total = list.length;
-    list = list.slice((page - 1) * pageSize, page * pageSize);
-    return ok({ list, total, page, pageSize });
+    return ok(paginate(list));
   }),
 
   // 登录日志统计（页面加载时自动拉取，缺失会导致 401 → 跳转登录页）
-  http.get('/api/login-logs/stats', ({ request }) => {
-    const url = new URL(request.url);
-    const days = Number(url.searchParams.get('days')) || 30;
-    return ok(buildLoginLogStats(days));
+  mock(loginLogContract.stats, ({ query, ok }) => {
+    return ok(buildLoginLogStats(query.days || 30));
   }),
 
-  http.delete('/api/login-logs/clean', ({ request }) => {
-    const url = new URL(request.url);
-    const days = Number(url.searchParams.get('days')) || 180;
+  mock(loginLogContract.clean, ({ query, ok }) => {
+    const days = query.days ?? 180;
     const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000);
     const deleted = removeWhere(
       mockLoginLogs,

@@ -1,5 +1,6 @@
 import type { Role } from '@zenith/shared/identity';
 import { SEED_ROLES } from '@zenith/shared/seed';
+import { nextIdFrom } from '@/mocks/utils/handlers';
 
 export const mockRoles: Role[] = SEED_ROLES.map((r) => ({
   ...r,
@@ -19,7 +20,7 @@ export const mockRoles: Role[] = SEED_ROLES.map((r) => ({
       ],
 }));
 
-let nextRoleId = 3;
+let nextRoleId = nextIdFrom(mockRoles);
 export function getNextRoleId() {
   return nextRoleId++;
 }

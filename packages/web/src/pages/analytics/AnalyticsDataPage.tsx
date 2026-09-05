@@ -26,9 +26,10 @@ import {
   useSaveAnalyticsEventMeta,
   useSaveAnalyticsSettings,
 } from '@/hooks/queries/analytics';
-import type { AnalyticsEventMeta, AnalyticsEventMetaReferences, AnalyticsSettings, EventListItem } from '@zenith/shared/analytics';
-import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_EVENT_PROPERTY_TYPES, USER_BEHAVIOR_EVENT_TYPE_LABELS } from '@zenith/shared/analytics';
-import type { UserBehaviorEventType } from '@zenith/shared/identity';
+import type { AnalyticsEventMeta, AnalyticsEventMetaReferences, AnalyticsRollupItem, AnalyticsSettings, EventListItem } from '@zenith/shared/analytics';
+import { ANALYTICS_DEVICE_TYPES, ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_EVENT_PROPERTY_TYPES, USER_BEHAVIOR_EVENT_TYPE_LABELS } from '@zenith/shared/analytics';
+import { enumValueOf } from '@zenith/shared/core';
+import { userBehaviorEventTypeEnum, type UserBehaviorEventType } from '@zenith/shared/identity';
 import { usePermission } from '@/hooks/usePermission';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import AnalyticsQualityTab from './AnalyticsQualityTab';
@@ -65,16 +66,6 @@ function referencesSummaryText(refs: AnalyticsEventMetaReferences) {
     referencePart('用户分群', refs.segments),
     referencePart('A/B 实验', refs.experiments),
   ].filter(Boolean).join('、');
-}
-
-interface AnalyticsRollupItem {
-  statDate: string;
-  pv: number;
-  uv: number;
-  sessions: number;
-  events: number;
-  bounceSessions: number;
-  totalDwellMs: number;
 }
 
 const EVENT_TYPE_COLOR: Record<UserBehaviorEventType, TagColor> = {
@@ -267,11 +258,11 @@ export default function AnalyticsDataPage() {
   const eventsQuery = useAnalyticsEvents({
     page: eventsPage,
     pageSize: eventsPageSize,
-    eventType: submittedEventSearch.eventType || undefined,
+    eventType: enumValueOf(userBehaviorEventTypeEnum.options, submittedEventSearch.eventType),
     eventName: submittedEventSearch.eventName || undefined,
     username: submittedEventSearch.username || undefined,
     pagePath: submittedEventSearch.pagePath || undefined,
-    deviceType: submittedEventSearch.deviceType || undefined,
+    deviceType: enumValueOf(ANALYTICS_DEVICE_TYPES, submittedEventSearch.deviceType),
     startTime: submittedEventSearch.startTime || undefined,
     endTime: submittedEventSearch.endTime || undefined,
   });
@@ -391,7 +382,7 @@ export default function AnalyticsDataPage() {
       okText: '确认清除',
       closeOnEsc: true,
       onOk: async () => {
-        await cleanMutation.mutateAsync(days);
+        await cleanMutation.mutateAsync({ query: { days } });
         Toast.success('清除成功');
         setEventsPage(1);
       },
@@ -417,7 +408,7 @@ export default function AnalyticsDataPage() {
   };
 
   const handleMetaDelete = async (record: AnalyticsEventMeta) => {
-    await deleteMetaMutation.mutateAsync(record.id);
+    await deleteMetaMutation.mutateAsync({ params: { id: record.id } });
     Toast.success('删除成功');
   };
 
@@ -445,7 +436,7 @@ export default function AnalyticsDataPage() {
   };
 
   const handleRebuildRollup = async () => {
-    await rebuildRollupMutation.mutateAsync(rollupDays);
+    await rebuildRollupMutation.mutateAsync({ query: { days: rollupDays } });
     Toast.success('任务已提交，可在顶部任务中心查看进度');
   };
 
@@ -456,7 +447,7 @@ export default function AnalyticsDataPage() {
   const handleSaveSettings = async () => {
     if (!settings) return;
     const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...payload } = settings;
-    const next = await saveSettingsMutation.mutateAsync(payload);
+    const next = await saveSettingsMutation.mutateAsync({ body: payload });
     setSettingsDraft(next);
     Toast.success('保存成功');
   };

@@ -8,6 +8,8 @@ import { Button, Checkbox, Descriptions, SideSheet, Space, TabPane, Tabs, Tag, T
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Download, Trash2 } from 'lucide-react';
 import type { ReplaySession, ReplayTriggerType } from '@zenith/shared/analytics';
+import { REPLAY_STATUSES, REPLAY_TRIGGER_TYPES } from '@zenith/shared/analytics';
+import { enumValueOf } from '@zenith/shared/core';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ReplayPlayer from '@/components/ReplayPlayer';
 import ReplayHeatmapTab from './ReplayHeatmapTab';
@@ -68,6 +70,9 @@ const triggerOptions = [
   { value: 'white_screen', label: '白屏' },
 ];
 
+/** 回放只来自两个 Web 端（服务端埋点不产生录像） */
+const REPLAY_SOURCES = ['web_admin', 'web_member'] as const;
+
 const sourceOptions = [
   { value: 'web_admin', label: '管理后台' },
   { value: 'web_member', label: '会员前台' },
@@ -95,9 +100,9 @@ export default function SessionReplaysPage() {
 
   const listQuery = useReplayList({
     page, pageSize,
-    status: submittedParams.status || undefined,
-    triggerType: submittedParams.triggerType || undefined,
-    source: submittedParams.source || undefined,
+    status: enumValueOf(REPLAY_STATUSES, submittedParams.status),
+    triggerType: enumValueOf(REPLAY_TRIGGER_TYPES, submittedParams.triggerType),
+    source: enumValueOf(REPLAY_SOURCES, submittedParams.source),
     keyword: submittedParams.keyword || undefined,
     hasError: submittedParams.hasError || undefined,
     pagePath: submittedParams.pagePath || undefined,
@@ -195,7 +200,7 @@ export default function SessionReplaysPage() {
   async function handleBatchDelete() {
     const ok = await confirmDelete({ title: `确认删除选中的 ${selectedRowKeys.length} 条回放？`, content: '录像分片将一并删除，不可恢复。' });
     if (!ok) return;
-    await batchDeleteMutation.mutateAsync(selectedRowKeys);
+    await batchDeleteMutation.mutateAsync({ body: { ids: selectedRowKeys } });
     setSelectedRowKeys([]);
   }
 

@@ -5,9 +5,10 @@ import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { User, Lock, Mail, AtSign, Building2, ShieldCheck, BriefcaseBusiness, Check, ChevronRight } from 'lucide-react';
 import dayjs from 'dayjs';
 import { MAX_STORED_ACCOUNTS, REFRESH_TOKEN_KEY, TOKEN_KEY } from '@zenith/shared/core';
-import { OAUTH_PROVIDER_LABELS } from '@zenith/shared/identity';
+import { OAUTH_PROVIDER_LABELS, enterpriseAuthContract, oauthContract } from '@zenith/shared/identity';
 import type { RegisterInput, OAuthProviderType, LoginResult, LoginResponse, MfaLoginChallenge, TenantIdentityProviderSummary } from '@zenith/shared/identity';
-import { request } from '@/utils/request';
+import { api } from '@/lib/contract-query';
+import { ApiError } from '@/lib/query';
 import { AUTH_INVALIDATED_REASON_KEY } from '@/utils/http-client';
 import { config } from '@/config';
 import { markPostLoginHome } from '@/lib/post-login';
@@ -373,13 +374,13 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
   let formSubtitle = '请输入您的账号信息以登录工作台';
 
   const handleOAuthLogin = async (provider: OAuthProviderType) => {
-    const res = await request.get<{ authUrl: string; state: string }>(`/api/auth/oauth/${provider}`, { silent: true });
-    if (res.code === 0 && res.data?.authUrl) {
+    try {
+      const { authUrl, state } = await api(oauthContract.authUrl, { params: { provider } }, { silent: true });
       // 暂存 state：回调页据此校验本次往返是由当前浏览器发起的（防登录 CSRF）
-      rememberOAuthPending({ state: res.data.state, provider, intent: 'login', redirectTo });
-      globalThis.location.href = res.data.authUrl;
-    } else {
-      Toast.warning(res.message || '该登录方式暂不可用，请联系管理员配置');
+      rememberOAuthPending({ state, provider, intent: 'login', redirectTo });
+      globalThis.location.href = authUrl;
+    } catch (err) {
+      Toast.warning((err instanceof ApiError && err.message) || '该登录方式暂不可用，请联系管理员配置');
     }
   };
 
@@ -388,14 +389,11 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
       setDirectoryProvider(provider);
       return;
     }
-    const res = await request.get<{ authUrl: string; state: string | null }>(
-      `/api/auth/enterprise/${provider.id}?redirect=${encodeURIComponent(redirectTo)}`,
-      { silent: true },
-    );
-    if (res.code === 0 && res.data?.authUrl) {
-      globalThis.location.href = res.data.authUrl;
-    } else {
-      Toast.warning(res.message || '该企业登录方式暂不可用，请联系管理员配置');
+    try {
+      const { authUrl } = await api(enterpriseAuthContract.authUrl, { params: { id: provider.id }, query: { redirect: redirectTo } }, { silent: true });
+      globalThis.location.href = authUrl;
+    } catch (err) {
+      Toast.warning((err instanceof ApiError && err.message) || '该企业登录方式暂不可用，请联系管理员配置');
     }
   };
 
@@ -403,27 +401,27 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
     if (!directoryProvider) return;
     setDirectoryLoginLoading(true);
     try {
-      const res = await request.post<{ loginResult: LoginResult; redirectTo?: string | null }>('/api/auth/enterprise/ldap/login', {
-        providerId: directoryProvider.id,
-        username: values.username,
-        password: values.password,
-        redirectTo,
+      const { loginResult, redirectTo: nextRedirect } = await api(enterpriseAuthContract.ldapLogin, {
+        body: {
+          providerId: directoryProvider.id,
+          username: values.username,
+          password: values.password,
+          redirectTo,
+        },
       }, { silent: true });
-      if (res.code === 0) {
-        // 企业 SSO 与密码登录共用 MFA 策略：命中挑战时切到同一套验证表单
-        if (isMfaChallenge(res.data.loginResult)) {
-          setMfaChallenge(res.data.loginResult);
-          setDirectoryProvider(null);
-          directoryFormApi.current = null;
-          return;
-        }
-        localStorage.setItem(TOKEN_KEY, res.data.loginResult.token.accessToken);
-        localStorage.setItem(REFRESH_TOKEN_KEY, res.data.loginResult.token.refreshToken);
+      // 企业 SSO 与密码登录共用 MFA 策略：命中挑战时切到同一套验证表单
+      if (isMfaChallenge(loginResult)) {
+        setMfaChallenge(loginResult);
         setDirectoryProvider(null);
-        navigateAfterLogin(res.data.redirectTo || redirectTo);
+        directoryFormApi.current = null;
         return;
       }
-      Toast.error(res.message);
+      localStorage.setItem(TOKEN_KEY, loginResult.token.accessToken);
+      localStorage.setItem(REFRESH_TOKEN_KEY, loginResult.token.refreshToken);
+      setDirectoryProvider(null);
+      navigateAfterLogin(nextRedirect || redirectTo);
+    } catch (err) {
+      Toast.error(err instanceof Error ? err.message : '登录失败');
     } finally {
       setDirectoryLoginLoading(false);
     }

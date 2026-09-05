@@ -1,43 +1,25 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import type { IotForwardLog, IotForwardRule } from '@zenith/shared/iot';
-import type { PaginatedResponse } from '@zenith/shared/core';
-import { request } from '@/utils/request';
-import { toQueryString, unwrap } from '@/lib/query';
-import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
+import { keepPreviousData } from '@tanstack/react-query';
+import type { QueryOf } from '@zenith/shared/core';
+import { iotForwardRuleContract } from '@zenith/shared/iot';
+import { contractKey, createResourceQueries, useApiQuery } from '@/lib/contract-query';
 
 // ─── 流转规则 ─────────────────────────────────────────────────────────────────
-export interface IotForwardRuleListParams extends CrudListParams {
-  keyword?: string;
-  source?: string;
-  status?: string;
-}
+export type IotForwardRuleListParams = NonNullable<QueryOf<typeof iotForwardRuleContract.list>>;
 
 export const {
   keys: iotForwardRuleKeys,
   useList: useIotForwardRuleList,
   useSave: useSaveIotForwardRule,
   useDelete: useDeleteIotForwardRules,
-} = createCrudQueries<IotForwardRule, IotForwardRuleListParams, Partial<IotForwardRule> & { secret?: string | null }>({
-  resource: 'iot-forward-rules',
-  path: '/api/iot/forward-rules',
-  deleteMode: 'single',
-});
+} = createResourceQueries(iotForwardRuleContract);
 
 // ─── 投递日志（只读追加型）────────────────────────────────────────────────────
-export interface IotForwardLogListParams extends CrudListParams {
-  ruleId?: number;
-  status?: string;
-}
+export type IotForwardLogListParams = NonNullable<QueryOf<typeof iotForwardRuleContract.logs>>;
 
 export const iotForwardLogKeys = {
-  list: (params: IotForwardLogListParams) => ['iot-forward-logs', 'list', params] as const,
+  list: (params: IotForwardLogListParams) => contractKey(iotForwardRuleContract.logs, { query: params }),
 };
 
 export function useIotForwardLogList(params: IotForwardLogListParams, enabled = true) {
-  return useQuery({
-    queryKey: iotForwardLogKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<IotForwardLog>>(`/api/iot/forward-rules/logs${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-    enabled,
-  });
+  return useApiQuery(iotForwardRuleContract.logs, { query: params }, { placeholderData: keepPreviousData, enabled });
 }

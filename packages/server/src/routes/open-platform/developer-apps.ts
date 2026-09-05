@@ -1,26 +1,9 @@
-import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createDeveloperOAuth2ClientSchema, updateDeveloperOAuth2ClientSchema } from '@zenith/shared/open-platform';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { developerAppContract } from '@zenith/shared/open-platform';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
-import {
-  commonErrorResponses,
-  IdParam,
-  jsonContent,
-  ok,
-  okBody,
-  okMsg,
-  okPaginated,
-  PaginationQuery,
-  validationHook,
-} from '../../lib/openapi-schemas';
-import {
-  OAuth2ClientCreatedDTO,
-  OAuth2ClientListItemDTO,
-  OAuth2ClientSecretDTO,
-  OpenApiDebugResultDTO,
-  OpenApiDebugEndpointDTO,
-  OpenAppQuotaUsageDTO,
-} from '../../lib/openapi-dtos';
+import { defineContractRoute } from '../../lib/contract-route';
+import { validationHook, okBody } from '../../lib/openapi-schemas';
 import {
   createMyOAuth2Client,
   deleteMyOAuth2Client,
@@ -39,31 +22,13 @@ const audit = (description: string) => guard({
   audit: { description, module: '开放平台-开发者中心', recordResponseBody: false },
 });
 
-const ListQuery = PaginationQuery.extend({
-  keyword: z.string().optional(),
-  environment: z.enum(['production', 'sandbox']).optional(),
-  reviewStatus: z.enum(['draft', 'pending', 'approved', 'rejected']).optional(),
-});
-
-const list = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/', tags: ['DeveloperApps'], summary: '获取我的开放平台应用',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware] as const,
-    request: { query: ListQuery },
-    responses: { ...commonErrorResponses, ...okPaginated(OAuth2ClientListItemDTO, '我的应用列表') },
-  }),
+const list = defineContractRoute(developerAppContract.list, {
+  middleware: [authMiddleware],
   handler: async (c) => c.json(okBody(await listMyOAuth2Clients(c.req.valid('query'))), 200),
 });
 
-const create = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/', tags: ['DeveloperApps'], summary: '创建我的开放平台应用',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, audit('创建开发者应用')] as const,
-    request: { body: { content: jsonContent(createDeveloperOAuth2ClientSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(OAuth2ClientCreatedDTO, '创建成功') },
-  }),
+const create = defineContractRoute(developerAppContract.create, {
+  middleware: [authMiddleware, audit('创建开发者应用')],
   handler: async (c) => {
     const result = await createMyOAuth2Client(c.req.valid('json'));
     setAuditAfterData(c, { ...result, clientSecret: result.clientSecret ? '[REDACTED]' : '' });
@@ -71,25 +36,13 @@ const create = defineOpenAPIRoute({
   },
 });
 
-const detail = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/{id}', tags: ['DeveloperApps'], summary: '获取我的应用详情',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware] as const,
-    request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...ok(OAuth2ClientListItemDTO, '应用详情') },
-  }),
+const detail = defineContractRoute(developerAppContract.detail, {
+  middleware: [authMiddleware],
   handler: async (c) => c.json(okBody(await getMyOAuth2Client(c.req.valid('param').id)), 200),
 });
 
-const update = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/{id}', tags: ['DeveloperApps'], summary: '更新我的开放平台应用',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, audit('更新开发者应用')] as const,
-    request: { params: IdParam, body: { content: jsonContent(updateDeveloperOAuth2ClientSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(OAuth2ClientListItemDTO, '更新成功') },
-  }),
+const update = defineContractRoute(developerAppContract.update, {
+  middleware: [authMiddleware, audit('更新开发者应用')],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getMyOAuth2Client(id));
@@ -99,14 +52,8 @@ const update = defineOpenAPIRoute({
   },
 });
 
-const remove = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/{id}', tags: ['DeveloperApps'], summary: '删除我的开放平台应用',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, audit('删除开发者应用')] as const,
-    request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...okMsg('删除成功') },
-  }),
+const remove = defineContractRoute(developerAppContract.remove, {
+  middleware: [authMiddleware, audit('删除开发者应用')],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getMyOAuth2Client(id));
@@ -115,14 +62,8 @@ const remove = defineOpenAPIRoute({
   },
 });
 
-const regenerate = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/{id}/regenerate-secret', tags: ['DeveloperApps'], summary: '轮换我的应用密钥',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, audit('轮换开发者应用密钥')] as const,
-    request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...ok(OAuth2ClientSecretDTO, '轮换成功') },
-  }),
+const regenerate = defineContractRoute(developerAppContract.regenerateSecret, {
+  middleware: [authMiddleware, audit('轮换开发者应用密钥')],
   handler: async (c) => {
     const result = await regenerateMyOAuth2ClientSecret(c.req.valid('param').id);
     setAuditAfterData(c, {
@@ -134,58 +75,23 @@ const regenerate = defineOpenAPIRoute({
   },
 });
 
-const submit = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/{id}/submit', tags: ['DeveloperApps'], summary: '提交应用审核',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, audit('提交开发者应用审核')] as const,
-    request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...ok(OAuth2ClientListItemDTO, '已提交审核') },
-  }),
+const submit = defineContractRoute(developerAppContract.submit, {
+  middleware: [authMiddleware, audit('提交开发者应用审核')],
   handler: async (c) => c.json(okBody(await submitMyOAuth2ClientForReview(c.req.valid('param').id), '已提交审核'), 200),
 });
 
-const quotaUsage = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/{id}/quota-usage', tags: ['DeveloperApps'], summary: '获取应用实时配额用量',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware] as const,
-    request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...ok(OpenAppQuotaUsageDTO, '配额用量') },
-  }),
+const quotaUsage = defineContractRoute(developerAppContract.quotaUsage, {
+  middleware: [authMiddleware],
   handler: async (c) => c.json(okBody(await getMyOAuth2ClientQuotaUsage(c.req.valid('param').id)), 200),
 });
 
-const endpointCatalog = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/debug/endpoints', tags: ['DeveloperApps'], summary: '获取可调试的开放 API 端点目录',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware] as const,
-    responses: { ...commonErrorResponses, ...ok(z.array(OpenApiDebugEndpointDTO), '端点目录') },
-  }),
+const endpointCatalog = defineContractRoute(developerAppContract.debugEndpoints, {
+  middleware: [authMiddleware],
   handler: (c) => c.json(okBody(OPEN_GATEWAY_ENDPOINTS), 200),
 });
 
-const debugRequest = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/{id}/debug', tags: ['DeveloperApps'], summary: '在线调试开放 API',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, audit('在线调试开放 API')] as const,
-    request: {
-      params: IdParam,
-      body: {
-        content: jsonContent(z.object({
-          method: z.enum(['GET', 'POST', 'PUT', 'DELETE']),
-          // 路径不再硬编码枚举：由服务端按端点目录校验，新增开放端点即刻可调试
-          path: z.string().min(1),
-          query: z.record(z.string(), z.string()).optional(),
-          body: z.unknown().optional(),
-        })),
-        required: true,
-      },
-    },
-    responses: { ...commonErrorResponses, ...ok(OpenApiDebugResultDTO, '调试结果') },
-  }),
+const debugRequest = defineContractRoute(developerAppContract.debug, {
+  middleware: [authMiddleware, audit('在线调试开放 API')],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await executeOpenApiDebugRequest(id, c.req.valid('json'))), 200);

@@ -42,12 +42,21 @@ describe('defineContract', () => {
     expect(contract.exportFile.tags).toEqual(['Export']);
   });
 
-  it('defaults response to null, kind to json and public to false', () => {
+  it('defaults response to null, kind to json and security to bearer', () => {
     expect(contract.remove.response).toBeInstanceOf(z.ZodNull);
     expect(contract.remove.kind).toBe('json');
     expect(contract.remove.public).toBe(false);
+    expect(contract.remove.security).toBe('bearer');
     expect(contract.exportFile.kind).toBe('excel');
     expect(contract.exportFile.public).toBe(true);
+    expect(contract.exportFile.security).toBe('none');
+  });
+
+  it('carries non-bearer credential schemes and rejects public + security together', () => {
+    const device = op.post('/telemetry', { summary: '上报', security: 'device-signature' });
+    expect(device.security).toBe('device-signature');
+    expect(device.public).toBe(false);
+    expect(() => op.get('/x', { summary: 'x', public: true, security: 'open-gateway' })).toThrow();
   });
 
   it('derives PaymentSharing-style tags from nested base paths', () => {

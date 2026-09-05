@@ -32,7 +32,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
 });
 
 vi.mock('@/hooks/queries/analytics', () => ({
-  analyticsKeys: { data: { experimentsLists: ['analytics', 'data', 'experiments'] } },
+  analyticsKeys: { data: { experimentsLists: ['analytics', 'experiments'] } },
   useExperiments: () => ({ data: { list: [mockExperiment], total: 1, page: 1, pageSize: 20 }, isFetching: false, refetch: refetchMock }),
   useAnalyticsEventMeta: () => ({ data: { list: [{ eventName: 'order_submit', displayName: '提交订单' }] } }),
   useCreateExperiment: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -67,7 +67,7 @@ describe('AnalyticsExperimentsTab', () => {
     fireEvent.change(screen.getByPlaceholderText('实验名称'), { target: { value: 'Banner' } });
     fireEvent.click(screen.getByText('查询'));
     fireEvent.click(screen.getByText('重置'));
-    expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ['analytics', 'data', 'experiments'] });
+    expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ['analytics', 'experiments'] });
   });
 });
 

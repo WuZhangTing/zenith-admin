@@ -1,13 +1,12 @@
-import { http } from 'msw';
-import { ok, notFound, pageParams, pageResult } from '@/mocks/utils/handlers';
-import type { OAuth2Client, OAuth2ClientCreated } from '@zenith/shared/open-platform';
+import { oauth2ClientContract } from '@zenith/shared/open-platform';
+import type { OAuth2Client, OAuth2ClientCreated, OAuth2MyGrant, OAuth2Token, OAuth2UserGrant } from '@zenith/shared/open-platform';
+import { mock } from '@/mocks/utils/contract';
+import { notFound } from '@/mocks/utils/handlers';
 import { mockDateTime } from '@/mocks/utils/date';
-
-type ClientEntry = OAuth2Client;
 
 let nextId = 1;
 
-export const mockOAuth2Clients: ClientEntry[] = [
+export const mockOAuth2Clients: OAuth2Client[] = [
   {
     id: nextId++,
     clientId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
@@ -31,6 +30,7 @@ export const mockOAuth2Clients: ClientEntry[] = [
     previousSecretExpiresAt: null,
     status: 'enabled',
     ownerId: 1,
+    tenantId: null,
     createdAt: '2024-06-01 10:00:00',
     updatedAt: '2024-06-01 10:00:00',
   },
@@ -57,6 +57,7 @@ export const mockOAuth2Clients: ClientEntry[] = [
     previousSecretExpiresAt: null,
     status: 'enabled',
     ownerId: 1,
+    tenantId: null,
     createdAt: '2024-06-02 09:00:00',
     updatedAt: '2024-06-02 09:00:00',
   },
@@ -83,6 +84,7 @@ export const mockOAuth2Clients: ClientEntry[] = [
     previousSecretExpiresAt: null,
     status: 'enabled',
     ownerId: 1,
+    tenantId: null,
     createdAt: '2024-06-03 08:00:00',
     updatedAt: '2024-06-03 08:00:00',
   },
@@ -109,158 +111,142 @@ export const mockOAuth2Clients: ClientEntry[] = [
     previousSecretExpiresAt: null,
     status: 'enabled',
     ownerId: 1,
+    tenantId: null,
     createdAt: '2024-06-03 10:00:00',
     updatedAt: '2024-06-03 11:00:00',
   },
 ];
 
-const mockClients = mockOAuth2Clients;
+function randomHex(len: number) {
+  return Array.from({ length: len }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+}
 
-const BASE = '/api/oauth2/clients';
+/** 演示用的用户授权记录：管理员对前两个应用各授权一次 */
+function grantsOf(client: OAuth2Client): OAuth2UserGrant[] {
+  return [{
+    id: 1,
+    userId: 1,
+    username: 'admin',
+    nickname: '系统管理员',
+    clientId: client.clientId,
+    scopes: client.allowedScopes.slice(0, 2),
+    createdAt: '2026-06-01 10:00:00',
+    updatedAt: '2026-06-01 10:00:00',
+  }];
+}
 
 export const oauth2AppsHandlers = [
-  // 列表
-  http.get(BASE, ({ request: req }) => {
-    const url = new URL(req.url);
-    const keyword = url.searchParams.get('keyword') ?? '';
-    const environment = url.searchParams.get('environment');
-    const reviewStatus = url.searchParams.get('reviewStatus');
-    const { page, pageSize } = pageParams(url, 20);
+  mock(oauth2ClientContract.list, ({ query, ok, paginate }) => {
     const filtered = mockOAuth2Clients.filter((client) =>
-      (!keyword || client.name.includes(keyword))
-      && (!environment || client.environment === environment)
-      && (!reviewStatus || client.reviewStatus === reviewStatus),
+      (!query.keyword || client.name.includes(query.keyword))
+      && (!query.environment || client.environment === query.environment)
+      && (!query.reviewStatus || client.reviewStatus === query.reviewStatus),
     );
-    const start = (page - 1) * pageSize;
-    return ok({ list: filtered.slice(start, start + pageSize), total: filtered.length, page, pageSize }, 'success');
+    return ok(paginate(filtered));
   }),
 
   // 应用选项（供 Webhook/SDK 下拉）
-  http.get(`${BASE}/options`, () => {
-    return ok(mockOAuth2Clients.filter((c) => c.status === 'enabled').map((c) => ({
-      id: c.id,
-      clientId: c.clientId,
-      name: c.name,
-      environment: c.environment,
-      reviewStatus: c.reviewStatus,
-      isPublic: c.isPublic,
-      signEnabled: Boolean(c.signEnabled),
-    })), 'success');
-  }),
+  mock(oauth2ClientContract.options, ({ ok }) => ok(mockOAuth2Clients.filter((c) => c.status === 'enabled').map((c) => ({
+    id: c.id,
+    clientId: c.clientId,
+    name: c.name,
+    environment: c.environment,
+    reviewStatus: c.reviewStatus,
+    isPublic: c.isPublic,
+    signEnabled: c.signEnabled,
+  })))),
 
   // 我的已授权应用（用户自助）
-  //
-  // 注意：必须注册在 `${BASE}/:id` 之前，否则 `/my-grants` 会被当成 id 匹配掉。
-  http.get(`${BASE}/my-grants`, ({ request }) => {
-    const url = new URL(request.url);
-    const { page, pageSize } = pageParams(url);
-    const list = mockClients.slice(0, 2).map((client, index) => ({
+  mock(oauth2ClientContract.myGrants, ({ ok, paginate }) => {
+    const list: OAuth2MyGrant[] = mockOAuth2Clients.slice(0, 2).map((client, index) => ({
       id: index + 1,
       clientId: client.clientId,
       appName: client.name,
-      appLogoUrl: client.logoUrl ?? null,
-      appDescription: client.description ?? null,
+      appLogoUrl: client.logoUrl,
+      appDescription: client.description,
       environment: client.environment,
       scopes: client.allowedScopes.slice(0, 2),
       createdAt: '2026-06-01 10:00:00',
       updatedAt: '2026-06-01 10:00:00',
     }));
-    return ok(pageResult(list, page, pageSize), 'success');
+    return ok(paginate(list));
   }),
 
-  http.delete(`${BASE}/my-grants/:id`, () => ok(null, '授权已撤销')),
+  mock(oauth2ClientContract.revokeMyGrant, ({ ok }) => ok(null, '授权已撤销')),
 
-  http.get(`${BASE}/tokens`, ({ request }) => {
-    const url = new URL(request.url);
-    const { page, pageSize } = pageParams(url, 20);
-    return ok({ list: [], total: 0, page, pageSize }, 'success');
-  }),
+  mock(oauth2ClientContract.tokens, ({ ok, paginate }) => ok(paginate([] as OAuth2Token[]))),
 
-  http.delete(`${BASE}/tokens/:id`, () => {
-    return ok(null, '令牌已撤销');
-  }),
+  mock(oauth2ClientContract.revokeToken, ({ ok }) => ok(null, '令牌已撤销')),
 
-  http.get(`${BASE}/:id/grants`, ({ params, request }) => {
-    const client = mockClients.find((item) => item.id === Number(params.id));
+  mock(oauth2ClientContract.grants, ({ params, ok, paginate }) => {
+    const client = mockOAuth2Clients.find((item) => item.id === params.id);
     if (!client) return notFound('不存在', { status: 404 });
-    const url = new URL(request.url);
-    const { page, pageSize } = pageParams(url);
-    const list = [{
-      id: 1,
-      userId: 1,
-      username: 'admin',
-      nickname: '系统管理员',
-      clientId: client.clientId,
-      scopes: client.allowedScopes.slice(0, 2),
-      createdAt: '2026-06-01 10:00:00',
-      updatedAt: '2026-06-01 10:00:00',
-    }];
-    return ok({ list, total: list.length, page, pageSize }, 'success');
+    return ok(paginate(grantsOf(client)));
   }),
 
-  // 创建
-  http.post(BASE, async ({ request: req }) => {
-    const body = await req.json() as Omit<OAuth2Client, 'id' | 'createdAt' | 'updatedAt' | 'clientId' | 'clientSecretPrefix' | 'ownerId'>;
+  mock(oauth2ClientContract.create, ({ body, ok }) => {
     const clientId = `mock-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const clientSecret = `oas_mock${randomHex(32)}`;
-    const newClient: ClientEntry = {
+    const now = mockDateTime();
+    const newClient: OAuth2Client = {
       id: nextId++,
       clientId,
       clientSecretPrefix: body.isPublic ? null : `${clientSecret.slice(0, 10)}...`,
       name: body.name,
       description: body.description ?? null,
-      logoUrl: body.logoUrl ?? null,
+      logoUrl: body.logoUrl || null,
       redirectUris: body.redirectUris,
       allowedScopes: body.allowedScopes,
       grantTypes: body.grantTypes,
       isPublic: body.isPublic,
       ratePlanId: body.ratePlanId ?? null,
       signEnabled: body.signEnabled ?? false,
-      ipAllowlist: body.ipAllowlist ?? [],
-      environment: body.environment ?? 'production',
+      ipAllowlist: body.ipAllowlist,
+      environment: body.environment,
       reviewStatus: 'approved',
       reviewComment: null,
       submittedAt: null,
-      reviewedAt: mockDateTime(),
+      reviewedAt: now,
       reviewedBy: 1,
       previousSecretExpiresAt: null,
       status: 'enabled',
       ownerId: 1,
-      createdAt: mockDateTime(),
-      updatedAt: mockDateTime(),
+      tenantId: null,
+      createdAt: now,
+      updatedAt: now,
     };
-    mockClients.push(newClient);
+    mockOAuth2Clients.push(newClient);
     const result: OAuth2ClientCreated = { ...newClient, clientSecret: body.isPublic ? '' : clientSecret };
     return ok(result, '创建成功');
   }),
 
-  // 详情
-  http.get(`${BASE}/:id`, ({ params }) => {
-    const found = mockClients.find((c) => c.id === Number(params.id));
-    if (!found) return notFound('不存在', { status: 404 });
-    return ok(found, 'success');
+  mock(oauth2ClientContract.detail, ({ params, ok }) => {
+    const found = mockOAuth2Clients.find((c) => c.id === params.id);
+    return found ? ok(found) : notFound('不存在', { status: 404 });
   }),
 
-  // 更新
-  http.put(`${BASE}/:id`, async ({ params, request: req }) => {
-    const idx = mockClients.findIndex((c) => c.id === Number(params.id));
+  mock(oauth2ClientContract.update, ({ params, body, ok }) => {
+    const idx = mockOAuth2Clients.findIndex((c) => c.id === params.id);
     if (idx === -1) return notFound('不存在', { status: 404 });
-    const body = await req.json() as Partial<OAuth2Client>;
-    mockClients[idx] = { ...mockClients[idx], ...body, updatedAt: mockDateTime() };
-    return ok(mockClients[idx], '更新成功');
+    const { logoUrl, ...rest } = body;
+    mockOAuth2Clients[idx] = {
+      ...mockOAuth2Clients[idx],
+      ...rest,
+      ...(logoUrl === undefined ? {} : { logoUrl: logoUrl || null }),
+      updatedAt: mockDateTime(),
+    };
+    return ok(mockOAuth2Clients[idx], '更新成功');
   }),
 
-  // 删除
-  http.delete(`${BASE}/:id`, ({ params }) => {
-    const idx = mockClients.findIndex((c) => c.id === Number(params.id));
+  mock(oauth2ClientContract.remove, ({ params, ok }) => {
+    const idx = mockOAuth2Clients.findIndex((c) => c.id === params.id);
     if (idx === -1) return notFound('不存在', { status: 404 });
-    mockClients.splice(idx, 1);
+    mockOAuth2Clients.splice(idx, 1);
     return ok(null, '删除成功');
   }),
 
-  // 重置 Secret
-  http.post(`${BASE}/:id/regenerate-secret`, ({ params }) => {
-    const found = mockClients.find((c) => c.id === Number(params.id));
+  mock(oauth2ClientContract.regenerateSecret, ({ params, ok }) => {
+    const found = mockOAuth2Clients.find((c) => c.id === params.id);
     if (!found) return notFound('不存在', { status: 404 });
     const clientSecret = `oas_mock${randomHex(32)}`;
     found.clientSecretPrefix = `${clientSecret.slice(0, 10)}...`;
@@ -268,19 +254,13 @@ export const oauth2AppsHandlers = [
     return ok({ clientId: found.clientId, clientSecret, previousValidUntil: found.previousSecretExpiresAt }, 'secret 已重置');
   }),
 
-  http.post(`${BASE}/:id/review`, async ({ params, request }) => {
-    const found = mockClients.find((client) => client.id === Number(params.id));
+  mock(oauth2ClientContract.review, ({ params, body, ok }) => {
+    const found = mockOAuth2Clients.find((client) => client.id === params.id);
     if (!found) return notFound('不存在', { status: 404 });
-    const body = await request.json() as { action: 'approve' | 'reject'; comment?: string };
     found.reviewStatus = body.action === 'approve' ? 'approved' : 'rejected';
     found.reviewComment = body.comment ?? null;
     found.reviewedAt = mockDateTime();
     found.reviewedBy = 1;
     return ok(found, '审核完成');
   }),
-
 ];
-
-function randomHex(len: number) {
-  return Array.from({ length: len }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-}

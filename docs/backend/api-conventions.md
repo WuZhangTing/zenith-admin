@@ -144,8 +144,10 @@ export default xxxRouter;
 
 - 每个 `OpenAPIHono` 实例传入 `{ defaultHook: validationHook }`。
 - 每个路由用命名常量声明，并通过 `router.openapiRoutes([... ] as const)` 统一注册；挂载路径取 `xxxContract.basePath`。
-- 认证与权限只出现在 `middleware:`（`authMiddleware` / `guard(...)`）；公开接口在契约上标 `public: true`，
-  文档中的 `security` 由此推导。`commonErrorResponses` 与 200 响应信封由适配层统一施加。
+- 认证与权限只出现在 `middleware:`（`authMiddleware` / `guard(...)`）；文档中的 `security` 由契约推导：
+  默认 `BearerAuth`，公开接口标 `public: true`（`security: []`），IoT 设备签名与开放平台网关接口标
+  `security: 'device-signature' | 'open-gateway'`（对应 `IotDeviceSignature` / `OpenGatewayToken` + `OpenGatewaySignature`
+  安全方案，由 `lib/contract-route.ts` 的 `CONTRACT_SECURITY_SCHEMES` 注册）。`commonErrorResponses` 与 200 响应信封由适配层统一施加。
 - `handler` 内 `c.req.valid('param' | 'query' | 'json')` 与 `c.json(okBody(...), 200)` 均按契约类型检查：
   service 返回值与契约实体不一致时编译失败。
 - 路径参数用 `idParam`；自定义路径参数写 `z.object({ code: z.string().meta({ description, example }) })`；

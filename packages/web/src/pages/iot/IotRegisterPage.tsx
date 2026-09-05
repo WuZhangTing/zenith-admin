@@ -14,7 +14,8 @@ import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { confirmDelete } from '@/utils/confirm';
 import { copyTextWithToast } from '@/utils/clipboard';
-import type { IotWhitelistEntry } from '@zenith/shared/iot';
+import { iotIngestContract } from '@zenith/shared/iot';
+import type { CreateIotWhitelistInput, IotWhitelistEntry } from '@zenith/shared/iot';
 import { useAllIotProducts } from '@/hooks/queries/iot-products';
 import {
   iotWhitelistKeys, useDeleteIotWhitelistEntry, useDisableIotRegistration,
@@ -46,7 +47,7 @@ export default function IotRegisterPage() {
     pageSize,
     keyword: submittedParams.keyword || undefined,
     productId: submittedParams.productId ?? undefined,
-    used: submittedParams.used === '' ? undefined : submittedParams.used === 'true',
+    used: submittedParams.used ? submittedParams.used === 'true' : undefined,
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -74,7 +75,7 @@ export default function IotRegisterPage() {
 
   const handleResetSecret = async () => {
     if (secretProductId === null) return;
-    const result = await resetSecretMutation.mutateAsync(secretProductId);
+    const result = await resetSecretMutation.mutateAsync({ params: { id: secretProductId } });
     Modal.info({
       title: '注册密钥（仅本次展示）',
       width: 520,
@@ -129,7 +130,7 @@ export default function IotRegisterPage() {
               title: `确定要移除 SN「${record.sn}」吗？`,
               content: '移除后该 SN 将无法动态注册',
               onOk: async () => {
-                await deleteMutation.mutateAsync(record.id);
+                await deleteMutation.mutateAsync({ params: { id: record.id } });
                 Toast.success('已移除');
               },
             });
@@ -205,14 +206,14 @@ export default function IotRegisterPage() {
               title="确定关闭该产品的动态注册吗？"
               content="关闭后设备无法再通过注册接口自动建档"
               onConfirm={() => {
-                void disableMutation.mutateAsync(secretProductId as number).then(() => Toast.success('已关闭'));
+                void disableMutation.mutateAsync({ params: { id: secretProductId as number } }).then(() => Toast.success('已关闭'));
               }}
             >
               <Button type="danger" loading={disableMutation.isPending}>关闭注册</Button>
             </Popconfirm>
           )}
           <Text type="tertiary" size="small">
-            设备用 HMAC-SHA256 签名调用 /api/iot/ingest/register 完成自动建档，SN 须在白名单内
+            设备用 HMAC-SHA256 签名调用 {iotIngestContract.register.fullPath} 完成自动建档，SN 须在白名单内
           </Text>
         </div>
       )}
@@ -259,7 +260,7 @@ export default function IotRegisterPage() {
         pending={importMutation.isPending}
         onCancel={() => setImportVisible(false)}
         onSubmit={async (values) => {
-          const result = await importMutation.mutateAsync(values);
+          const result = await importMutation.mutateAsync({ body: values });
           Toast.success(`导入完成：新增 ${result.inserted} 条，跳过重复 ${result.skipped} 条`);
           setImportVisible(false);
         }}
@@ -273,7 +274,7 @@ function ImportModal({ visible, productOptions, pending, onCancel, onSubmit }: R
   productOptions: Array<{ value: number; label: string }>;
   pending: boolean;
   onCancel: () => void;
-  onSubmit: (values: { productId: number; sns: string[]; remark?: string | null }) => Promise<void>;
+  onSubmit: (values: CreateIotWhitelistInput) => Promise<void>;
 }>) {
   const [formApi, setFormApi] = useState<{ validate: () => Promise<Record<string, unknown>> } | null>(null);
 

@@ -19,19 +19,19 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 import {
-  IOT_OTA_DEVICE_STATUS_LABELS, IOT_OTA_DEVICE_STATUS_OPTIONS, IOT_OTA_TASK_STATUS_LABELS,
-  IOT_OTA_TASK_STATUS_OPTIONS,
+  IOT_OTA_DEVICE_STATUSES, IOT_OTA_DEVICE_STATUS_LABELS, IOT_OTA_DEVICE_STATUS_OPTIONS, IOT_OTA_TASK_STATUSES,
+  IOT_OTA_TASK_STATUS_LABELS, IOT_OTA_TASK_STATUS_OPTIONS,
 } from '@zenith/shared/iot';
-import type { IotFirmware, IotOtaTask, IotOtaTaskDevice } from '@zenith/shared/iot';
+import type { IotFirmware, IotOtaTask, IotOtaTaskDevice, UpdateIotFirmwareInput } from '@zenith/shared/iot';
 import { useAllIotProducts } from '@/hooks/queries/iot-products';
 import { useAllIotGroups } from '@/hooks/queries/iot-groups';
 import { useIotDeviceList } from '@/hooks/queries/iot-devices';
 import {
-  iotFirmwareKeys, iotOtaTaskKeys, useCancelIotOtaTask, useCreateIotOtaTask, useDeleteIotFirmware,
+  iotFirmwareKeys, iotOtaTaskKeys, useCancelIotOtaTask, useCreateIotOtaTask, useDeleteIotFirmwares,
   useReleaseNextIotOtaBatch, useResumeIotOtaTask,
-  useIotFirmwareList, useIotOtaTaskDevices, useIotOtaTaskList, useUpdateIotFirmware, useUploadIotFirmware,
+  useIotFirmwareList, useIotOtaTaskDevices, useIotOtaTaskList, useSaveIotFirmware, useUploadIotFirmware,
 } from '@/hooks/queries/iot-ota';
-import { formatBytes } from '@zenith/shared/core';
+import { USER_STATUSES, enumValueOf, formatBytes } from '@zenith/shared/core';
 
 const { Text } = Typography;
 
@@ -68,7 +68,7 @@ function FirmwaresTab({ onCreateTask }: Readonly<{ onCreateTask: (firmware: IotF
     pageSize,
     keyword: submittedParams.keyword || undefined,
     productId: submittedParams.productId ?? undefined,
-    status: submittedParams.status || undefined,
+    status: enumValueOf(USER_STATUSES, submittedParams.status),
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -102,21 +102,17 @@ function FirmwaresTab({ onCreateTask }: Readonly<{ onCreateTask: (firmware: IotF
     uploadFileRef.current = null;
   }
 
-  const editModal = useEditModal<IotFirmware, Record<string, unknown>, Record<string, unknown>>({
+  const editModal = useEditModal<IotFirmware, UpdateIotFirmwareInput, UpdateIotFirmwareInput>({
     entityName: '固件',
-    save: {
-      mutateAsync: ({ id, values }) => updateMutation.mutateAsync({ id: id!, values: values as never }),
-      isPending: false,
-    },
+    save: useSaveIotFirmware(),
     toValues: (r) => ({ releaseNotes: r.releaseNotes ?? '', status: r.status }),
     beforeSave: (values) => ({
-      releaseNotes: (values.releaseNotes as string) || null,
+      releaseNotes: values.releaseNotes || null,
       status: values.status,
     }),
     labelWidth: 90,
   });
-  const updateMutation = useUpdateIotFirmware();
-  const deleteMutation = useDeleteIotFirmware();
+  const deleteMutation = useDeleteIotFirmwares();
 
   const columns: ColumnProps<IotFirmware>[] = [
     { title: '版本', dataIndex: 'version', width: 110, render: (v: string) => <Text code>v{v}</Text> },
@@ -160,7 +156,7 @@ function FirmwaresTab({ onCreateTask }: Readonly<{ onCreateTask: (firmware: IotF
               title: `确定要删除固件 v${record.version} 吗？`,
               content: '托管文件一并回收，不可恢复',
               onOk: async () => {
-                await deleteMutation.mutateAsync(record.id);
+                await deleteMutation.mutateAsync([record.id]);
                 Toast.success('删除成功');
               },
             });
@@ -318,7 +314,7 @@ function OtaTasksTab({ detailTask, onOpenDetail }: Readonly<{
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    status: submittedParams.status || undefined,
+    status: enumValueOf(IOT_OTA_TASK_STATUSES, submittedParams.status),
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -374,7 +370,7 @@ function OtaTasksTab({ detailTask, onOpenDetail }: Readonly<{
           ...(hasPermission('iot:ota:task:create') && canRelease ? [{
             key: 'release', label: '放量下一批',
             onClick: () => {
-              void releaseMutation.mutateAsync(record.id).then(() => {
+              void releaseMutation.mutateAsync({ params: { id: record.id } }).then(() => {
                 Toast.success('下一批已放量');
               });
             },
@@ -382,7 +378,7 @@ function OtaTasksTab({ detailTask, onOpenDetail }: Readonly<{
           ...(hasPermission('iot:ota:task:create') && record.status === 'paused' ? [{
             key: 'resume', label: '恢复',
             onClick: () => {
-              void resumeMutation.mutateAsync(record.id).then(() => {
+              void resumeMutation.mutateAsync({ params: { id: record.id } }).then(() => {
                 Toast.success('任务已恢复');
               });
             },
@@ -394,7 +390,7 @@ function OtaTasksTab({ detailTask, onOpenDetail }: Readonly<{
                 title: `确定要取消任务「${record.title}」吗？`,
                 content: '未终态设备将标记为已取消；已升级成功的设备不受影响',
                 onOk: async () => {
-                  await cancelMutation.mutateAsync(record.id);
+                  await cancelMutation.mutateAsync({ params: { id: record.id } });
                   Toast.success('任务已取消');
                 },
               });
@@ -464,7 +460,7 @@ function OtaTaskDetailDrawer({ task, onClose }: Readonly<{ task: IotOtaTask | nu
   const [status, setStatus] = useState<string | undefined>();
   const devicesQuery = useIotOtaTaskDevices(
     task?.id ?? null,
-    { page, pageSize: 10, status: status || undefined },
+    { page, pageSize: 10, status: enumValueOf(IOT_OTA_DEVICE_STATUSES, status) },
     task?.status === 'running',
   );
 
@@ -561,13 +557,15 @@ function CreateTaskModal({ firmware, onClose, onCreated }: Readonly<{
       abortSubmit();
     }
     await createMutation.mutateAsync({
-      firmwareId: firmware.id,
-      allDevices: target === 'all' ? true : undefined,
-      groupId: target === 'group' ? (values.groupId as number) : undefined,
-      deviceIds: target === 'devices' ? (values.deviceIds as number[]) : undefined,
-      timeoutMinutes: (values.timeoutMinutes as number) || 30,
-      batchSize: (values.batchSize as number | undefined) ?? null,
-      failureThreshold: (values.failureThreshold as number | undefined) ?? null,
+      body: {
+        firmwareId: firmware.id,
+        allDevices: target === 'all' ? true : undefined,
+        groupId: target === 'group' ? (values.groupId as number) : undefined,
+        deviceIds: target === 'devices' ? (values.deviceIds as number[]) : undefined,
+        timeoutMinutes: (values.timeoutMinutes as number) || 30,
+        batchSize: (values.batchSize as number | undefined) ?? null,
+        failureThreshold: (values.failureThreshold as number | undefined) ?? null,
+      },
     });
     Toast.success('升级任务已创建，可在「升级任务」页签跟进进度');
     onClose();

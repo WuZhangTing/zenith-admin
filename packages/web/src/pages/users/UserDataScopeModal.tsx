@@ -10,7 +10,8 @@
 import { useState, useEffect } from 'react';
 import { Typography, Divider, Toast, Tag } from '@douyinfe/semi-ui';
 import AppModal from '@/components/AppModal';
-import type { Department } from '@zenith/shared/identity';
+import { DATA_SCOPES, type Department } from '@zenith/shared/identity';
+import { enumValueOf } from '@zenith/shared/core';
 import { DataScopePanel, DATA_SCOPE_OPTIONS } from '@/components/permissions/DataScopePanel';
 import { useSaveUserDataPermission, useUserDataPermission } from '@/hooks/queries/users';
 
@@ -61,9 +62,12 @@ export function UserDataScopeModal({ userId, userName, visible, deptTree, onClos
 
   const handleSave = async () => {
     await saveMutation.mutateAsync({
-      userId,
-      dataScope: userDataScope,
-      deptScopeIds: userDataScope === 'custom' ? deptScopeIds : [],
+      params: { id: userId },
+      body: {
+        // 面板以宽 string 维护选中值，提交前收窄为数据范围枚举；未设置（跟随角色）传 null
+        dataScope: enumValueOf(DATA_SCOPES, userDataScope) ?? null,
+        deptScopeIds: userDataScope === 'custom' ? deptScopeIds : [],
+      },
     });
     Toast.success('数据权限已更新');
     onClose();

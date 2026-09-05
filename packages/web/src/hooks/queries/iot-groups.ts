@@ -1,10 +1,9 @@
-import type { IotDeviceGroup } from '@zenith/shared/iot';
-import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
+import type { QueryOf } from '@zenith/shared/core';
+import { iotDeviceGroupContract } from '@zenith/shared/iot';
+import { createResourceQueries } from '@/lib/contract-query';
 import { iotDeviceKeys } from './iot-devices';
 
-export interface IotDeviceGroupListParams extends CrudListParams {
-  keyword?: string;
-}
+export type IotDeviceGroupListParams = NonNullable<QueryOf<typeof iotDeviceGroupContract.list>>;
 
 export const {
   keys: iotGroupKeys,
@@ -13,11 +12,7 @@ export const {
   useSave: useSaveIotGroup,
   useDelete: useDeleteIotGroups,
   useLookup: useAllIotGroups,
-} = createCrudQueries<IotDeviceGroup, IotDeviceGroupListParams, Partial<IotDeviceGroup>>({
-  resource: 'iot-groups',
-  path: '/api/iot/groups',
-  deleteMode: 'single',
-  lookup: true,
+} = createResourceQueries(iotDeviceGroupContract, {
   // 分组成员变更影响设备列表的「所属分组」列
   onSaved: (qc) => void qc.invalidateQueries({ queryKey: iotDeviceKeys.lists }),
   onDeleted: (qc) => void qc.invalidateQueries({ queryKey: iotDeviceKeys.lists }),

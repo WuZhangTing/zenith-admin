@@ -10,7 +10,7 @@ import { ExportButton } from '@/components/ExportButton';
 import { useListSearch } from '@/hooks/useListSearch';
 import { AreaChart, BarChart, chartOptions, makeAreaSpec, makeBarSpec, useChartPalette, EmptyChart, StatCard, StatGrid } from '@/components/charts';
 import {
-  openPlatformKeys,
+  openApiStatsKeys,
   useOpenApiCallLogs,
   useOpenApiStatsByApp,
   useOpenApiStatsByEndpoint,
@@ -45,7 +45,7 @@ export default function OpenApiStatsPage() {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch: handleApply, handleReset,
-  } = useListSearch<SearchParams>({ defaults: createDefaultParams, listKey: openPlatformKeys.stats.all });
+  } = useListSearch<SearchParams>({ defaults: createDefaultParams, listKey: openApiStatsKeys.all });
   const appOptions = useOpenAppOptions().data ?? [];
 
   const rangeParams = useMemo(() => ({

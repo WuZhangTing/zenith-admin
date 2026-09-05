@@ -1,53 +1,30 @@
-import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { loginLogContract } from '@zenith/shared/identity';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
-import { PaginationQuery, commonErrorResponses, dateRangeBound, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
-import { LoginLogDTO, LoginLogStatsDTO } from '../../lib/openapi-dtos';
+import { defineContractRoute } from '../../lib/contract-route';
+import { validationHook, okBody } from '../../lib/openapi-schemas';
 import { listLoginLogs, loginLogStats, cleanLoginLogs, getCleanLoginLogsBeforeAudit } from '../../services/identity/login-logs.service';
 
 const loginLogsRoute = new OpenAPIHono({ defaultHook: validationHook });
 
-const listRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/', tags: ['LoginLogs'], summary: '登录日志分页查询',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:log:login' })] as const,
-    request: {
-      query: PaginationQuery.extend({
-        username: z.string().optional(),
-        eventType: z.enum(['login', 'logout']).optional(),
-        status: z.enum(['success', 'fail']).optional(),
-        startTime: dateRangeBound('起始时间'),
-        endTime: dateRangeBound('结束时间'),
-      }),
-    },
-    responses: { ...okPaginated(LoginLogDTO, '登录日志列表'), ...commonErrorResponses },
-  }),
+const read = [authMiddleware, guard({ permission: 'system:log:login' })] as const;
+
+const listRoute = defineContractRoute(loginLogContract.list, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await listLoginLogs(c.req.valid('query'))), 200),
 });
 
-const statsRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/stats', tags: ['LoginLogs'], summary: '登录日志统计',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:log:login' })] as const,
-    request: { query: z.object({ days: z.coerce.number().optional() }) },
-    responses: { ...ok(LoginLogStatsDTO, '统计结果'), ...commonErrorResponses },
-  }),
+const statsRoute = defineContractRoute(loginLogContract.stats, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await loginLogStats(c.req.valid('query').days)), 200),
 });
 
-const cleanRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/clean', tags: ['LoginLogs'], summary: '清除登录日志',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({
-      permission: 'system:log:login',
-      audit: { description: '清除登录日志', module: '登录日志' },
-    })] as const,
-    request: { query: z.object({ days: z.coerce.number().int().min(1).max(3650).default(180) }) },
-    responses: { ...okMsg('清除成功'), ...commonErrorResponses },
-  }),
+const cleanRoute = defineContractRoute(loginLogContract.clean, {
+  middleware: [authMiddleware, guard({
+    permission: 'system:log:login',
+    audit: { description: '清除登录日志', module: '登录日志' },
+  })] as const,
   handler: async (c) => {
     const { days } = c.req.valid('query');
     const before = await getCleanLoginLogsBeforeAudit(days);
