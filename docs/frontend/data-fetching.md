@@ -47,7 +47,7 @@ packages/web/src/
 
 | 导出 | 说明 |
 | --- | --- |
-| `api(op, input?, options?)` | 单次调用，返回解包后的 `data`；`input` 为契约输入 `{ params?, query?, body? }`，`options` 为请求选项（`silent`、`client` 等） |
+| `api(op, input?, options?)` | 单次调用，返回解包后的 `data`；`input` 为契约输入 `{ params?, query?, headers?, body? }`（`headers` 段仅当契约声明了业务请求头时存在，自动并入请求头，不参与 query key），`options` 为请求选项（`silent`、`client` 等） |
 | `urlOf(op, { params?, query? })` | 契约操作 + URL 相关输入段 → 完整 URL；带 body 的操作也只需 params / query（`request.postForm(urlOf(op), formData)`、`<Upload action>`、下载链接） |
 | `contractKey(op, input?)` | 单操作查询的 query key：`[资源键, 操作名, input]`；省略 input 得到该操作的公共前缀（`invalidateQueries` / `useListSearch({ listKey })`） |
 | `apiQueryOptions(op, input?, options?)` / `useApiQuery(op, input?, options?)` | 可缓存查询；`options` 透传 TanStack Query 选项（`enabled`、`staleTime`…） |
