@@ -12,7 +12,7 @@ const CHAT_BOT_KEY = resourceKeyOf(chatBotContract.basePath);
 
 export const chatBotKeys = {
   all: [CHAT_BOT_KEY] as const,
-  lists: [CHAT_BOT_KEY, chatBotContract.list.name] as const,
+  lists: contractKey(chatBotContract.list),
   list: (params: ChatBotListParams) => contractKey(chatBotContract.list, { query: params }),
   /** 机器人表单的目标会话下拉源：从会话列表中筛出群聊 */
   groupConversations: [CHAT_BOT_KEY, 'group-conversations'] as const,

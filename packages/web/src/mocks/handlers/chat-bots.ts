@@ -1,6 +1,6 @@
 import { chatBotContract, chatWebhookPublicContract } from '@zenith/shared/chat';
 import type { ChatWebhook } from '@zenith/shared/chat';
-import { fillPath } from '@zenith/shared/core';
+import { urlOf } from '@/lib/contract-query';
 import { mock } from '@/mocks/utils/contract';
 import { notFound } from '@/mocks/utils/handlers';
 import { mockChatWebhooks, getNextWebhookId, genWebhookToken } from '@/mocks/data/chat-bots';
@@ -15,7 +15,7 @@ function convName(conversationId: number): string | null {
 
 /** 入站推送地址 = 公开 Webhook 契约路径填入令牌 */
 function webhookUrl(token: string): string {
-  return fillPath(chatWebhookPublicContract.ingest.fullPath, { token });
+  return urlOf(chatWebhookPublicContract.ingest, { params: { token } });
 }
 
 export const chatBotsHandlers = [
