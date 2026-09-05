@@ -84,6 +84,28 @@ export const rollbackWikiDocSchema = z.object({
 
 export type RollbackWikiDocInput = z.infer<typeof rollbackWikiDocSchema>;
 
+/** 收藏 / 取消收藏 */
+export const favoriteWikiDocSchema = z.object({
+  favorite: z.boolean(),
+});
+
+export type FavoriteWikiDocInput = z.infer<typeof favoriteWikiDocSchema>;
+
+/** 订阅 / 取消订阅（发布与评论时站内信通知） */
+export const subscribeWikiDocSchema = z.object({
+  subscribe: z.boolean(),
+});
+
+export type SubscribeWikiDocInput = z.infer<typeof subscribeWikiDocSchema>;
+
+/** 搜索点击回报：把当前用户最近一条同关键词搜索日志标记为已点击 */
+export const reportWikiSearchClickSchema = z.object({
+  keyword: z.string().min(1).max(200),
+  docId: z.number().int().positive(),
+});
+
+export type ReportWikiSearchClickInput = z.infer<typeof reportWikiSearchClickSchema>;
+
 // ─── 模板与标签 ───────────────────────────────────────────────────────────────
 
 export const createWikiTemplateSchema = z.object({

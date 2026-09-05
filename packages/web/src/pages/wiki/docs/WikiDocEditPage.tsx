@@ -3,6 +3,7 @@ import { useDebouncer } from '@tanstack/react-pacer';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Banner, Button, Checkbox, Input, Modal, Select, Space, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { ArrowLeft, Eye, EyeOff, Save, Send } from 'lucide-react';
+import type { WikiDoc } from '@zenith/shared/wiki';
 import MarkdownPreviewPanel from '@/components/MarkdownPreviewPanel';
 import PageLoading from '@/components/PageLoading';
 import FileAttachment, { type AttachmentItem } from '@/components/FileAttachment';
@@ -10,7 +11,7 @@ import { ApiError } from '@/lib/query';
 import './WikiDocEditPage.css';
 import { useAllWikiTags } from '@/hooks/queries/wiki-tags';
 import { useAllWikiTemplates } from '@/hooks/queries/wiki-templates';
-import { useSaveWikiDoc, useSubmitWikiDoc, useWikiDocDetail } from '@/hooks/queries/wiki-docs';
+import { useCreateWikiDoc, useSubmitWikiDoc, useUpdateWikiDoc, useWikiDocDetail } from '@/hooks/queries/wiki-docs';
 
 const { Text } = Typography;
 
@@ -34,10 +35,12 @@ export default function WikiDocEditPage() {
   const parentIdParam = searchParams.get('parentId') ? Number(searchParams.get('parentId')) : undefined;
 
   const detailQuery = useWikiDocDetail(id);
-  const saveMutation = useSaveWikiDoc();
+  const createMutation = useCreateWikiDoc();
+  const updateMutation = useUpdateWikiDoc();
   const submitMutation = useSubmitWikiDoc();
   const tagsQuery = useAllWikiTags();
   const templatesQuery = useAllWikiTemplates();
+  const saving = createMutation.isPending || updateMutation.isPending;
 
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
@@ -81,8 +84,8 @@ export default function WikiDocEditPage() {
     setTitle(doc.title);
     setSummary(doc.summary ?? '');
     setContent(doc.content ?? '');
-    setTagIds(doc.tagIds ?? []);
-    setAttachments((doc.attachments ?? []) as AttachmentItem[]);
+    setTagIds(doc.tagIds);
+    setAttachments(doc.attachments ?? []);
     setRequireReadReceipt(doc.requireReadReceipt);
     setDirty(false);
     setPendingDraft(readDraft());
@@ -167,11 +170,20 @@ export default function WikiDocEditPage() {
       return null;
     }
     const fileIds = attachments.map((a) => a.fileId);
-    const values = id
-      ? { title: title.trim(), summary: summary || null, content, tagIds, fileIds, requireReadReceipt, changeNote: changeNote || undefined, revision: revisionRef.current }
-      : { spaceId: spaceIdParam, parentId: parentIdParam ?? null, title: title.trim(), summary: summary || undefined, content, tagIds, fileIds, requireReadReceipt };
     try {
-      const saved = await saveMutation.mutateAsync({ id, values });
+      let saved: WikiDoc;
+      if (id) {
+        saved = await updateMutation.mutateAsync({
+          params: { id },
+          body: { title: title.trim(), summary: summary || null, content, tagIds, fileIds, requireReadReceipt, changeNote: changeNote || undefined, revision: revisionRef.current },
+        });
+      } else {
+        // 缺少空间参数的新建入口在渲染层已拦截
+        if (spaceIdParam === undefined) return null;
+        saved = await createMutation.mutateAsync({
+          body: { spaceId: spaceIdParam, parentId: parentIdParam ?? null, title: title.trim(), summary: summary || undefined, content, tagIds, fileIds, requireReadReceipt },
+        });
+      }
       revisionRef.current = saved.revision;
       setDirty(false);
       setChangeNote('');
@@ -192,7 +204,7 @@ export default function WikiDocEditPage() {
   async function handleSaveAndSubmit() {
     const savedId = await handleSave();
     if (!savedId) return;
-    submitMutation.mutate(savedId, {
+    submitMutation.mutate({ params: { id: savedId } }, {
       onSuccess: (saved) => {
         Toast.success(saved.status === 'published' ? '已发布' : '已提交审核');
         navigate(-1);
@@ -260,7 +272,7 @@ export default function WikiDocEditPage() {
           </Button>
           <Button
             icon={<Save size={14} />}
-            loading={saveMutation.isPending}
+            loading={saving}
             onClick={() => void handleSaveOnly()}
           >
             保存草稿
@@ -268,7 +280,7 @@ export default function WikiDocEditPage() {
           <Button
             theme="solid"
             icon={<Send size={14} />}
-            loading={saveMutation.isPending || submitMutation.isPending}
+            loading={saving || submitMutation.isPending}
             onClick={() => void handleSaveAndSubmit()}
           >
             保存并提交发布

@@ -1,68 +1,41 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type {
-  UpdateWikiSettingsInput,
-  WikiContributor,
-  WikiHotDoc,
-  WikiOpsStats,
-  WikiSettings,
-  WikiStaleDoc,
-  WikiStatsOverview,
-} from '@zenith/shared/wiki';
-import { request } from '@/utils/request';
-import { unwrap } from '@/lib/query';
+import { wikiSettingsContract, wikiStatsContract, type WikiSettings } from '@zenith/shared/wiki';
+import { useApiMutation, useApiQuery } from '@/lib/contract-query';
 import { wikiDocDetailPrefix } from './wiki-docs';
 import { wikiGovernanceKeys, wikiSettingsKey, wikiStatsKeys } from './wiki-query-keys';
 
 export { wikiSettingsKey, wikiStatsKeys } from './wiki-query-keys';
 
 export function useWikiStatsOverview() {
-  return useQuery({
-    queryKey: wikiStatsKeys.overview,
-    queryFn: () => request.get<WikiStatsOverview>('/api/wiki/stats/overview').then(unwrap),
-  });
+  return useApiQuery(wikiStatsContract.overview);
 }
 
 export function useWikiHotDocs(limit = 10) {
-  return useQuery({
-    queryKey: [...wikiStatsKeys.hotDocs, limit],
-    queryFn: () => request.get<WikiHotDoc[]>(`/api/wiki/stats/hot-docs?limit=${limit}`).then(unwrap),
-  });
+  return useApiQuery(wikiStatsContract.hotDocs, { query: { limit } });
 }
 
 export function useWikiContributors(limit = 10) {
-  return useQuery({
-    queryKey: [...wikiStatsKeys.contributors, limit],
-    queryFn: () => request.get<WikiContributor[]>(`/api/wiki/stats/contributors?limit=${limit}`).then(unwrap),
-  });
+  return useApiQuery(wikiStatsContract.contributors, { query: { limit } });
 }
 
 export function useWikiStaleDocs(limit = 10) {
-  return useQuery({
-    queryKey: [...wikiStatsKeys.staleDocs, limit],
-    queryFn: () => request.get<WikiStaleDoc[]>(`/api/wiki/stats/stale-docs?limit=${limit}`).then(unwrap),
-  });
+  return useApiQuery(wikiStatsContract.staleDocs, { query: { limit } });
 }
 
 export function useWikiOpsStats() {
-  return useQuery({
-    queryKey: wikiStatsKeys.ops,
-    queryFn: () => request.get<WikiOpsStats>('/api/wiki/stats/ops').then(unwrap),
-  });
+  return useApiQuery(wikiStatsContract.ops);
 }
 
 export function useWikiSettings() {
-  return useQuery({
-    queryKey: wikiSettingsKey,
-    queryFn: () => request.get<WikiSettings>('/api/wiki/settings').then(unwrap),
-  });
+  return useApiQuery(wikiSettingsContract.get);
 }
 
+/**
+ * 保存设置：响应即最新设置，直接回填缓存；只有真正变化的开关才波及其消费者——
+ * 评论开关影响文档详情的 commentsEnabled，审核积压时限影响治理「审核积压」清单与运营统计。
+ */
 export function useUpdateWikiSettings() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (data: UpdateWikiSettingsInput) =>
-      request.put<WikiSettings>('/api/wiki/settings', data).then(unwrap),
-    onSuccess: (saved) => {
+  return useApiMutation(wikiSettingsContract.update, {
+    invalidate: (qc, saved) => {
       const previous = qc.getQueryData<WikiSettings>(wikiSettingsKey);
       qc.setQueryData(wikiSettingsKey, saved);
       if (previous?.commentsEnabled !== saved.commentsEnabled) {

@@ -137,11 +137,5 @@
   "s2d__SslCertificate",
   "s2d__TenantIdentityProvider",
   "s2d__UserFeedback",
-  "s2d__UserGroup",
-  "s2d__WikiComment",
-  "s2d__WikiDoc",
-  "s2d__WikiDocVersion",
-  "s2d__WikiSpace",
-  "s2d__WikiTag",
-  "s2d__WikiTemplate"
+  "s2d__UserGroup"
 ]

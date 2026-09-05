@@ -14,7 +14,7 @@ import MarkdownPreviewPanel from '@/components/MarkdownPreviewPanel';
 import { renderEllipsis, updatedAtColumn, dateTimeColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
-import { usePagination } from '@/hooks/usePagination';
+import { usePagination } from '@/hooks/usePagination';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import {
   useMyProcessedReviews, useReviewWikiDoc, useWikiDocDetail, useWikiDocList,
@@ -75,7 +75,7 @@ function PendingPane() {
       content: '发布后，所有可访问该空间的成员将立即看到当前版本。',
       okText: '通过并发布',
       onOk: async () => {
-        await reviewMutation.mutateAsync({ id: record.id, action: 'approve' });
+        await reviewMutation.mutateAsync({ params: { id: record.id }, body: { action: 'approve' } });
         Toast.success('已通过并发布');
         setPreviewId(undefined);
       },
@@ -90,7 +90,7 @@ function PendingPane() {
       return;
     }
     reviewMutation.mutate(
-      { id: rejectTarget.id, action: 'reject', reason },
+      { params: { id: rejectTarget.id }, body: { action: 'reject', reason } },
       {
         onSuccess: () => {
           Toast.success('已驳回');
@@ -242,7 +242,7 @@ function MySubmissionsPane() {
         { key: 'timeline', label: '审核记录', onClick: () => setTimelineDocId(record.id) },
         ...(record.status === 'pending' ? [{
           key: 'withdraw', label: '撤回',
-          onClick: () => withdrawMutation.mutate(record.id, { onSuccess: () => Toast.success('已撤回，可继续编辑') }),
+          onClick: () => withdrawMutation.mutate({ params: { id: record.id } }, { onSuccess: () => Toast.success('已撤回，可继续编辑') }),
         }] : []),
       ],
     }),

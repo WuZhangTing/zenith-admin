@@ -1,3 +1,7 @@
+import {
+  wikiCommentContract, wikiDocContract, wikiGovernanceContract, wikiSettingsContract,
+  wikiSpaceContract, wikiStatsContract, wikiTagContract, wikiTemplateContract,
+} from '@zenith/shared/wiki';
 import { defineRouteDomain } from '../_kit';
 import wikiSpacesRoutes from './wiki-spaces';
 import wikiDocsRoutes from './wiki-docs';
@@ -10,13 +14,13 @@ import wikiStatsRoutes, { settingsRouter as wikiSettingsRoutes } from './wiki-st
 export default defineRouteDomain({
   name: 'wiki',
   mounts: () => [
-    ['/api/wiki/spaces', wikiSpacesRoutes, { feature: 'wiki' }],
-    ['/api/wiki/docs', wikiDocsRoutes, { feature: 'wiki' }],
-    ['/api/wiki/templates', wikiTemplatesRoutes, { feature: 'wiki' }],
-    ['/api/wiki/tags', wikiTagsRoutes, { feature: 'wiki' }],
-    ['/api/wiki/comments', wikiCommentsRoutes, { feature: 'wiki' }],
-    ['/api/wiki/stats', wikiStatsRoutes, { feature: 'wiki' }],
-    ['/api/wiki/settings', wikiSettingsRoutes, { feature: 'wiki' }],
-    ['/api/wiki/governance', wikiGovernanceRoutes, { feature: 'wiki' }],
+    [wikiSpaceContract.basePath, wikiSpacesRoutes, { feature: 'wiki' }],
+    [wikiDocContract.basePath, wikiDocsRoutes, { feature: 'wiki' }],
+    [wikiTemplateContract.basePath, wikiTemplatesRoutes, { feature: 'wiki' }],
+    [wikiTagContract.basePath, wikiTagsRoutes, { feature: 'wiki' }],
+    [wikiCommentContract.basePath, wikiCommentsRoutes, { feature: 'wiki' }],
+    [wikiStatsContract.basePath, wikiStatsRoutes, { feature: 'wiki' }],
+    [wikiSettingsContract.basePath, wikiSettingsRoutes, { feature: 'wiki' }],
+    [wikiGovernanceContract.basePath, wikiGovernanceRoutes, { feature: 'wiki' }],
   ],
 });

@@ -62,7 +62,7 @@ export default function WikiSettingsPage() {
       return;
     }
     updateMutation.mutate(
-      { requireApproval, defaultVisibility, aiSyncEnabled, aiSyncKbId, commentsEnabled, recycleRetentionDays, pendingRemindHours },
+      { body: { requireApproval, defaultVisibility, aiSyncEnabled, aiSyncKbId, commentsEnabled, recycleRetentionDays, pendingRemindHours } },
       { onSuccess: () => Toast.success('设置已保存') },
     );
   }

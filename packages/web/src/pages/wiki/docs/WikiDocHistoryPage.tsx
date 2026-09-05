@@ -185,7 +185,7 @@ export default function WikiDocHistoryPage() {
                         title: `回滚到 v${effectiveVersion}？`,
                         content: '回滚会生成一个新版本并把文档打回草稿状态，需重新发布。',
                         onOk: () => rollbackMutation.mutate(
-                          { id: docId, version: effectiveVersion },
+                          { params: { id: docId }, body: { version: effectiveVersion } },
                           { onSuccess: () => { Toast.success('回滚成功'); navigate(-1); } },
                         ),
                       })}
