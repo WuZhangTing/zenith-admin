@@ -1,4 +1,9 @@
 import { upgradeWebSocket } from '@hono/node-server';
+import {
+  iotAlarmContract, iotAlarmRuleContract, iotAutomationContract, iotBatchContract, iotDashboardContract,
+  iotDeviceContract, iotDeviceGroupContract, iotFirmwareContract, iotForwardRuleContract, iotIngestContract,
+  iotMaintenanceWindowContract, iotOtaTaskContract, iotProductContract, iotScheduleContract, iotWhitelistContract,
+} from '@zenith/shared/iot';
 import { defineRouteDomain } from '../_kit';
 import iotProductsRoutes from './iot-products';
 import iotDevicesRoutes from './iot-devices';
@@ -16,22 +21,22 @@ import { createIotWsRoute } from './ws';
 export default defineRouteDomain({
   name: 'iot',
   mounts: () => [
-    ['/api/iot/dashboard', iotDashboardRouter],
-    ['/api/iot/products', iotProductsRoutes],
-    ['/api/iot/devices', iotDevicesRoutes],
-    ['/api/iot/groups', iotGroupsRoutes],
-    ['/api/iot/batch', iotBatchRoutes],
-    ['/api/iot/alarms', iotAlarmsRouter],
-    ['/api/iot/alarm-rules', iotAlarmRulesRouter],
-    ['/api/iot/maintenance-windows', iotMaintenanceWindowsRouter],
-    ['/api/iot/automations', iotAutomationsRouter],
-    ['/api/iot/forward-rules', iotForwardRulesRouter],
-    ['/api/iot/schedules', iotSchedulesRouter],
-    ['/api/iot/whitelist', iotWhitelistRouter],
-    ['/api/iot/firmwares', iotFirmwaresRouter],
-    ['/api/iot/ota-tasks', iotOtaTasksRouter],
+    [iotDashboardContract.basePath, iotDashboardRouter],
+    [iotProductContract.basePath, iotProductsRoutes],
+    [iotDeviceContract.basePath, iotDevicesRoutes],
+    [iotDeviceGroupContract.basePath, iotGroupsRoutes],
+    [iotBatchContract.basePath, iotBatchRoutes],
+    [iotAlarmContract.basePath, iotAlarmsRouter],
+    [iotAlarmRuleContract.basePath, iotAlarmRulesRouter],
+    [iotMaintenanceWindowContract.basePath, iotMaintenanceWindowsRouter],
+    [iotAutomationContract.basePath, iotAutomationsRouter],
+    [iotForwardRuleContract.basePath, iotForwardRulesRouter],
+    [iotScheduleContract.basePath, iotSchedulesRouter],
+    [iotWhitelistContract.basePath, iotWhitelistRouter],
+    [iotFirmwareContract.basePath, iotFirmwaresRouter],
+    [iotOtaTaskContract.basePath, iotOtaTasksRouter],
     // 设备侧接入通道（HMAC 鉴权，无管理端 token）
-    ['/api/iot/ingest', ingestRoutes],
+    [iotIngestContract.basePath, ingestRoutes],
     ['/api/iot/ws', createIotWsRoute(upgradeWebSocket)],
   ],
 });

@@ -4,9 +4,12 @@
  *   - 限流套餐（Rate Plan）
  *   - 调用统计 / 调用日志
  *   - 签名验签工具
+ *   - 开放 IoT 设备视图（实体 schema 由 @zenith/shared/iot 契约提供）
  */
 import { z } from '@hono/zod-openapi';
 import { auditFields } from './_audit';
+
+export { openIotDeviceSchema as OpenIotDeviceDTO, openIotDeviceDetailSchema as OpenIotDeviceDetailDTO } from '@zenith/shared/iot';
 
 // ─── API Scope ────────────────────────────────────────────────────────────────
 

@@ -17,12 +17,15 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useDictItems } from '@/hooks/useDictItems';
 import { confirmDelete } from '@/utils/confirm';
+import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
 import {
-  IOT_ALARM_LEVEL_LABELS, IOT_ALARM_LEVEL_OPTIONS, IOT_ALARM_RULE_TYPE_LABELS,
-  IOT_ALARM_RULE_TYPE_OPTIONS, IOT_ALARM_STATUS_LABELS, IOT_ALARM_STATUS_OPTIONS,
+  IOT_ALARM_LEVELS, IOT_ALARM_LEVEL_LABELS, IOT_ALARM_LEVEL_OPTIONS, IOT_ALARM_RULE_TYPES, IOT_ALARM_RULE_TYPE_LABELS,
+  IOT_ALARM_RULE_TYPE_OPTIONS, IOT_ALARM_STATUSES, IOT_ALARM_STATUS_LABELS, IOT_ALARM_STATUS_OPTIONS,
   IOT_COMPARE_OP_LABELS, IOT_COMPARE_OP_OPTIONS,
 } from '@zenith/shared/iot';
-import type { IotAlarm, IotAlarmRule, IotMaintenanceWindow } from '@zenith/shared/iot';
+import type {
+  CreateIotAlarmRuleInput, CreateIotMaintenanceWindowInput, IotAlarm, IotAlarmRule, IotMaintenanceWindow,
+} from '@zenith/shared/iot';
 import { useAllIotProducts, useIotThingModel } from '@/hooks/queries/iot-products';
 import { useIotDeviceList } from '@/hooks/queries/iot-devices';
 import { useAllIotGroups } from '@/hooks/queries/iot-groups';
@@ -63,9 +66,9 @@ function AlarmRecordsTab() {
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    status: submittedParams.status || undefined,
-    level: submittedParams.level || undefined,
-    ruleType: submittedParams.ruleType || undefined,
+    status: enumValueOf(IOT_ALARM_STATUSES, submittedParams.status),
+    level: enumValueOf(IOT_ALARM_LEVELS, submittedParams.level),
+    ruleType: enumValueOf(IOT_ALARM_RULE_TYPES, submittedParams.ruleType),
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -144,7 +147,7 @@ function AlarmRecordsTab() {
         ...(hasPermission('iot:alarm:resolve') && record.status === 'firing' ? [{
           key: 'acknowledge', label: '认领',
           onClick: () => {
-            void acknowledgeMutation.mutateAsync(record.id).then(() => {
+            void acknowledgeMutation.mutateAsync({ params: { id: record.id } }).then(() => {
               Toast.success('已认领，升级计时停止');
             });
           },
@@ -265,7 +268,7 @@ function AlarmRecordsTab() {
         onCancel={() => setResolveTarget(null)}
         onOk={async () => {
           if (!resolveTarget) return;
-          await resolveMutation.mutateAsync({ id: resolveTarget.id, note: resolveNote.trim() || null });
+          await resolveMutation.mutateAsync({ params: { id: resolveTarget.id }, body: { note: resolveNote.trim() || null } });
           Toast.success('告警已处理');
           setResolveTarget(null);
         }}
@@ -356,14 +359,14 @@ function AlarmRulesTab() {
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    ruleType: submittedParams.ruleType || undefined,
-    status: submittedParams.status || undefined,
+    ruleType: enumValueOf(IOT_ALARM_RULE_TYPES, submittedParams.ruleType),
+    status: enumValueOf(USER_STATUSES, submittedParams.status),
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
   const { items: statusItems } = useDictItems('common_status');
 
-  const modal = useEditModal<IotAlarmRule, Record<string, unknown>, Partial<IotAlarmRule>>({
+  const modal = useEditModal<IotAlarmRule, Partial<CreateIotAlarmRuleInput>, Partial<CreateIotAlarmRuleInput>>({
     entityName: '告警规则',
     save: useSaveIotAlarmRule(),
     toValues: (r) => ({
@@ -385,20 +388,20 @@ function AlarmRulesTab() {
     }),
     defaults: { ruleType: 'threshold', level: 'warning', consecutiveCount: 1, status: 'enabled', notifyUserIds: [], escalateUserIds: [] },
     beforeSave: (values, { isEdit }) => ({
-      name: values.name as string,
-      ...(isEdit ? {} : { productId: values.productId as number, ruleType: values.ruleType as IotAlarmRule['ruleType'] }),
-      deviceId: (values.deviceId as number | undefined) ?? null,
-      propertyIdentifier: (values.propertyIdentifier as string | undefined) ?? null,
-      operator: (values.operator as IotAlarmRule['operator'] | undefined) ?? null,
-      threshold: (values.threshold as number | undefined) ?? null,
-      consecutiveCount: (values.consecutiveCount as number) || 1,
-      offlineMinutes: (values.offlineMinutes as number | undefined) ?? null,
-      eventIdentifier: (values.eventIdentifier as string | undefined) ?? null,
-      level: values.level as IotAlarmRule['level'],
-      notifyUserIds: (values.notifyUserIds as number[] | undefined) ?? [],
-      escalateAfterMinutes: (values.escalateAfterMinutes as number | undefined) ?? null,
-      escalateUserIds: (values.escalateUserIds as number[] | undefined) ?? [],
-      status: values.status as IotAlarmRule['status'],
+      name: values.name,
+      ...(isEdit ? {} : { productId: values.productId, ruleType: values.ruleType }),
+      deviceId: values.deviceId ?? null,
+      propertyIdentifier: values.propertyIdentifier ?? null,
+      operator: values.operator ?? null,
+      threshold: values.threshold ?? null,
+      consecutiveCount: values.consecutiveCount || 1,
+      offlineMinutes: values.offlineMinutes ?? null,
+      eventIdentifier: values.eventIdentifier ?? null,
+      level: values.level,
+      notifyUserIds: values.notifyUserIds ?? [],
+      escalateAfterMinutes: values.escalateAfterMinutes ?? null,
+      escalateUserIds: values.escalateUserIds ?? [],
+      status: values.status,
     }),
     labelWidth: 110,
   });
@@ -649,6 +652,11 @@ function RuleFormBody({ isEdit, values }: Readonly<{ isEdit: boolean; values: Re
 }
 
 // ─── 维护窗口 Tab ─────────────────────────────────────────────────────────────
+/** 维护窗口表单值：起止时间在表单里是区间（Date 或字符串），提交前由 beforeSave 拆成 startAt / endAt */
+interface MaintenanceWindowFormValues extends Partial<Omit<CreateIotMaintenanceWindowInput, 'startAt' | 'endAt'>> {
+  timeRange?: [string | Date, string | Date];
+}
+
 function MaintenanceWindowsTab() {
   const { hasPermission } = usePermission();
   const {
@@ -668,7 +676,7 @@ function MaintenanceWindowsTab() {
   const groupsQuery = useAllIotGroups();
   const groups = groupsQuery.data ?? [];
 
-  const modal = useEditModal<IotMaintenanceWindow, Record<string, unknown>, Partial<IotMaintenanceWindow>>({
+  const modal = useEditModal<IotMaintenanceWindow, MaintenanceWindowFormValues, Partial<CreateIotMaintenanceWindowInput>>({
     entityName: '维护窗口',
     save: useSaveIotMaintenanceWindow(),
     toValues: (r) => ({
@@ -681,7 +689,7 @@ function MaintenanceWindowsTab() {
     }),
     defaults: {},
     beforeSave: (values) => {
-      const range = values.timeRange as [string | Date, string | Date] | undefined;
+      const range = values.timeRange;
       const fmt = (v: string | Date | undefined) => {
         if (!v) return '';
         if (typeof v === 'string') return v;
@@ -689,14 +697,14 @@ function MaintenanceWindowsTab() {
         return `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())} ${pad(v.getHours())}:${pad(v.getMinutes())}:${pad(v.getSeconds())}`;
       };
       return {
-        name: values.name as string,
-        productId: (values.productId as number | undefined) ?? null,
-        groupId: (values.groupId as number | undefined) ?? null,
-        deviceId: (values.deviceId as number | undefined) ?? null,
+        name: values.name,
+        productId: values.productId ?? null,
+        groupId: values.groupId ?? null,
+        deviceId: values.deviceId ?? null,
         startAt: fmt(range?.[0]),
         endAt: fmt(range?.[1]),
-        reason: (values.reason as string) || null,
-      } as Partial<IotMaintenanceWindow>;
+        reason: values.reason || null,
+      };
     },
     labelWidth: 100,
   });

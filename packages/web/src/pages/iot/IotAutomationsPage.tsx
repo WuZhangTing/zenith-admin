@@ -15,13 +15,14 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useDictItems } from '@/hooks/useDictItems';
 import { confirmDelete } from '@/utils/confirm';
+import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
 import {
   IOT_AUTOMATION_ACTION_TYPE_LABELS, IOT_AUTOMATION_ACTION_TYPE_OPTIONS,
   IOT_AUTOMATION_DEFAULT_COOLDOWN_SECONDS, IOT_AUTOMATION_ACTION_MAX,
-  IOT_AUTOMATION_TARGET_OPTIONS, IOT_AUTOMATION_TRIGGER_LABELS, IOT_AUTOMATION_TRIGGER_OPTIONS,
+  IOT_AUTOMATION_TARGET_OPTIONS, IOT_AUTOMATION_TRIGGERS, IOT_AUTOMATION_TRIGGER_LABELS, IOT_AUTOMATION_TRIGGER_OPTIONS,
   IOT_COMPARE_OP_LABELS, IOT_COMPARE_OP_OPTIONS,
 } from '@zenith/shared/iot';
-import type { IotAutomation, IotAutomationAction, IotAutomationRun } from '@zenith/shared/iot';
+import type { CreateIotAutomationInput, IotAutomation, IotAutomationAction, IotAutomationRun } from '@zenith/shared/iot';
 import { useAllIotProducts, useIotThingModel } from '@/hooks/queries/iot-products';
 import { useIotDeviceList } from '@/hooks/queries/iot-devices';
 import { useAllIotGroups } from '@/hooks/queries/iot-groups';
@@ -127,6 +128,11 @@ function fromActionRow(row: ActionFormRow): IotAutomationAction {
   return base;
 }
 
+/** 联动表单值：动作以行编辑形态承载（JSON 字段为文本），提交前由 beforeSave 解析为契约动作 */
+interface AutomationFormValues extends Partial<Omit<CreateIotAutomationInput, 'actions'>> {
+  actions?: ActionFormRow[];
+}
+
 function AutomationRulesTab({ onShowRuns }: Readonly<{ onShowRuns: (automation: IotAutomation) => void }>) {
   const { hasPermission } = usePermission();
   const {
@@ -139,14 +145,14 @@ function AutomationRulesTab({ onShowRuns }: Readonly<{ onShowRuns: (automation: 
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    triggerType: submittedParams.triggerType || undefined,
-    status: submittedParams.status || undefined,
+    triggerType: enumValueOf(IOT_AUTOMATION_TRIGGERS, submittedParams.triggerType),
+    status: enumValueOf(USER_STATUSES, submittedParams.status),
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
   const { items: statusItems } = useDictItems('common_status');
 
-  const modal = useEditModal<IotAutomation, Record<string, unknown>, Partial<IotAutomation>>({
+  const modal = useEditModal<IotAutomation, AutomationFormValues, Partial<CreateIotAutomationInput>>({
     entityName: '联动规则',
     save: useSaveIotAutomation(),
     toValues: (r) => ({
@@ -170,7 +176,7 @@ function AutomationRulesTab({ onShowRuns }: Readonly<{ onShowRuns: (automation: 
       actions: [{ type: 'notify', target: 'self', userIds: [] }],
     },
     beforeSave: (values, { isEdit }) => {
-      const rows = (values.actions as ActionFormRow[] | undefined) ?? [];
+      const rows = values.actions ?? [];
       if (rows.length === 0) throw new Error('至少需要一个执行动作');
       let actions: IotAutomationAction[];
       try {
@@ -180,20 +186,20 @@ function AutomationRulesTab({ onShowRuns }: Readonly<{ onShowRuns: (automation: 
         throw err;
       }
       return {
-        name: values.name as string,
+        name: values.name,
         ...(isEdit ? {} : {
-          productId: values.productId as number,
-          triggerType: values.triggerType as IotAutomation['triggerType'],
+          productId: values.productId,
+          triggerType: values.triggerType,
         }),
-        deviceId: (values.deviceId as number | undefined) ?? null,
-        propertyIdentifier: (values.propertyIdentifier as string | undefined) ?? null,
-        operator: (values.operator as IotAutomation['operator'] | undefined) ?? null,
-        threshold: (values.threshold as number | undefined) ?? null,
-        eventIdentifier: (values.eventIdentifier as string | undefined) ?? null,
-        decisionRuleKey: ((values.decisionRuleKey as string | undefined)?.trim()) || null,
-        cooldownSeconds: (values.cooldownSeconds as number) ?? IOT_AUTOMATION_DEFAULT_COOLDOWN_SECONDS,
+        deviceId: values.deviceId ?? null,
+        propertyIdentifier: values.propertyIdentifier ?? null,
+        operator: values.operator ?? null,
+        threshold: values.threshold ?? null,
+        eventIdentifier: values.eventIdentifier ?? null,
+        decisionRuleKey: values.decisionRuleKey?.trim() || null,
+        cooldownSeconds: values.cooldownSeconds ?? IOT_AUTOMATION_DEFAULT_COOLDOWN_SECONDS,
         actions,
-        status: values.status as IotAutomation['status'],
+        status: values.status,
       };
     },
     labelWidth: 110,
@@ -596,7 +602,7 @@ function AutomationRunsTab({ filterAutomation, onClearFilter }: Readonly<{
     page,
     pageSize,
     automationId: filterAutomation?.id,
-    success: successFilter === '' ? undefined : successFilter === 'true',
+    success: successFilter ? successFilter === 'true' : undefined,
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;

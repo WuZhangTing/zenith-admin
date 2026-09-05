@@ -17,8 +17,9 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { useDictItems } from '@/hooks/useDictItems';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
-import type { IotDevice, IotDeviceGroup } from '@zenith/shared/iot';
-import { IOT_NODE_TYPE_OPTIONS } from '@zenith/shared/iot';
+import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
+import type { CreateIotDeviceGroupInput, CreateIotDeviceInput, IotDevice, IotDeviceGroup, IotMetricValue } from '@zenith/shared/iot';
+import { IOT_NODE_TYPES, IOT_NODE_TYPE_OPTIONS } from '@zenith/shared/iot';
 import { useAllIotProducts } from '@/hooks/queries/iot-products';
 import {
   iotDeviceKeys, useDeleteIotDevices, useIotDeviceList, useSaveIotDevice,
@@ -38,6 +39,11 @@ interface SearchParams {
 }
 
 const defaultSearchParams: SearchParams = { keyword: '', status: undefined, productId: null, groupId: null, nodeType: '' };
+
+/** 设备表单值：记录里的 null 在表单中归一为空串 / 未填，提交前由 beforeSave 还原 */
+type IotDeviceFormValues = Partial<CreateIotDeviceInput>;
+
+type IotDeviceGroupFormValues = Partial<CreateIotDeviceGroupInput>;
 
 function renderMetricValue(v: number | string | boolean): string {
   if (typeof v === 'boolean') return v ? 'on' : 'off';
@@ -88,15 +94,15 @@ export default function IotDevicesPage() {
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    status: submittedParams.status || undefined,
+    status: enumValueOf(USER_STATUSES, submittedParams.status),
     productId: submittedParams.productId ?? undefined,
     groupId: submittedParams.groupId ?? undefined,
-    nodeType: submittedParams.nodeType || undefined,
+    nodeType: enumValueOf(IOT_NODE_TYPES, submittedParams.nodeType),
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
-  const modal = useEditModal<IotDevice, Record<string, unknown>, Partial<IotDevice>>({
+  const modal = useEditModal<IotDevice, IotDeviceFormValues, Partial<CreateIotDeviceInput>>({
     entityName: '设备',
     save: useSaveIotDevice(),
     toValues: (r) => ({
@@ -109,24 +115,24 @@ export default function IotDevicesPage() {
       address: r.address ?? '',
       firmwareVersion: r.firmwareVersion ?? '',
       status: r.status,
-      groupIds: r.groupIds ?? [],
+      groupIds: r.groupIds,
       remark: r.remark ?? '',
     }),
     defaults: { status: 'enabled', nodeType: 'direct', groupIds: [] },
     beforeSave: (values, { isEdit }) => ({
-      productId: values.productId as number,
-      name: values.name as string,
+      productId: values.productId,
+      name: values.name,
       // SN 仅创建时可指定，编辑不可变更
-      ...(isEdit ? {} : { sn: (values.sn as string)?.trim() || undefined }),
-      nodeType: values.nodeType as IotDevice['nodeType'],
-      gatewayId: values.nodeType === 'sub' ? ((values.gatewayId as number | undefined) ?? null) : null,
-      latitude: (values.latitude as number | undefined) ?? null,
-      longitude: (values.longitude as number | undefined) ?? null,
-      address: (values.address as string) || null,
-      firmwareVersion: (values.firmwareVersion as string) || null,
-      status: values.status as IotDevice['status'],
-      groupIds: (values.groupIds as number[] | undefined) ?? [],
-      remark: (values.remark as string) || null,
+      ...(isEdit ? {} : { sn: values.sn?.trim() || undefined }),
+      nodeType: values.nodeType,
+      gatewayId: values.nodeType === 'sub' ? (values.gatewayId ?? null) : null,
+      latitude: values.latitude ?? null,
+      longitude: values.longitude ?? null,
+      address: values.address || null,
+      firmwareVersion: values.firmwareVersion || null,
+      status: values.status,
+      groupIds: values.groupIds ?? [],
+      remark: values.remark || null,
     }),
     labelWidth: 100,
   });
@@ -140,13 +146,13 @@ export default function IotDevicesPage() {
   }
 
   // ─── 分组管理 ────────────────────────────────────────────────────────────────
-  const groupModal = useEditModal<IotDeviceGroup, Record<string, unknown>, Partial<IotDeviceGroup>>({
+  const groupModal = useEditModal<IotDeviceGroup, IotDeviceGroupFormValues, Partial<CreateIotDeviceGroupInput>>({
     entityName: '分组',
     save: useSaveIotGroup(),
     toValues: (r) => ({ name: r.name, description: r.description ?? '' }),
     beforeSave: (values) => ({
-      name: values.name as string,
-      description: (values.description as string) || null,
+      name: values.name,
+      description: values.description || null,
     }),
     labelWidth: 90,
   });
@@ -167,10 +173,12 @@ export default function IotDevicesPage() {
     }
     if (batchKind === 'command') {
       await batchCommandMutation.mutateAsync({
-        deviceIds: selectedRowKeys,
-        service: values.service as string,
-        params: parseJsonOrAbort((values.paramsText as string) ?? '', '参数'),
-        ttlSeconds: (values.ttlSeconds as number) || undefined,
+        body: {
+          deviceIds: selectedRowKeys,
+          service: values.service as string,
+          params: parseJsonOrAbort((values.paramsText as string) ?? '', '参数'),
+          ttlSeconds: (values.ttlSeconds as number) || undefined,
+        },
       });
     } else {
       const desired = parseJsonOrAbort((values.desiredText as string) ?? '', '期望属性');
@@ -179,8 +187,10 @@ export default function IotDevicesPage() {
         abortSubmit();
       }
       await batchDesiredMutation.mutateAsync({
-        deviceIds: selectedRowKeys,
-        desired: desired as Record<string, number | string | boolean>,
+        body: {
+          deviceIds: selectedRowKeys,
+          desired: desired as Record<string, IotMetricValue>,
+        },
       });
     }
     Toast.success('批量任务已提交，可在顶栏任务托盘查看进度');

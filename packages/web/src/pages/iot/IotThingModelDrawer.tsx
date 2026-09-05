@@ -12,6 +12,7 @@ import {
   IOT_PROPERTY_TYPE_LABELS, IOT_PROPERTY_TYPE_OPTIONS,
 } from '@zenith/shared/iot';
 import type {
+  CreateIotEventInput, CreateIotPropertyInput, CreateIotServiceInput, ImportIotTslInput,
   IotParamDef, IotProduct, IotProductEvent, IotProductProperty, IotProductService,
 } from '@zenith/shared/iot';
 import {
@@ -20,6 +21,25 @@ import {
 } from '@/hooks/queries/iot-products';
 
 const EVENT_LEVEL_COLORS = { info: 'blue', warn: 'orange', fault: 'red' } as const;
+
+/** 属性表单值：枚举取值以「每行 值=显示名」文本编辑，提交前由 beforeSave 解析；记录里的 null 归一为空串 */
+interface PropertyFormValues extends Partial<Omit<CreateIotPropertyInput, 'enumOptions'>> {
+  enumText?: string;
+}
+
+type ServiceFormValues = Partial<CreateIotServiceInput>;
+
+type EventFormValues = Partial<CreateIotEventInput>;
+
+/** 参数定义行：表单里未填的单位 / 量程归一为 null */
+function normalizeParamDefs(params: IotParamDef[] | undefined): IotParamDef[] {
+  return (params ?? []).map((p) => ({
+    ...p,
+    unit: p.unit || null,
+    minValue: p.minValue ?? null,
+    maxValue: p.maxValue ?? null,
+  }));
+}
 
 /** enumOptions（{值: 显示名}）↔ 文本域「每行 值=显示名」互转 */
 function enumOptionsToText(options: Record<string, string> | null | undefined): string {
@@ -123,10 +143,10 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
 
   // ─── 属性 ───────────────────────────────────────────────────────────────────
   const savePropertyMutation = useSaveIotProperty();
-  const propertyModal = useEditModal<IotProductProperty, Record<string, unknown>, Record<string, unknown>>({
+  const propertyModal = useEditModal<IotProductProperty, PropertyFormValues, Partial<CreateIotPropertyInput>>({
     entityName: '属性',
     save: {
-      mutateAsync: ({ id, values }) => savePropertyMutation.mutateAsync({ productId: productId!, id, values: values as never }),
+      mutateAsync: ({ id, values }) => savePropertyMutation.mutateAsync({ productId: productId!, id, values }),
       isPending: savePropertyMutation.isPending,
     },
     toValues: (r) => ({
@@ -145,18 +165,18 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
     }),
     defaults: { dataType: 'number', accessMode: 'r', featured: false, anomalyEnabled: false, sort: 0 },
     beforeSave: (values, ctx) => ({
-      ...(ctx.isEdit ? {} : { identifier: values.identifier as string }),
-      name: values.name as string,
+      ...(ctx.isEdit ? {} : { identifier: values.identifier }),
+      name: values.name,
       dataType: values.dataType,
       accessMode: values.accessMode,
-      unit: (values.unit as string) || null,
+      unit: values.unit || null,
       minValue: values.minValue ?? null,
       maxValue: values.maxValue ?? null,
-      enumOptions: values.dataType === 'enum' ? textToEnumOptions(values.enumText as string) : null,
+      enumOptions: values.dataType === 'enum' ? textToEnumOptions(values.enumText) : null,
       featured: Boolean(values.featured),
       anomalyEnabled: values.dataType === 'number' ? Boolean(values.anomalyEnabled) : false,
-      sort: (values.sort as number) ?? 0,
-      description: (values.description as string) || null,
+      sort: values.sort ?? 0,
+      description: values.description || null,
     }),
     labelWidth: 90,
   });
@@ -164,10 +184,10 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
 
   // ─── 服务 ───────────────────────────────────────────────────────────────────
   const saveServiceMutation = useSaveIotService();
-  const serviceModal = useEditModal<IotProductService, Record<string, unknown>, Record<string, unknown>>({
+  const serviceModal = useEditModal<IotProductService, ServiceFormValues, Partial<CreateIotServiceInput>>({
     entityName: '服务',
     save: {
-      mutateAsync: ({ id, values }) => saveServiceMutation.mutateAsync({ productId: productId!, id, values: values as never }),
+      mutateAsync: ({ id, values }) => saveServiceMutation.mutateAsync({ productId: productId!, id, values }),
       isPending: saveServiceMutation.isPending,
     },
     toValues: (r) => ({
@@ -180,17 +200,12 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
     }),
     defaults: { params: [], danger: false, sort: 0 },
     beforeSave: (values, ctx) => ({
-      ...(ctx.isEdit ? {} : { identifier: values.identifier as string }),
-      name: values.name as string,
-      params: ((values.params as IotParamDef[] | undefined) ?? []).map((p) => ({
-        ...p,
-        unit: p.unit || null,
-        minValue: p.minValue ?? null,
-        maxValue: p.maxValue ?? null,
-      })),
+      ...(ctx.isEdit ? {} : { identifier: values.identifier }),
+      name: values.name,
+      params: normalizeParamDefs(values.params),
       danger: Boolean(values.danger),
-      sort: (values.sort as number) ?? 0,
-      description: (values.description as string) || null,
+      sort: values.sort ?? 0,
+      description: values.description || null,
     }),
     labelWidth: 90,
   });
@@ -198,10 +213,10 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
 
   // ─── 事件 ───────────────────────────────────────────────────────────────────
   const saveEventMutation = useSaveIotEvent();
-  const eventModal = useEditModal<IotProductEvent, Record<string, unknown>, Record<string, unknown>>({
+  const eventModal = useEditModal<IotProductEvent, EventFormValues, Partial<CreateIotEventInput>>({
     entityName: '事件',
     save: {
-      mutateAsync: ({ id, values }) => saveEventMutation.mutateAsync({ productId: productId!, id, values: values as never }),
+      mutateAsync: ({ id, values }) => saveEventMutation.mutateAsync({ productId: productId!, id, values }),
       isPending: saveEventMutation.isPending,
     },
     toValues: (r) => ({
@@ -214,17 +229,12 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
     }),
     defaults: { level: 'info', params: [], sort: 0 },
     beforeSave: (values, ctx) => ({
-      ...(ctx.isEdit ? {} : { identifier: values.identifier as string }),
-      name: values.name as string,
+      ...(ctx.isEdit ? {} : { identifier: values.identifier }),
+      name: values.name,
       level: values.level,
-      params: ((values.params as IotParamDef[] | undefined) ?? []).map((p) => ({
-        ...p,
-        unit: p.unit || null,
-        minValue: p.minValue ?? null,
-        maxValue: p.maxValue ?? null,
-      })),
-      sort: (values.sort as number) ?? 0,
-      description: (values.description as string) || null,
+      params: normalizeParamDefs(values.params),
+      sort: values.sort ?? 0,
+      description: values.description || null,
     }),
     labelWidth: 90,
   });
@@ -252,14 +262,14 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
 
   async function handleImport() {
     if (!productId) return;
-    let parsed: unknown;
+    let parsed: ImportIotTslInput;
     try {
-      parsed = JSON.parse(importText);
+      parsed = JSON.parse(importText) as ImportIotTslInput;
     } catch {
       Toast.error('不是合法的 JSON');
       return;
     }
-    await importMutation.mutateAsync({ productId, values: parsed as never });
+    await importMutation.mutateAsync({ params: { id: productId }, body: parsed });
     Toast.success('物模型已导入');
     setImportVisible(false);
     setImportText('');
@@ -309,7 +319,7 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
               title: `确定要删除属性「${r.identifier}」吗？`,
               content: '历史遥测数据保留，图表与影子将不再声明该属性',
               onOk: async () => {
-                await deletePropertyMutation.mutateAsync({ productId: productId!, id: r.id });
+                await deletePropertyMutation.mutateAsync({ params: { id: productId!, propertyId: r.id } });
                 Toast.success('删除成功');
               },
             });
@@ -337,7 +347,7 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
               title: `确定要删除服务「${r.identifier}」吗？`,
               content: '删除后无法再向设备下发该服务',
               onOk: async () => {
-                await deleteServiceMutation.mutateAsync({ productId: productId!, id: r.id });
+                await deleteServiceMutation.mutateAsync({ params: { id: productId!, serviceId: r.id } });
                 Toast.success('删除成功');
               },
             });
@@ -367,7 +377,7 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
               title: `确定要删除事件「${r.identifier}」吗？`,
               content: '关联的事件告警规则将不再触发',
               onOk: async () => {
-                await deleteEventMutation.mutateAsync({ productId: productId!, id: r.id });
+                await deleteEventMutation.mutateAsync({ params: { id: productId!, eventId: r.id } });
                 Toast.success('删除成功');
               },
             });
