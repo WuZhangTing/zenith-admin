@@ -728,38 +728,6 @@ export const PaymentDeductResultDTO = z
   })
   .openapi('PaymentDeductResult');
 
-export const MemberVipRenewalDTO = z
-  .object({
-    id: z.number().int(),
-    orderNo: z.string(),
-    contractNo: z.string().nullable().optional(),
-    amount: z.number().int(),
-    vipExpireAfter: z.string(),
-    createdAt: z.string(),
-  })
-  .openapi('MemberVipRenewal');
-
-/** 会员端自动续费视图 */
-export const MemberRenewalInfoDTO = z
-  .object({
-    vipExpireAt: z.string().nullable().optional(),
-    contract: PaymentContractDTO.nullable().optional(),
-    renewals: z.array(MemberVipRenewalDTO),
-  })
-  .openapi('MemberRenewalInfo');
-
-/** 会员端可选续费计划（公开视图） */
-export const MemberRenewalPlanDTO = z
-  .object({
-    id: z.number().int(),
-    name: z.string(),
-    period: deductPeriodEnum,
-    customDays: z.number().int().nullable().optional(),
-    amount: z.number().int(),
-    remark: z.string().nullable().optional(),
-  })
-  .openapi('MemberRenewalPlan');
-
 // ─── 交易投诉/争议 ────────────────────────────────────────────────────────────
 const disputeTypeEnum = z.enum(['refund_request', 'service_issue', 'fraud_report', 'other']);
 const disputeStatusEnum = z.enum(['pending', 'processing', 'resolved', 'refunded']);

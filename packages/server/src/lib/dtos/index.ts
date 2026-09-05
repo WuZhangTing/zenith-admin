@@ -36,7 +36,6 @@ export * from './ssh-sftp';
 export * from './terminal-sessions';
 export * from './payment';
 export * from './payment-journals';
-export * from './member';
 export * from './mp';
 export * from './ssl-certificates';
 export * from './nginx-sites';
