@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
 import { Modal, Form, Button, Notification } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import type { User } from '@zenith/shared/identity';
-import { request } from '@/utils/request';
+import { authContract, type User } from '@zenith/shared/identity';
+import { api } from '@/lib/contract-query';
 import { PasswordStrengthMeter } from './PasswordStrengthMeter';
 
 interface Props {
@@ -31,16 +31,13 @@ export default function ForceChangePasswordModal({ user, onLogout }: Props) {
     }
     setLoading(true);
     try {
-      const res = await request.put('/api/auth/password', {
-        oldPassword: values.oldPassword,
-        newPassword: values.newPassword,
-      });
-      if (res.code === 0) {
-        Notification.success({ title: '密码修改成功，请重新登录' });
-        setTimeout(() => {
-          onLogout();
-        }, 1500);
-      }
+      await api(authContract.changePassword, { body: { oldPassword: values.oldPassword, newPassword: values.newPassword } });
+      Notification.success({ title: '密码修改成功，请重新登录' });
+      setTimeout(() => {
+        onLogout();
+      }, 1500);
+    } catch {
+      // 失败提示由请求层统一弹出，弹窗保留供重试
     } finally {
       setLoading(false);
     }

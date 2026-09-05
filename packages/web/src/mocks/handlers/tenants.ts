@@ -1,8 +1,7 @@
 import { tenantContract } from '@zenith/shared/identity';
 import type { Tenant } from '@zenith/shared/identity';
-import { http } from 'msw';
 import { mock } from '@/mocks/utils/contract';
-import { ok, notFound } from '@/mocks/utils/handlers';
+import { notFound } from '@/mocks/utils/handlers';
 import { mockTenants, getNextTenantId } from '@/mocks/data/tenants';
 import { mockTenantPackages } from '@/mocks/data/tenant-packages';
 import { mockDateTime } from '@/mocks/utils/date';
@@ -94,13 +93,5 @@ export const tenantsHandlers = [
     if (index === -1) return notFound('租户不存在');
     mockTenants.splice(index, 1);
     return ok(null, '删除成功');
-  }),
-
-  // 切换租户
-  http.post('/api/auth/switch-tenant', () => {
-    return ok({
-      accessToken: 'mock-access-token-switched',
-      refreshToken: 'mock-refresh-token-switched',
-    });
   }),
 ];

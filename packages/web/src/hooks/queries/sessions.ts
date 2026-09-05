@@ -1,14 +1,9 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse } from '@zenith/shared/core';
-import type { OnlineUser } from '@zenith/shared/platform';
-import { request } from '@/utils/request';
-import { toQueryString, unwrap } from '@/lib/query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import type { QueryOf } from '@zenith/shared/core';
+import { sessionContract } from '@zenith/shared/identity';
+import { api, useApiMutation } from '@/lib/contract-query';
 
-export interface SessionListParams {
-  page: number;
-  pageSize: number;
-  keyword?: string;
-}
+export type SessionListParams = NonNullable<QueryOf<typeof sessionContract.list>>;
 
 export const sessionKeys = {
   all: ['sessions'] as const,
@@ -19,19 +14,20 @@ export const sessionKeys = {
 export function useSessionList(params: SessionListParams) {
   return useQuery({
     queryKey: sessionKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<OnlineUser>>(`/api/sessions${toQueryString(params)}`).then(unwrap),
+    queryFn: () => api(sessionContract.list, { query: params }),
     placeholderData: keepPreviousData,
   });
 }
 
+/** 强制下线：single 只踢指定会话，all 踢该用户全部会话；两者都改变在线列表 */
 export function useForceLogoutSession() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { mode: 'single' | 'all'; tokenId: string; userId: number }) =>
-      (input.mode === 'all'
-        ? request.delete<null>(`/api/sessions/user/${input.userId}`)
-        : request.delete<null>(`/api/sessions/${input.tokenId}`)
-      ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: sessionKeys.all }),
+  return useApiMutation(sessionContract.forceLogout, {
+    invalidate: (qc) => void qc.invalidateQueries({ queryKey: sessionKeys.all }),
+  });
+}
+
+export function useForceLogoutUserSessions() {
+  return useApiMutation(sessionContract.forceLogoutUser, {
+    invalidate: (qc) => void qc.invalidateQueries({ queryKey: sessionKeys.all }),
   });
 }

@@ -1,9 +1,9 @@
-import { http } from 'msw';
-import { ok, notFound } from '@/mocks/utils/handlers';
+import { departmentContract, type Department } from '@zenith/shared/identity';
+import { mock } from '@/mocks/utils/contract';
+import { notFound } from '@/mocks/utils/handlers';
 import { mockDepartments, getNextDeptId } from '@/mocks/data/departments';
 import { mockUsers } from '@/mocks/data/users';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { Department } from '@zenith/shared/identity';
 
 function withLeaderName(dept: Department): Department {
   const leader = dept.leaderId ? mockUsers.find((u) => u.id === dept.leaderId) : undefined;
@@ -29,41 +29,47 @@ function buildDeptTree(list: Department[], parentId: number = 0): Department[] {
     });
 }
 
+/** 按关键字 / 状态过滤，命中节点保留其祖先链（与服务端语义一致） */
+function filterDepartments(list: Department[], keyword?: string, status?: string): Department[] {
+  if (!keyword && !status) return list;
+  const byId = new Map(list.map((d) => [d.id, d]));
+  const keep = new Set<number>();
+  for (const dept of list) {
+    if (keyword && !dept.name.includes(keyword) && !dept.code.includes(keyword)) continue;
+    if (status && dept.status !== status) continue;
+    let current: Department | undefined = dept;
+    while (current && !keep.has(current.id)) {
+      keep.add(current.id);
+      current = byId.get(current.parentId);
+    }
+  }
+  return list.filter((d) => keep.has(d.id));
+}
+
 export const departmentsHandlers = [
   // 部门平铺列表（供下拉框使用）
-  http.get('/api/departments/flat', () => {
+  mock(departmentContract.flat, ({ ok }) => {
     return ok(mockDepartments.map(withLeaderName));
   }),
 
   // 部门树
-  http.get('/api/departments', ({ request }) => {
-    const url = new URL(request.url);
-    const flat = url.searchParams.get('flat');
-    if (flat === 'true') {
-      return ok(mockDepartments.map(withLeaderName));
-    }
-    return ok(buildDeptTree(mockDepartments));
+  mock(departmentContract.tree, ({ query, ok }) => {
+    return ok(buildDeptTree(filterDepartments(mockDepartments, query.keyword, query.status)));
   }),
 
   // 获取单个部门
-  http.get('/api/departments/:id', ({ params }) => {
-    const dept = mockDepartments.find((d) => d.id === Number(params.id));
-    if (!dept) return notFound('部门不存在');
+  mock(departmentContract.detail, ({ params, ok }) => {
+    const dept = mockDepartments.find((d) => d.id === params.id);
+    if (!dept) return notFound('部门不存在', { status: 404 });
     return ok(dept);
   }),
 
   // 新增部门
-  http.post('/api/departments', async ({ request }) => {
-    const body = await request.json() as Partial<Department>;
+  mock(departmentContract.create, ({ body, ok }) => {
     const newDept: Department = {
       id: getNextDeptId(),
-      name: body.name ?? '',
-      code: body.code ?? '',
-      parentId: body.parentId ?? 0,
-      category: body.category ?? 'department',
+      ...body,
       leaderId: body.leaderId ?? null,
-      sort: body.sort ?? 0,
-      status: body.status ?? 'enabled',
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),
     };
@@ -72,18 +78,17 @@ export const departmentsHandlers = [
   }),
 
   // 更新部门
-  http.put('/api/departments/:id', async ({ params, request }) => {
-    const dept = mockDepartments.find((d) => d.id === Number(params.id));
-    if (!dept) return notFound('部门不存在');
-    const body = await request.json() as Partial<Department>;
+  mock(departmentContract.update, ({ params, body, ok }) => {
+    const dept = mockDepartments.find((d) => d.id === params.id);
+    if (!dept) return notFound('部门不存在', { status: 404 });
     Object.assign(dept, body, { updatedAt: mockDateTime() });
     return ok(dept, '更新成功');
   }),
 
   // 删除部门
-  http.delete('/api/departments/:id', ({ params }) => {
-    const index = mockDepartments.findIndex((d) => d.id === Number(params.id));
-    if (index === -1) return notFound('部门不存在');
+  mock(departmentContract.remove, ({ params, ok }) => {
+    const index = mockDepartments.findIndex((d) => d.id === params.id);
+    if (index === -1) return notFound('部门不存在', { status: 404 });
     mockDepartments.splice(index, 1);
     return ok(null, '删除成功');
   }),

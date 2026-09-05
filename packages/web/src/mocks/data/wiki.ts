@@ -32,9 +32,9 @@ export const mockWikiTemplates: WikiTemplate[] = SEED_WIKI_TEMPLATES.map((t) => 
   updatedAt: now,
 }));
 
-export interface MockWikiDoc extends WikiDoc {
+/** 内存文档：始终持有正文与标签 ID，标签摘要、空间名等派生字段在 handler 输出时按需附加 */
+export interface MockWikiDoc extends Omit<WikiDoc, 'tags'> {
   content: string;
-  tagIds: number[];
 }
 
 export const mockWikiDocs: MockWikiDoc[] = SEED_WIKI_DOCS.map((d, i) => ({

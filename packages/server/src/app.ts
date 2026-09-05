@@ -32,6 +32,7 @@ import { config } from './config';
 import logger from './lib/logger';
 import { htmlSecurityHeadersMiddleware } from './lib/html-security-headers';
 import { errBody } from './lib/openapi-schemas';
+import { CONTRACT_SECURITY_SCHEMES } from './lib/contract-route';
 import { OAuth2Error, oauth2ErrorBody } from './lib/oauth2-error';
 import { registerZenithMetrics } from './lib/prometheus-metrics';
 import { httpMetricsMiddleware } from './middleware/http-metrics';
@@ -251,6 +252,9 @@ export function createApp() {
     bearerFormat: 'JWT',
     description: '登录后获取的 accessToken，格式：`Bearer <token>`',
   });
+  for (const [name, scheme] of Object.entries(CONTRACT_SECURITY_SCHEMES)) {
+    app.openAPIRegistry.registerComponent('securitySchemes', name, scheme);
+  }
   const openApiDocConfig = {
     openapi: '3.1.0',
     info: {

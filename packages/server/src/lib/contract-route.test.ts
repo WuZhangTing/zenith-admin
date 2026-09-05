@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import * as z from 'zod';
 import { defineContract, fileField, idParam, multipart, op, paginated, paginationQuery } from '@zenith/shared/core';
-import { defineContractRoute, toRoute } from './contract-route';
+import { CONTRACT_SECURITY_SCHEMES, defineContractRoute, toRoute } from './contract-route';
 import { conflictResponse, okBody, validationHook } from './openapi-schemas';
 
 const itemSchema = z.object({ id: z.int(), name: z.string() }).meta({ id: 'ContractProbeItem' });
@@ -88,6 +88,20 @@ describe('toRoute', () => {
   it('declares multipart request bodies', () => {
     const upload = toRoute(probe.upload, { middleware: [] });
     expect(Object.keys(upload.request.body.content)).toEqual(['multipart/form-data']);
+  });
+
+  it('maps non-bearer credential schemes onto registered securitySchemes', () => {
+    const secured = defineContract('/api/contract-probe-secured', {
+      telemetry: op.post('/telemetry', { summary: '上报', security: 'device-signature' }),
+      ping: op.get('/ping', { summary: 'ping', security: 'open-gateway' }),
+    });
+    const device = toRoute(secured.telemetry, { middleware: [] });
+    expect(device.security).toEqual([{ IotDeviceSignature: [] }]);
+    const gateway = toRoute(secured.ping, { middleware: [] });
+    expect(gateway.security).toEqual([{ OpenGatewayToken: [] }, { OpenGatewaySignature: [] }]);
+    for (const requirement of [...device.security, ...gateway.security]) {
+      for (const name of Object.keys(requirement)) expect(name in CONTRACT_SECURITY_SCHEMES).toBe(true);
+    }
   });
 });
 

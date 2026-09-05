@@ -28,7 +28,7 @@ import {
   useAllRoles,
   useAssignRoleMenus,
   useAssignRoleUsers,
-  useDeleteRole,
+  useDeleteRoles,
   useRoleDetail,
   useRoleList,
   useRoleUsers,
@@ -77,7 +77,7 @@ describe('useAssignRoleMenus —— 菜单只存在于角色详情', () => {
     const fetches = observeFetches(qc);
     api.resetCalls();
 
-    await result.current.assignMenus.mutateAsync({ id: 1, menuIds: [1, 2, 3] });
+    await result.current.assignMenus.mutateAsync({ params: { id: 1 }, body: { menuIds: [1, 2, 3] } });
     await waitFor(() => expect(fetches.countOf(roleKeys.detail(1))).toBe(1));
 
     expect(fetches.countOf(roleKeys.lists)).toBe(0);
@@ -110,7 +110,7 @@ describe('useAssignRoleUsers —— 列表展示 userCount', () => {
     const fetches = observeFetches(qc);
     api.resetCalls();
 
-    await result.current.assignUsers.mutateAsync({ id: 1, userIds: [7, 8] });
+    await result.current.assignUsers.mutateAsync({ params: { id: 1 }, body: { userIds: [7, 8] } });
     await waitFor(() => expect(fetches.countOf(roleKeys.users(1))).toBe(1));
     await waitFor(() => expect(result.current.list.isFetching).toBe(false));
 
@@ -152,11 +152,11 @@ describe('useSaveRole', () => {
   });
 });
 
-describe('useDeleteRole', () => {
+describe('useDeleteRoles', () => {
   it('drops the deleted role detail and member caches', async () => {
     const qc = createTestQueryClient();
     const { result } = renderHook(
-      () => ({ list: useRoleList(LIST_PARAMS), remove: useDeleteRole() }),
+      () => ({ list: useRoleList(LIST_PARAMS), remove: useDeleteRoles() }),
       { wrapper: createWrapper(qc) },
     );
     await waitFor(() => expect(result.current.list.isSuccess).toBe(true));
@@ -164,7 +164,7 @@ describe('useDeleteRole', () => {
     qc.setQueryData(roleKeys.detail(1), ROLE);
     qc.setQueryData(roleKeys.users(1), [{ id: 7 }]);
 
-    await result.current.remove.mutateAsync(1);
+    await result.current.remove.mutateAsync([1]);
     await waitFor(() => expect(result.current.list.isFetching).toBe(false));
 
     expect(hasCacheEntry(qc, roleKeys.detail(1))).toBe(false);
@@ -200,7 +200,7 @@ describe('departments', () => {
     await waitFor(() => expect(result.current.tree.isSuccess).toBe(true));
 
     qc.setQueryData(departmentKeys.detail(1), { id: 1, name: '研发部' });
-    await result.current.remove.mutateAsync(1);
+    await result.current.remove.mutateAsync({ params: { id: 1 } });
 
     expect(hasCacheEntry(qc, departmentKeys.detail(1))).toBe(false);
   });

@@ -17,7 +17,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
-import { menuKeys, useDeleteMenu, useMenuDetail, useMenuTree, useSaveMenu } from '@/hooks/queries/menus';
+import { menuKeys, useDeleteMenu, useMenuDetail, useMenuTree, useSaveMenu, type MenuFormValues } from '@/hooks/queries/menus';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
@@ -45,7 +45,7 @@ export default function MenusPage() {
   const menuTreeQuery = useMenuTree();
   const data = useMemo(() => menuTreeQuery.data ?? [], [menuTreeQuery.data]);
   const saveMutation = useSaveMenu();
-  const menuModal = useEditModal<Menu, Record<string, unknown>, Record<string, unknown>>({
+  const menuModal = useEditModal<Menu, Record<string, unknown>, MenuFormValues>({
     entityName: '菜单',
     save: saveMutation,
     useDetail: useMenuDetail,
@@ -66,12 +66,13 @@ export default function MenusPage() {
       embed: menu.embed ?? false,
       keepAlive: menu.keepAlive ?? false,
     }),
-    beforeSave: (values) => ({
-      ...values,
+    // 表单以宽松键值对维护（visible 用 show/hidden 字典值），提交前收敛为创建入参形态
+    beforeSave: (values): MenuFormValues => ({
+      ...(values as MenuFormValues),
       parentId: parentId ?? 0,
       icon: iconValue || undefined,
       visible: values.visible === undefined ? true : values.visible === 'show',
-      embed: values.isExternal ? (values.embed ?? false) : false,
+      embed: values.isExternal ? ((values.embed as boolean | undefined) ?? false) : false,
     }),
   });
   const toggleStatusMutation = useSaveMenu();
@@ -191,7 +192,7 @@ export default function MenusPage() {
   };
 
   const handleDelete = async (id: number) => {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync({ params: { id } });
     Toast.success('删除成功');
   };
 

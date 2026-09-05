@@ -2,16 +2,12 @@ import { useEffect, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { Spin, Toast } from '@douyinfe/semi-ui';
 import { TOKEN_KEY, REFRESH_TOKEN_KEY } from '@zenith/shared/core';
-import type { LoginResult } from '@zenith/shared/identity';
-import { request } from '@/utils/request';
+import { oauthContract } from '@zenith/shared/identity';
+import { api } from '@/lib/contract-query';
+import { ApiError } from '@/lib/query';
 import { markPostLoginHome } from '@/lib/post-login';
 import type { MfaHandoffState } from '@/lib/mfa-handoff';
 import { takeOAuthPending } from '@/lib/oauth-pending';
-
-type OAuthLoginResponse = LoginResult | {
-  needBind: true;
-  oauthInfo: { provider: string; openId: string; nickname: string; avatar?: string | null };
-};
 
 function isSafeRedirect(target: string | null | undefined): target is string {
   return !!target && target.startsWith('/') && !target.startsWith('//') && !target.startsWith('/\\');
@@ -49,49 +45,38 @@ export default function OAuthCallbackPage() {
 
     if (pending.intent === 'bind') {
       setMessage('正在绑定第三方账号…');
-      request
-        .post<null>('/api/auth/oauth/bind', { provider, code, state }, { silent: true })
-        .then((res) => {
-          if (res.code === 0) {
-            Toast.success('绑定成功');
-            navigate('/profile', { replace: true });
-            return;
-          }
-          failTo('/profile', res.message || '绑定失败');
+      api(oauthContract.bind, { body: { provider: pending.provider, code, state } }, { silent: true })
+        .then(() => {
+          Toast.success('绑定成功');
+          navigate('/profile', { replace: true });
         })
-        .catch(() => failTo('/profile', '绑定失败'));
+        .catch((err: unknown) => failTo('/profile', (err instanceof ApiError && err.message) || '绑定失败'));
       return;
     }
 
-    request
-      .post<OAuthLoginResponse>(`/api/auth/oauth/${provider}/callback`, { code, state }, { silent: true })
-      .then((res) => {
-        const data = res.code === 0 ? res.data : undefined;
-        if (data && 'needBind' in data) {
+    api(oauthContract.callback, { params: { provider }, body: { code, state } }, { silent: true })
+      .then((data) => {
+        if ('needBind' in data) {
           Toast.warning('未找到匹配账号，请先用密码登录，再在个人中心绑定该第三方账号');
           navigate('/login', { replace: true });
           return;
         }
         // 与密码登录共用 MFA 策略：命中挑战时交给登录页的验证表单完成
-        if (data && 'mfaRequired' in data && data.mfaRequired) {
+        if ('mfaRequired' in data) {
           const handoff: MfaHandoffState = { mfaChallenge: data, redirectTo: pending.redirectTo ?? null };
           navigate('/login', { replace: true, state: handoff });
           return;
         }
-        if (data && 'token' in data) {
-          localStorage.setItem(TOKEN_KEY, data.token.accessToken);
-          localStorage.setItem(REFRESH_TOKEN_KEY, data.token.refreshToken);
-          Toast.success('登录成功');
-          markPostLoginHome();
-          const target = isSafeRedirect(pending.redirectTo) ? pending.redirectTo : '/';
-          navigate(target, { replace: true });
-          // 强制刷新以重新获取用户信息（落地首页；redirectTo 由 HomeEntry / 路由守卫接管）
-          globalThis.location.href = import.meta.env.BASE_URL;
-          return;
-        }
-        failTo('/login', res.message || '第三方登录失败');
+        localStorage.setItem(TOKEN_KEY, data.token.accessToken);
+        localStorage.setItem(REFRESH_TOKEN_KEY, data.token.refreshToken);
+        Toast.success('登录成功');
+        markPostLoginHome();
+        const target = isSafeRedirect(pending.redirectTo) ? pending.redirectTo : '/';
+        navigate(target, { replace: true });
+        // 强制刷新以重新获取用户信息（落地首页；redirectTo 由 HomeEntry / 路由守卫接管）
+        globalThis.location.href = import.meta.env.BASE_URL;
       })
-      .catch(() => failTo('/login', '第三方登录失败'));
+      .catch((err: unknown) => failTo('/login', (err instanceof ApiError && err.message) || '第三方登录失败'));
   }, [provider, searchParams, navigate]);
 
   return (

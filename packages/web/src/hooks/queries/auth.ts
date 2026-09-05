@@ -1,10 +1,10 @@
 import { queryOptions, type QueryClient } from '@tanstack/react-query';
-import type { User } from '@zenith/shared/identity';
-import { request } from '@/utils/request';
+import { authContract, type User } from '@zenith/shared/identity';
+import { api } from '@/lib/contract-query';
 import { ApiError, LOOKUP_STALE_TIME } from '@/lib/query';
 
 export interface AuthSession {
-  user: Omit<User, 'password'>;
+  user: User;
   permissions: string[];
 }
 
@@ -24,11 +24,14 @@ export function authSessionQueryOptions() {
   return queryOptions({
     queryKey: authKeys.me,
     queryFn: async ({ signal }): Promise<AuthSession> => {
-      const res = await request.get<User & { permissions?: string[] }>('/api/auth/me', { silent: true, signal });
-      if (res.code === 401) throw new AuthRejectedError(res.message);
-      if (res.code !== 0) throw new ApiError(res.code, res.message);
-      const { permissions, ...user } = res.data;
-      return { user, permissions: permissions ?? [] };
+      try {
+        const { permissions, ...user } = await api(authContract.me, { silent: true, signal });
+        return { user, permissions: permissions ?? [] };
+      } catch (err) {
+        // 401 单独成类：消费方据此区分「登录态失效」与其它接口错误
+        if (err instanceof ApiError && err.code === 401) throw new AuthRejectedError(err.message);
+        throw err;
+      }
     },
     staleTime: LOOKUP_STALE_TIME,
     retry: false,
@@ -36,10 +39,7 @@ export function authSessionQueryOptions() {
   });
 }
 
-export function updateCachedAuthUser(
-  queryClient: QueryClient,
-  user: Omit<User, 'password'>,
-): void {
+export function updateCachedAuthUser(queryClient: QueryClient, user: User): void {
   queryClient.setQueryData<AuthSession>(authKeys.me, (current) => {
     if (!current || current.user.id !== user.id) return current;
     return { ...current, user };

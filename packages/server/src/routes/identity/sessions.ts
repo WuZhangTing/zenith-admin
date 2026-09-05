@@ -1,31 +1,20 @@
-import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { sessionContract } from '@zenith/shared/identity';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
-import { validationHook, commonErrorResponses, PaginationQuery, okPaginated, okBody, okMsg, IdParam } from '../../lib/openapi-schemas';
-import { OnlineSessionDTO } from '../../lib/openapi-dtos';
+import { defineContractRoute } from '../../lib/contract-route';
+import { validationHook, okBody } from '../../lib/openapi-schemas';
 import { listSessions, forceLogoutSession, forceLogoutVisibleUserSessions, getSessionBeforeAudit, getUserSessionsBeforeAudit } from '../../services/identity/sessions.service';
 
 const sessionsRoute = new OpenAPIHono({ defaultHook: validationHook });
 
-const listRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/', tags: ['Sessions'], summary: '获取在线会话列表',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:session:list' })] as const,
-    request: { query: PaginationQuery.extend({ keyword: z.string().optional() }) },
-    responses: { ...commonErrorResponses, ...okPaginated(OnlineSessionDTO, '在线会话列表') },
-  }),
+const listRoute = defineContractRoute(sessionContract.list, {
+  middleware: [authMiddleware, guard({ permission: 'system:session:list' })] as const,
   handler: async (c) => c.json(okBody(await listSessions(c.req.valid('query'))), 200),
 });
 
-const forceLogoutRouteDef = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/{tokenId}', tags: ['Sessions'], summary: '强制指定会话下线',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:session:forceLogout', audit: { module: '会话管理', description: '强制下线' } })] as const,
-    request: { params: z.object({ tokenId: z.string().openapi({ param: { name: 'tokenId', in: 'path' }, example: 'abc123' }) }) },
-    responses: { ...commonErrorResponses, ...okMsg('已强制下线') },
-  }),
+const forceLogoutRouteDef = defineContractRoute(sessionContract.forceLogout, {
+  middleware: [authMiddleware, guard({ permission: 'system:session:forceLogout', audit: { module: '会话管理', description: '强制下线' } })] as const,
   handler: async (c) => {
     const { tokenId } = c.req.valid('param');
     const before = await getSessionBeforeAudit(tokenId);
@@ -35,14 +24,8 @@ const forceLogoutRouteDef = defineOpenAPIRoute({
   },
 });
 
-const forceLogoutAllRouteDef = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/user/{id}', tags: ['Sessions'], summary: '强制指定用户所有会话下线',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:session:forceLogout', audit: { module: '会话管理', description: '强制下线全部会话' } })] as const,
-    request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...okMsg('已强制下线全部会话') },
-  }),
+const forceLogoutAllRouteDef = defineContractRoute(sessionContract.forceLogoutUser, {
+  middleware: [authMiddleware, guard({ permission: 'system:session:forceLogout', audit: { module: '会话管理', description: '强制下线全部会话' } })] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getUserSessionsBeforeAudit(id);
@@ -52,6 +35,7 @@ const forceLogoutAllRouteDef = defineOpenAPIRoute({
   },
 });
 
+// /user/{id} 先于 /{tokenId} 注册，否则 "user" 会被当成 tokenId
 sessionsRoute.openapiRoutes([listRoute, forceLogoutAllRouteDef, forceLogoutRouteDef] as const);
 
 export default sessionsRoute;

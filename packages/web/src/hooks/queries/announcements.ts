@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
-import type { User } from '@zenith/shared/identity';
+import { userContract } from '@zenith/shared/identity';
 import type { Announcement, AnnouncementAttachment, AnnouncementReadStats, AnnouncementRecipient } from '@zenith/shared/messaging';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
+import { api } from '@/lib/contract-query';
 import { useAllRoles } from './roles';
 import { useFlatDepartments } from './departments';
 
@@ -183,9 +184,8 @@ export function useAnnouncementUserSearch(keyword: string, enabled = true) {
   return useQuery({
     queryKey: announcementKeys.userSearch(keyword),
     queryFn: () =>
-      request
-        .get<PaginatedResponse<User>>(`/api/users${toQueryString({ page: 1, pageSize: 20, username: keyword })}`)
-        .then(unwrap)
+      // 用户列表按 keyword 匹配用户名 / 昵称 / 邮箱
+      api(userContract.list, { query: { page: 1, pageSize: 20, keyword } })
         .then((data) => data.list.map((u) => ({ value: u.id, label: `${u.nickname}（${u.username}）` }))),
     staleTime: LOOKUP_STALE_TIME,
     enabled: enabled && keyword.trim().length > 0,

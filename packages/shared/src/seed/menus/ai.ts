@@ -1,4 +1,4 @@
-import type { Menu } from '../../identity/types';
+import type { Menu } from '../../identity/contracts';
 import { SEED_DATE } from '../_base';
 
 /** 智能助手（3000 段） */

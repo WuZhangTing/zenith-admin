@@ -44,7 +44,17 @@ const DOC: WikiDoc = {
   revision: 1,
   requireReadReceipt: false,
   commentsEnabled: true,
+  ownerId: null,
+  ownerName: null,
+  expireAt: null,
+  reviewCycleDays: null,
+  nextReviewAt: null,
   isArchived: false,
+  publishedAt: '2026-08-15 10:00:00',
+  deletedAt: null,
+  tags: [],
+  tagIds: [],
+  authorName: null,
   createdAt: '2026-08-15 10:00:00',
   updatedAt: '2026-08-15 10:00:00',
 };
@@ -95,7 +105,7 @@ describe('知识中心治理缓存契约', () => {
     });
 
     api.resetCalls();
-    await result.current.update.mutateAsync(SAVED_SETTINGS);
+    await result.current.update.mutateAsync({ body: SAVED_SETTINGS });
     await waitFor(() => expect(api.countOf('GET', GOVERNANCE_PATH)).toBe(1));
 
     expect(api.countOf('GET', '/api/wiki/docs/1')).toBe(1);
@@ -118,7 +128,7 @@ describe('知识中心治理缓存契约', () => {
     });
 
     api.resetCalls();
-    await result.current.review.mutateAsync({ ids: [1], reviewCycleDays: null, expireAt: null });
+    await result.current.review.mutateAsync({ body: { ids: [1], reviewCycleDays: null, expireAt: null } });
     await waitFor(() => expect(api.countOf('GET', GOVERNANCE_PATH)).toBe(1));
 
     expect(api.countOf('GET', '/api/wiki/stats/ops')).toBe(1);

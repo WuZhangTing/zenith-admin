@@ -1,8 +1,6 @@
-import { http } from 'msw';
-import { ok, paginate } from '@/mocks/utils/handlers';
-import type { LoginRiskEvent } from '@zenith/shared/identity';
-import type { IdentitySecurityPolicy } from '@zenith/shared/platform';
-import { mockDateTime } from '../utils/date';
+import { identitySecurityContract, type IdentitySecurityPolicy, type LoginRiskEvent } from '@zenith/shared/identity';
+import { mock } from '@/mocks/utils/contract';
+import { mockDateTime } from '@/mocks/utils/date';
 
 let policy: IdentitySecurityPolicy = {
   password: { minLength: 6, requireUppercase: false, requireSpecialChar: false, expiryEnabled: false, expiryDays: 90 },
@@ -28,21 +26,20 @@ const riskEvents: LoginRiskEvent[] = [
 ];
 
 export const identitySecurityHandlers = [
-  http.get('/api/identity-security/policy', () => {
+  mock(identitySecurityContract.policy, ({ ok }) => {
     return ok(policy);
   }),
 
-  http.put('/api/identity-security/policy', async ({ request }) => {
-    policy = await request.json() as IdentitySecurityPolicy;
+  mock(identitySecurityContract.updatePolicy, ({ body, ok }) => {
+    policy = body;
     return ok(policy, '更新成功');
   }),
 
-  http.get('/api/identity-security/risk-events', ({ request }) => {
-    const url = new URL(request.url);
-    const keyword = url.searchParams.get('keyword') || '';
+  mock(identitySecurityContract.riskEvents, ({ query, ok, paginate }) => {
+    const keyword = query.keyword ?? '';
     const list = keyword
       ? riskEvents.filter((item) => item.username.includes(keyword) || item.reason.includes(keyword) || (item.ip ?? '').includes(keyword))
       : riskEvents;
-    return ok(paginate(list, url));
+    return ok(paginate(list));
   }),
 ];

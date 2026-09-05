@@ -1,15 +1,9 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse } from '@zenith/shared/core';
-import type { LoginRiskEvent } from '@zenith/shared/identity';
-import type { IdentitySecurityPolicy } from '@zenith/shared/platform';
-import { toQueryString, unwrap } from '@/lib/query';
-import { request } from '@/utils/request';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import type { QueryOf } from '@zenith/shared/core';
+import { identitySecurityContract } from '@zenith/shared/identity';
+import { api, useApiMutation } from '@/lib/contract-query';
 
-export interface LoginRiskEventListParams {
-  page: number;
-  pageSize: number;
-  keyword?: string;
-}
+export type LoginRiskEventListParams = NonNullable<QueryOf<typeof identitySecurityContract.riskEvents>>;
 
 export const identitySecurityKeys = {
   all: ['identity-security'] as const,
@@ -21,22 +15,20 @@ export const identitySecurityKeys = {
 export function useIdentitySecurityPolicy() {
   return useQuery({
     queryKey: identitySecurityKeys.policy,
-    queryFn: () => request.get<IdentitySecurityPolicy>('/api/identity-security/policy').then(unwrap),
+    queryFn: () => api(identitySecurityContract.policy),
   });
 }
 
 export function useSaveIdentitySecurityPolicy() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (values: IdentitySecurityPolicy) => request.put<IdentitySecurityPolicy>('/api/identity-security/policy', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: identitySecurityKeys.all }),
+  return useApiMutation(identitySecurityContract.updatePolicy, {
+    invalidate: (qc) => void qc.invalidateQueries({ queryKey: identitySecurityKeys.all }),
   });
 }
 
 export function useLoginRiskEventList(params: LoginRiskEventListParams) {
   return useQuery({
     queryKey: identitySecurityKeys.riskList(params),
-    queryFn: () => request.get<PaginatedResponse<LoginRiskEvent>>(`/api/identity-security/risk-events${toQueryString(params)}`).then(unwrap),
+    queryFn: () => api(identitySecurityContract.riskEvents, { query: params }),
     placeholderData: keepPreviousData,
   });
 }

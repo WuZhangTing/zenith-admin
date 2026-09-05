@@ -21,7 +21,7 @@ import { useAllUsers } from '@/hooks/queries/users';
 import { useMyWikiSpaces } from '@/hooks/queries/wiki-spaces';
 import {
   useConfirmWikiDocRead, useDeleteWikiDocs, useFavoriteWikiDoc, useMoveWikiDoc, useMyFavoriteWikiDocs,
-  useRecentWikiDocs, useRecordWikiDocView, useReportWikiSearchClick, useSaveWikiDoc, useSubmitWikiDoc, useSubscribeWikiDoc,
+  useRecentWikiDocs, useRecordWikiDocView, useReportWikiSearchClick, useSubmitWikiDoc, useSubscribeWikiDoc, useUpdateWikiDoc,
   useWikiDocDetail, useWikiDocList, useWikiDocReadReceipts, useWikiDocSearch, useWikiDocTree, useWithdrawWikiDoc,
 } from '@/hooks/queries/wiki-docs';
 import { useCreateWikiComment, useDeleteMyWikiComment, useResolveWikiComment, useWikiDocComments } from '@/hooks/queries/wiki-comments';
@@ -182,7 +182,7 @@ export default function WikiDocCenterPage() {
   const withdrawMutation = useWithdrawWikiDoc();
   const deleteMutation = useDeleteWikiDocs();
   const moveMutation = useMoveWikiDoc();
-  const pinMutation = useSaveWikiDoc();
+  const pinMutation = useUpdateWikiDoc();
   const viewMutation = useRecordWikiDocView();
   const createCommentMutation = useCreateWikiComment();
   const deleteCommentMutation = useDeleteMyWikiComment();
@@ -198,7 +198,7 @@ export default function WikiDocCenterPage() {
       [...fileList].slice(0, 20).map(async (f) => ({ name: f.name, content: await f.text() })),
     );
     importMutation.mutate(
-      { spaceId: effectiveSpaceId, parentId: null, files },
+      { body: { spaceId: effectiveSpaceId, parentId: null, files } },
       { onSuccess: (r) => Toast.success(`已导入 ${r.importedCount} 篇草稿`) },
     );
     if (importInputRef.current) importInputRef.current.value = '';
@@ -210,7 +210,7 @@ export default function WikiDocCenterPage() {
   }
 
   function selectSearchResult(id: number) {
-    if (searchKeyword) searchClickMutation.mutate({ keyword: searchKeyword, docId: id });
+    if (searchKeyword) searchClickMutation.mutate({ body: { keyword: searchKeyword, docId: id } });
     selectDoc(id);
   }
 
@@ -218,7 +218,7 @@ export default function WikiDocCenterPage() {
     const content = commentText.trim();
     if (!content || !selectedDocId) return;
     createCommentMutation.mutate(
-      { docId: selectedDocId, parentId: replyTo?.id ?? null, content, mentionedUserIds: mentionIds, isQuestion },
+      { body: { docId: selectedDocId, parentId: replyTo?.id ?? null, content, mentionedUserIds: mentionIds, isQuestion } },
       {
         onSuccess: () => {
           Toast.success('评论成功');
@@ -363,7 +363,7 @@ export default function WikiDocCenterPage() {
           key="pin"
           icon={n.isPinned ? <PinOff size={14} /> : <Pin size={14} />}
           onClick={() => pinDoc(
-            { id: n.id, values: { isPinned: !n.isPinned } },
+            { params: { id: n.id }, body: { isPinned: !n.isPinned } },
             { onSuccess: () => Toast.success(n.isPinned ? '已取消置顶' : '已置顶，目录树中将优先展示') },
           )}
         >
@@ -488,7 +488,7 @@ export default function WikiDocCenterPage() {
       // move 接口的 index 语义是「移除自身后的插入位」：同层下移时前面少了自己，回退一位
       if (dragIndex !== -1 && dragIndex < index) index -= 1;
     }
-    moveMutation.mutate({ id: dragId, parentId, index }, {
+    moveMutation.mutate({ params: { id: dragId }, body: { parentId, index } }, {
       onSuccess: () => {
         Toast.success('已移动');
         // 移入的目标层级保持展开，落点立即可见
@@ -515,7 +515,7 @@ export default function WikiDocCenterPage() {
   useEffect(() => {
     if (selectedDocId === undefined || selectedDocId === lastViewedDocIdRef.current) return;
     lastViewedDocIdRef.current = selectedDocId;
-    viewMutation.mutate(selectedDocId);
+    viewMutation.mutate({ params: { id: selectedDocId } });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在选中文档变化时上报
   }, [selectedDocId]);
 
@@ -576,7 +576,7 @@ export default function WikiDocCenterPage() {
               ) : null}
             </Space>
           </div>
-          {doc.tags?.length ? (
+          {doc.tags.length ? (
             <Space spacing={4} style={{ marginTop: 6 }}>
               {doc.tags.map((t) => <Tag key={t.id} size="small" style={t.color ? { backgroundColor: t.color, color: '#fff' } : undefined}>{t.name}</Tag>)}
             </Space>
@@ -618,7 +618,7 @@ export default function WikiDocCenterPage() {
               icon={<Star size={16} fill={doc.favorited ? 'var(--semi-color-warning)' : 'none'}
                 style={doc.favorited ? { color: 'var(--semi-color-warning)' } : undefined} />}
               loading={favoriteMutation.isPending}
-              onClick={() => favoriteMutation.mutate({ id: doc.id, favorite: !doc.favorited })}
+              onClick={() => favoriteMutation.mutate({ params: { id: doc.id }, body: { favorite: !doc.favorited } })}
             />
           </Tooltip>
           <Tooltip content={doc.subscribed ? '取消订阅（发布/评论通知）' : '订阅更新（发布/评论通知）'}>
@@ -629,7 +629,7 @@ export default function WikiDocCenterPage() {
                 style={doc.subscribed ? { color: 'var(--semi-color-primary)' } : undefined} />}
               loading={subscribeMutation.isPending}
               onClick={() => subscribeMutation.mutate(
-                { id: doc.id, subscribe: !doc.subscribed },
+                { params: { id: doc.id }, body: { subscribe: !doc.subscribed } },
                 { onSuccess: () => Toast.success(doc.subscribed ? '已取消订阅' : '已订阅，更新时将通知你') },
               )}
             />
@@ -642,7 +642,7 @@ export default function WikiDocCenterPage() {
               theme="solid"
               icon={<Send size={14} />}
               loading={submitMutation.isPending}
-              onClick={() => submitMutation.mutate(doc.id, {
+              onClick={() => submitMutation.mutate({ params: { id: doc.id } }, {
                 onSuccess: (saved) => Toast.success(saved.status === 'published' ? '已发布' : '已提交审核'),
               })}
             >
@@ -653,7 +653,7 @@ export default function WikiDocCenterPage() {
             <Button
               icon={<Undo2 size={14} />}
               loading={withdrawMutation.isPending}
-              onClick={() => withdrawMutation.mutate(doc.id, { onSuccess: () => Toast.success('已撤回，可继续编辑') })}
+              onClick={() => withdrawMutation.mutate({ params: { id: doc.id } }, { onSuccess: () => Toast.success('已撤回，可继续编辑') })}
             >
               撤回审核
             </Button>
@@ -671,7 +671,7 @@ export default function WikiDocCenterPage() {
                   <Dropdown.Item
                     icon={doc.isPinned ? <PinOff size={14} /> : <Pin size={14} />}
                     onClick={() => pinMutation.mutate(
-                      { id: doc.id, values: { isPinned: !doc.isPinned } },
+                      { params: { id: doc.id }, body: { isPinned: !doc.isPinned } },
                       { onSuccess: () => Toast.success(doc.isPinned ? '已取消置顶' : '已置顶，目录树中将优先展示') },
                     )}
                   >
@@ -721,7 +721,7 @@ export default function WikiDocCenterPage() {
             size="small"
             theme="solid"
             loading={confirmReadMutation.isPending}
-            onClick={() => confirmReadMutation.mutate(doc.id, { onSuccess: () => Toast.success('已确认阅读') })}
+            onClick={() => confirmReadMutation.mutate({ params: { id: doc.id } }, { onSuccess: () => Toast.success('已确认阅读') })}
           >
             确认已读
           </Button>
@@ -835,7 +835,7 @@ export default function WikiDocCenterPage() {
                     canResolve={(cm) => cm.authorId === user?.id || isDocAuthor || canManageDoc}
                     onReply={(cm) => setReplyTo(cm)}
                     onResolve={(cm) => resolveCommentMutation.mutate(
-                      { id: cm.id, docId: cm.docId },
+                      { params: { id: cm.id } },
                       { onSuccess: () => Toast.success('已标记解决') },
                     )}
                     onDelete={(cm) => confirmDelete({
@@ -1086,7 +1086,7 @@ export default function WikiDocCenterPage() {
         onOk={() => {
           if (!moveTarget) return;
           moveMutation.mutate(
-            { id: moveTarget.id, parentId: moveParentId },
+            { params: { id: moveTarget.id }, body: { parentId: moveParentId } },
             {
               onSuccess: () => {
                 Toast.success('移动成功');

@@ -1,12 +1,7 @@
-import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import {
-  commonErrorResponses,
-  jsonContent,
-  ok,
-  okBody,
-  validationHook,
-} from '../../lib/openapi-schemas';
-import { EnterpriseIdentityDiscoveryDTO, LoginResultDTO } from '../../lib/openapi-dtos';
+import { OpenAPIHono, createRoute, defineOpenAPIRoute } from '@hono/zod-openapi';
+import { enterpriseAuthContract } from '@zenith/shared/identity';
+import { defineContractRoute } from '../../lib/contract-route';
+import { commonErrorResponses, okBody, validationHook } from '../../lib/openapi-schemas';
 import {
   discoverEnterpriseIdentityProviders,
   exchangeEnterpriseSamlTicket,
@@ -16,47 +11,16 @@ import {
   handleEnterpriseSamlAcs,
 } from '../../services/identity/identity-providers.service';
 import { getClientInfo } from '../../lib/request-helpers';
-import { enterpriseLdapLoginSchema } from '@zenith/shared/identity';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const discoverRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get',
-    path: '/providers',
-    tags: ['EnterpriseAuth'],
-    summary: '发现企业身份源',
-    security: [],
-    request: {
-      query: z.object({
-        tenantCode: z.string().optional(),
-      }),
-    },
-    responses: { ...ok(EnterpriseIdentityDiscoveryDTO, 'ok'), ...commonErrorResponses },
-  }),
-  handler: async (c) => {
-    const { tenantCode } = c.req.valid('query');
-    return c.json(okBody(await discoverEnterpriseIdentityProviders(tenantCode)), 200);
-  },
+const discoverRoute = defineContractRoute(enterpriseAuthContract.providers, {
+  middleware: [] as const,
+  handler: async (c) => c.json(okBody(await discoverEnterpriseIdentityProviders(c.req.valid('query').tenantCode)), 200),
 });
 
-const authUrlRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get',
-    path: '/{id}',
-    tags: ['EnterpriseAuth'],
-    summary: '获取企业身份源授权链接',
-    security: [],
-    request: {
-      params: z.object({
-        id: z.coerce.number().int().positive().openapi({ param: { name: 'id', in: 'path' }, example: 1 }),
-      }),
-      query: z.object({
-        redirect: z.string().optional(),
-      }),
-    },
-    responses: { ...ok(z.object({ authUrl: z.string(), state: z.string().nullable() }), 'ok'), ...commonErrorResponses },
-  }),
+const authUrlRoute = defineContractRoute(enterpriseAuthContract.authUrl, {
+  middleware: [] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { redirect } = c.req.valid('query');
@@ -65,46 +29,16 @@ const authUrlRoute = defineOpenAPIRoute({
   },
 });
 
-const callbackRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post',
-    path: '/callback',
-    tags: ['EnterpriseAuth'],
-    summary: '企业 OIDC 登录回调',
-    security: [],
-    request: {
-      body: {
-        content: jsonContent(z.object({
-          code: z.string(),
-          state: z.string(),
-          deviceId: z.string().max(128).optional(),
-        }).openapi('EnterpriseOidcCallbackBody')),
-        required: true,
-      },
-    },
-    responses: { ...ok(z.object({ loginResult: LoginResultDTO, redirectTo: z.string().nullable().optional() }), 'ok'), ...commonErrorResponses },
-  }),
+const callbackRoute = defineContractRoute(enterpriseAuthContract.callback, {
+  middleware: [] as const,
   handler: async (c) => {
     const { code, state, deviceId } = c.req.valid('json');
     return c.json(okBody(await handleEnterpriseOidcCallback(code, state, undefined, deviceId)), 200);
   },
 });
 
-const ldapLoginRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post',
-    path: '/ldap/login',
-    tags: ['EnterpriseAuth'],
-    summary: '企业 LDAP/AD 登录',
-    security: [],
-    request: {
-      body: {
-        content: jsonContent(enterpriseLdapLoginSchema),
-        required: true,
-      },
-    },
-    responses: { ...ok(z.object({ loginResult: LoginResultDTO, redirectTo: z.string().nullable().optional() }), 'ok'), ...commonErrorResponses },
-  }),
+const ldapLoginRoute = defineContractRoute(enterpriseAuthContract.ldapLogin, {
+  middleware: [] as const,
   handler: async (c) => {
     const body = c.req.valid('json');
     const { ip, ua } = getClientInfo(c);
@@ -112,6 +46,8 @@ const ldapLoginRoute = defineOpenAPIRoute({
   },
 });
 
+// IdP 以 application/x-www-form-urlencoded 表单 POST 回调，成功后 302 到前端回调页；
+// 非 JSON 协议，无法由契约表达，单独声明
 const samlAcsRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post',
@@ -133,27 +69,9 @@ const samlAcsRoute = defineOpenAPIRoute({
   },
 });
 
-const samlExchangeRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post',
-    path: '/saml/exchange',
-    tags: ['EnterpriseAuth'],
-    summary: '兑换企业 SAML 登录票据',
-    security: [],
-    request: {
-      body: {
-        content: jsonContent(z.object({
-          ticket: z.string(),
-        }).openapi('EnterpriseSamlExchangeBody')),
-        required: true,
-      },
-    },
-    responses: { ...ok(z.object({ loginResult: LoginResultDTO, redirectTo: z.string().nullable().optional() }), 'ok'), ...commonErrorResponses },
-  }),
-  handler: async (c) => {
-    const { ticket } = c.req.valid('json');
-    return c.json(okBody(await exchangeEnterpriseSamlTicket(ticket)), 200);
-  },
+const samlExchangeRoute = defineContractRoute(enterpriseAuthContract.samlExchange, {
+  middleware: [] as const,
+  handler: async (c) => c.json(okBody(await exchangeEnterpriseSamlTicket(c.req.valid('json').ticket)), 200),
 });
 
 router.openapiRoutes([discoverRoute, authUrlRoute, callbackRoute, ldapLoginRoute, samlAcsRoute, samlExchangeRoute] as const);

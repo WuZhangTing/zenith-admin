@@ -8,12 +8,13 @@ export interface AnalyticsDrillUsersInput {
   pageSize: number;
 }
 import type { PaginatedResponse } from '@zenith/shared/core';
-import type { UserStats, UserTimeline } from '@zenith/shared/identity';
+import { userContract, type UserStats, type UserTimeline } from '@zenith/shared/identity';
 import type { SessionListItem, SessionTimeline } from '@zenith/shared/platform';
 import type { AsyncTask } from '@zenith/shared/tasks';
 import { ANALYTICS_CONFIG_VERSION_KEY } from '@zenith/shared/analytics';
 import { toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
+import { api } from '@/lib/contract-query';
 import { reloadTrackerConfig } from '@/utils/tracker';
 
 interface ErrorGroupDetail {
@@ -776,7 +777,7 @@ export function useFrontendErrorGroupDetail(id: number | undefined, enabled = tr
 export function useFrontendAdminUsers(enabled = true) {
   return useQuery({
     queryKey: analyticsKeys.frontendErrors.adminUsers,
-    queryFn: () => request.get<PaginatedResponse<{ id: number; nickname?: string | null; username: string }>>('/api/users?page=1&pageSize=100').then(unwrap),
+    queryFn: () => api(userContract.list, { query: { page: 1, pageSize: 100 } }),
     staleTime: 5 * 60 * 1000,
     enabled,
   });

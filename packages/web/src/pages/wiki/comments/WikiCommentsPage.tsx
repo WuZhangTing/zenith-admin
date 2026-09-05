@@ -2,7 +2,8 @@ import { useNavigate } from 'react-router-dom';
 import { Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { WikiComment } from '@zenith/shared/wiki';
-import { WIKI_COMMENT_STATUS_LABELS, WIKI_COMMENT_STATUS_OPTIONS } from '@zenith/shared/wiki';
+import { WIKI_COMMENT_STATUSES, WIKI_COMMENT_STATUS_LABELS, WIKI_COMMENT_STATUS_OPTIONS } from '@zenith/shared/wiki';
+import { enumValueOf } from '@zenith/shared/core';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -39,7 +40,7 @@ export default function WikiCommentsPage() {
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    status: submittedParams.status || undefined,
+    status: enumValueOf(WIKI_COMMENT_STATUSES, submittedParams.status),
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
   });
   const list = listQuery.data?.list ?? [];
@@ -74,7 +75,7 @@ export default function WikiCommentsPage() {
           key: 'toggle',
           label: record.status === 'visible' ? '隐藏' : '恢复',
           onClick: () => statusMutation.mutate(
-            { id: record.id, docId: record.docId, status: record.status === 'visible' ? 'hidden' : 'visible' },
+            { params: { id: record.id }, body: { status: record.status === 'visible' ? 'hidden' : 'visible' } },
             { onSuccess: () => Toast.success(record.status === 'visible' ? '已隐藏' : '已恢复') },
           ),
         }] : []),

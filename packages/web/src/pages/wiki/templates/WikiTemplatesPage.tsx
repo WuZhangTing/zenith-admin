@@ -1,6 +1,7 @@
 import { Col, Form, Modal, Row, Spin, Switch, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { WikiTemplate } from '@zenith/shared/wiki';
+import type { CreateWikiTemplateInput, WikiTemplate } from '@zenith/shared/wiki';
+import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -37,16 +38,17 @@ export default function WikiTemplatesPage() {
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    status: submittedParams.status || undefined,
+    status: enumValueOf(USER_STATUSES, submittedParams.status),
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
-  const modal = useEditModal<WikiTemplate>({
+  const modal = useEditModal<WikiTemplate, Partial<CreateWikiTemplateInput>>({
     entityName: '文档模板',
     save: useSaveWikiTemplate(),
     useDetail: useWikiTemplateDetail,
     defaults: { status: 'enabled', sort: 0, content: '' },
+    // 记录里的 null 在表单中归一为未填
     toValues: (r) => ({
       name: r.name,
       description: r.description ?? undefined,

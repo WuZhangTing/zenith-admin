@@ -1,7 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { OAuthConfig, OAuthProviderType } from '@zenith/shared/identity';
-import { unwrap } from '@/lib/query';
-import { request } from '@/utils/request';
+import { useQuery } from '@tanstack/react-query';
+import { oauthConfigContract, type OAuthProviderType } from '@zenith/shared/identity';
+import { api, useApiMutation } from '@/lib/contract-query';
 
 export const oauthConfigKeys = {
   all: ['oauth-config'] as const,
@@ -13,15 +12,13 @@ export const oauthConfigKeys = {
 export function useOAuthConfigs() {
   return useQuery({
     queryKey: oauthConfigKeys.list(),
-    queryFn: () => request.get<OAuthConfig[]>('/api/oauth-config').then(unwrap),
+    queryFn: () => api(oauthConfigContract.list),
   });
 }
 
+/** 整体替换保存单个 provider 的配置（`clientSecret` 传掩码或省略时保留原值） */
 export function useSaveOAuthConfig() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ provider, values }: { provider: OAuthProviderType; values: Record<string, unknown> }) =>
-      request.put<OAuthConfig>(`/api/oauth-config/${provider}`, values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: oauthConfigKeys.all }),
+  return useApiMutation(oauthConfigContract.update, {
+    invalidate: (qc) => void qc.invalidateQueries({ queryKey: oauthConfigKeys.all }),
   });
 }

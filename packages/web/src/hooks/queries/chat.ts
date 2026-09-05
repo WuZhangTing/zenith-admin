@@ -42,15 +42,15 @@ export const chatKeys = {
    * 群成员与入群申请刻意不挂在 conversations 之下：
    * 那样会让「刷新会话列表」这一意图连带打掉每个会话的成员名单（前缀匹配）。
    */
-  groupMembersAll: [CHAT_KEY, chatContract.groupMembers.name] as const,
+  groupMembersAll: contractKey(chatContract.groupMembers),
   groupMembers: (conversationId: number | undefined) => contractKey(chatContract.groupMembers, { params: { id: conversationId ?? 0 } }),
   /** 群公告历史（抽屉打开时才拉取，非实时） */
   announcementHistory: (conversationId: number | undefined) => contractKey(chatContract.announcementHistory, { params: { id: conversationId ?? 0 } }),
   orgData: contractKey(chatContract.orgUsers),
   quickReplies: contractKey(chatContract.quickReplies),
-  scheduledMessages: [CHAT_KEY, chatContract.scheduledMessages.name] as const,
+  scheduledMessages: contractKey(chatContract.scheduledMessages),
   customEmojis: contractKey(chatContract.customEmojis),
-  joinRequestsAll: [CHAT_KEY, chatContract.joinRequests.name] as const,
+  joinRequestsAll: contractKey(chatContract.joinRequests),
   joinRequests: (conversationId: number | undefined) => contractKey(chatContract.joinRequests, { params: { id: conversationId ?? 0 } }),
   inviteInfo: (token: string | null) => contractKey(chatContract.inviteInfo, { params: { token: token ?? '' } }),
   channelMessages: (params: ChannelMessageParams) => [CHAT_KEY, 'list', 'channel-messages', params] as const,

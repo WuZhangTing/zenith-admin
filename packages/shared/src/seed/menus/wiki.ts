@@ -1,4 +1,4 @@
-import type { Menu } from '../../identity/types';
+import type { Menu } from '../../identity/contracts';
 import { SEED_DATE } from '../_base';
 
 /** 知识中心（16000 段） */

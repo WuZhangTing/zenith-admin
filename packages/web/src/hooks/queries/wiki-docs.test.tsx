@@ -41,7 +41,17 @@ const DOC: WikiDoc = {
   currentVersion: 1,
   revision: 1,
   requireReadReceipt: false,
+  ownerId: null,
+  ownerName: null,
+  expireAt: null,
+  reviewCycleDays: null,
+  nextReviewAt: null,
   isArchived: false,
+  publishedAt: null,
+  deletedAt: null,
+  tags: [],
+  tagIds: [],
+  authorName: null,
   createdAt: '2026-08-15 10:00:00',
   updatedAt: '2026-08-15 10:00:00',
 };
@@ -109,7 +119,7 @@ describe('知识中心审核缓存契约', () => {
 
     const fetches = observeFetches(qc);
     api.resetCalls();
-    await result.current.review.mutateAsync({ id: 1, action: 'approve' });
+    await result.current.review.mutateAsync({ params: { id: 1 }, body: { action: 'approve' } });
     await waitFor(() => expect(fetches.countOf(wikiReviewRecordKeys.processedLists)).toBe(1));
 
     expect(fetches.countOf(wikiReviewRecordKeys.of(1))).toBe(1);
@@ -141,7 +151,7 @@ describe('知识中心审核缓存契约', () => {
 
     const fetches = observeFetches(qc);
     api.resetCalls();
-    await result.current.submit.mutateAsync(1);
+    await result.current.submit.mutateAsync({ params: { id: 1 } });
     await waitFor(() => expect(fetches.countOf(wikiReviewRecordKeys.of(1))).toBe(1));
 
     expect(fetches.countOf(wikiReviewRecordKeys.processedLists)).toBe(0);
@@ -168,7 +178,7 @@ describe('知识中心审核缓存契约', () => {
 
     const fetches = observeFetches(qc);
     api.resetCalls();
-    await result.current.move.mutateAsync({ id: 1, parentId: null, index: 0 });
+    await result.current.move.mutateAsync({ params: { id: 1 }, body: { parentId: null, index: 0 } });
     await waitFor(() => expect(fetches.countOf(wikiDocTreeKeys.of(1))).toBe(1));
 
     expect(fetches.countOf(wikiDocKeys.detail(1))).toBe(1);

@@ -9,7 +9,7 @@ import { lookupIpLocation } from '../../lib/ip-location';
 import { decryptSecret, encryptSecret, SecretDecryptError } from '../../lib/secret-crypto';
 import { getConfigBoolean, getConfigNumber, getConfigValue } from '../../lib/system-config';
 import { buildTotpUri, generateTotpSecret, verifyTotp } from '../../lib/totp';
-import type { IdentitySecurityPolicy } from '@zenith/shared/platform';
+import type { IdentitySecurityPolicy } from '@zenith/shared/identity';
 
 export type MfaMethod = 'totp' | 'passkey';
 

@@ -17,6 +17,74 @@ export const OAUTH_PROVIDER_LABELS: Record<OAuthProviderType, string> = {
   feishu: '飞书',
 };
 
+// ─── 实体枚举（实体 schema 与校验 schema 共用的取值集合）──────────────────────
+export const DEPARTMENT_CATEGORIES = ['group', 'company', 'department'] as const;
+
+export type DepartmentCategory = (typeof DEPARTMENT_CATEGORIES)[number];
+
+export const MENU_TYPES = ['directory', 'menu', 'button'] as const;
+
+export type MenuType = (typeof MENU_TYPES)[number];
+
+export const DATA_SCOPES = ['all', 'custom', 'dept_only', 'dept', 'self'] as const;
+
+export type DataScope = (typeof DATA_SCOPES)[number];
+
+/** 成员模式：static = 手工维护；dynamic = 按规则自动物化到成员表 */
+export const USER_GROUP_MEMBER_MODES = ['static', 'dynamic'] as const;
+
+export type UserGroupMemberMode = (typeof USER_GROUP_MEMBER_MODES)[number];
+
+export const LOGIN_EVENT_TYPES = ['login', 'logout'] as const;
+
+export type LoginEventType = (typeof LOGIN_EVENT_TYPES)[number];
+
+export const LOGIN_STATUSES = ['success', 'fail'] as const;
+
+export type LoginStatus = (typeof LOGIN_STATUSES)[number];
+
+export const IDENTITY_PROVIDER_TYPES = ['oidc', 'saml', 'ldap', 'ad'] as const;
+
+export type IdentityProviderType = (typeof IDENTITY_PROVIDER_TYPES)[number];
+
+export const IDENTITY_PROVIDER_STATUSES = ['enabled', 'disabled'] as const;
+
+export type IdentityProviderStatus = (typeof IDENTITY_PROVIDER_STATUSES)[number];
+
+export const IDENTITY_PROVIDER_SYNC_STATUSES = ['success', 'failed', 'partial'] as const;
+
+export type IdentityProviderSyncStatus = (typeof IDENTITY_PROVIDER_SYNC_STATUSES)[number];
+
+/** 登录 MFA 挑战可用的验证方式 */
+export const MFA_METHODS = ['totp', 'passkey'] as const;
+
+export type MfaMethod = (typeof MFA_METHODS)[number];
+
+export const MFA_FACTOR_TYPES = ['totp', 'passkey', 'recovery_code'] as const;
+
+export type MfaFactorType = (typeof MFA_FACTOR_TYPES)[number];
+
+export const MFA_FACTOR_STATUSES = ['pending', 'enabled', 'disabled'] as const;
+
+export type MfaFactorStatus = (typeof MFA_FACTOR_STATUSES)[number];
+
+export const MFA_MODES = ['off', 'optional', 'required'] as const;
+
+export type MfaMode = (typeof MFA_MODES)[number];
+
+export const LOGIN_RISK_LEVELS = ['low', 'medium', 'high'] as const;
+
+export type LoginRiskLevel = (typeof LOGIN_RISK_LEVELS)[number];
+
+export const LOGIN_RISK_ACTIONS = ['allow', 'challenge', 'block'] as const;
+
+export type LoginRiskAction = (typeof LOGIN_RISK_ACTIONS)[number];
+
+/** 新设备登录的风控动作（策略配置项） */
+export const LOGIN_RISK_NEW_DEVICE_ACTIONS = ['allow', 'challenge'] as const;
+
+export type LoginRiskNewDeviceAction = (typeof LOGIN_RISK_NEW_DEVICE_ACTIONS)[number];
+
 // ─── 意见反馈 ────────────────────────────────────────────────────────
 export const USER_FEEDBACK_CATEGORY_LABELS: Record<UserFeedbackCategory, string> = {
   suggestion: '功能建议',

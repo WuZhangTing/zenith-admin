@@ -4,7 +4,7 @@ import PageLoading from '@/components/PageLoading';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Save } from 'lucide-react';
 import { OAUTH_PROVIDERS, OAUTH_PROVIDER_LABELS } from '@zenith/shared/identity';
-import type { OAuthProviderType } from '@zenith/shared/identity';
+import type { OAuthProviderType, UpdateOauthConfigInput } from '@zenith/shared/identity';
 import { OAuthProviderIcon } from '@/components/OAuthProviderIcon';
 import { usePermission } from '@/hooks/usePermission';
 import { useOAuthConfigs, useSaveOAuthConfig } from '@/hooks/queries/oauth-config';
@@ -24,14 +24,15 @@ export default function OAuthConfigPage() {
   const configsQuery = useOAuthConfigs();
   const saveMutation = useSaveOAuthConfig();
   const configs = configsQuery.data ?? [];
-  const savingProvider = saveMutation.isPending ? (saveMutation.variables?.provider ?? null) : null;
+  const savingProvider = saveMutation.isPending ? (saveMutation.variables?.params.provider ?? null) : null;
 
   const handleSave = async (provider: OAuthProviderType) => {
     const api = formApis[provider];
     if (!api) return;
     try {
-      const values = await api.validate();
-      await saveMutation.mutateAsync({ provider, values: values as Record<string, unknown> });
+      // 表单字段与整体替换入参一一对应（必填由表单 rules 保证，服务端 schema 兜底）
+      const values = (await api.validate()) as UpdateOauthConfigInput;
+      await saveMutation.mutateAsync({ params: { provider }, body: values });
       Toast.success(`${OAUTH_PROVIDER_LABELS[provider]} 配置保存成功`);
     } catch {
       // validation failed

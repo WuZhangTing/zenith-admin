@@ -45,7 +45,7 @@ export function UserMenuPermissionModal({ userId, userName, visible, onClose }: 
   }, [visible, permissionsQuery.data]);
 
   const handleSave = async () => {
-    await saveMenusMutation.mutateAsync({ userId, menuIds: directMenuIds });
+    await saveMenusMutation.mutateAsync({ params: { id: userId }, body: { menuIds: directMenuIds } });
     Toast.success('菜单权限已更新');
     const effectiveSet = new Set([...directMenuIds, ...roleMenuIds, ...groupMenuIds]);
     setEffectiveMenuIds([...effectiveSet]);

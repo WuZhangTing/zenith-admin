@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Form, Toast, Spin, Switch, SideSheet } from '@douyinfe/semi-ui';
-import type { Role, Department } from '@zenith/shared/identity';
+import { DATA_SCOPES, type CreateRoleInput, type Role, type Department } from '@zenith/shared/identity';
+import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
 import { UserTransferSelect } from '@/components/UserTransferSelect';
 import type { UserTransferUser } from '@/components/UserTransferSelect';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -25,7 +26,7 @@ import {
   roleKeys,
   useAssignRoleMenus,
   useAssignRoleUsers,
-  useDeleteRole,
+  useDeleteRoles,
   useRoleDetail,
   useRoleList,
   useRoleUsers,
@@ -66,7 +67,7 @@ export default function RolesPage() {
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    status: submittedParams.status || undefined,
+    status: enumValueOf(USER_STATUSES, submittedParams.status),
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
   });
   const data = listQuery.data?.list ?? [];
@@ -81,15 +82,17 @@ export default function RolesPage() {
   const deptTree = useMemo(() => deptTreeQuery.data ?? [], [deptTreeQuery.data]);
 
   const saveMutation = useSaveRole();
-  const roleModal = useEditModal<Role>({
+  const roleModal = useEditModal<Role, Partial<CreateRoleInput>>({
     entityName: '角色',
     save: saveMutation,
     useDetail: useRoleDetail,
     defaults: { status: 'enabled' },
+    // 记录里的 null 描述在表单中视为未填
+    toValues: (role) => ({ name: role.name, code: role.code, description: role.description ?? undefined, deptScopeIds: role.deptScopeIds, status: role.status }),
   });
   const editingRole = roleModal.editing;
   const toggleStatusMutation = useSaveRole();
-  const deleteMutation = useDeleteRole();
+  const deleteMutation = useDeleteRoles();
   const assignMenusMutation = useAssignRoleMenus();
   const assignUsersMutation = useAssignRoleUsers();
   const updateDataScopeMutation = useUpdateRoleDataScope();
@@ -125,7 +128,7 @@ export default function RolesPage() {
 
   const handleAssignMenus = async () => {
     if (!menuRole) return;
-    await assignMenusMutation.mutateAsync({ id: menuRole.id, menuIds: checkedMenuIds });
+    await assignMenusMutation.mutateAsync({ params: { id: menuRole.id }, body: { menuIds: checkedMenuIds } });
     Toast.success('菜单权限已更新');
     setMenuModalVisible(false);
   };
@@ -152,31 +155,32 @@ export default function RolesPage() {
 
   const handleAssignUsers = async () => {
     if (!userRole) return;
-    await assignUsersMutation.mutateAsync({ id: userRole.id, userIds: assignedUserIds });
+    await assignUsersMutation.mutateAsync({ params: { id: userRole.id }, body: { userIds: assignedUserIds } });
     Toast.success('用户分配已更新');
     setUserModalVisible(false);
   };
 
   const openDataScopeModal = (role: Role) => {
     setDataScopeRole(role);
-    setSelectedDataScope(role.dataScope);
+    setSelectedDataScope(role.dataScope ?? 'all');
     setSelectedDeptScopeIds([]);
     setDataScopeModalVisible(true);
   };
 
   const handleSaveDataScope = async () => {
     if (!dataScopeRole) return;
-    const body: Record<string, unknown> = { dataScope: selectedDataScope };
-    if (selectedDataScope === 'custom') {
-      body.deptScopeIds = selectedDeptScopeIds;
-    }
-    await updateDataScopeMutation.mutateAsync({ id: dataScopeRole.id, values: body as Partial<Role> });
+    // 面板以宽 string 维护选中值，提交前收窄为数据范围枚举
+    const dataScope = enumValueOf(DATA_SCOPES, selectedDataScope) ?? 'all';
+    await updateDataScopeMutation.mutateAsync({
+      params: { id: dataScopeRole.id },
+      body: dataScope === 'custom' ? { dataScope, deptScopeIds: selectedDeptScopeIds } : { dataScope },
+    });
     Toast.success('数据权限已更新');
     setDataScopeModalVisible(false);
   };
 
   const handleDelete = async (id: number) => {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('删除成功');
   };
 

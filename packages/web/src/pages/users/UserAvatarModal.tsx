@@ -1,13 +1,11 @@
 import { useRef, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
 import { Button, Spin, Toast } from '@douyinfe/semi-ui';
 import { AppModal } from '@/components/AppModal';
 import { AvatarCropperModal } from '@/components/AvatarCropperModal';
 import { PresetAvatarPickerModal } from '@/components/PresetAvatarPickerModal';
-import type { User } from '@zenith/shared/identity';
+import { userContract, type User } from '@zenith/shared/identity';
 import { fileContract } from '@zenith/shared/platform';
 import { useApiMutation } from '@/lib/contract-query';
-import { request } from '@/utils/request';
 import { UserAvatar } from '@/components/UserAvatar';
 import { confirmDelete } from '@/utils/confirm';
 
@@ -23,10 +21,10 @@ export function UserAvatarModal({ visible, user, onClose, onUpdated }: UserAvata
 
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [presetVisible, setPresetVisible] = useState(false);
+  // 失败提示由调用处按场景给出，请求层静默；code !== 0 由 api() 抛 ApiError
   const uploadAvatarMutation = useApiMutation(fileContract.uploadOne, { requestOptions: { silent: true } });
-  const updateAvatarMutation = useMutation({
-    mutationFn: (avatar: string | null) => request.put<User>(`/api/users/${user.id}`, { avatar }, { silent: true }),
-  });
+  const updateAvatarMutation = useApiMutation(userContract.update, { requestOptions: { silent: true } });
+  const updateAvatar = (avatar: string | null) => updateAvatarMutation.mutateAsync({ params: { id: user.id }, body: { avatar } });
   const avatarLoading = uploadAvatarMutation.isPending || updateAvatarMutation.isPending;
 
   function handleAvatarFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -46,22 +44,25 @@ export function UserAvatarModal({ visible, user, onClose, onUpdated }: UserAvata
       Toast.error(err instanceof Error && err.message ? err.message : '上传失败');
       return;
     }
-    const updateRes = await updateAvatarMutation.mutateAsync(uploadedUrl);
-    if (updateRes.code === 0) {
-      onUpdated(updateRes.data);
+    try {
+      onUpdated(await updateAvatar(uploadedUrl));
       Toast.success('头像已更新');
       setCropFile(null);
       onClose();
-    } else {
-      Toast.error(updateRes.message ?? '头像更新失败');
+    } catch (err) {
+      Toast.error(err instanceof Error && err.message ? err.message : '头像更新失败');
     }
   }
 
   async function handleApplyPreset(url: string) {
     setPresetVisible(false);
-    const res = await updateAvatarMutation.mutateAsync(url);
-    if (res.code === 0) { onUpdated(res.data); Toast.success('头像已更新'); onClose(); }
-    else Toast.error(res.message ?? '更新失败');
+    try {
+      onUpdated(await updateAvatar(url));
+      Toast.success('头像已更新');
+      onClose();
+    } catch (err) {
+      Toast.error(err instanceof Error && err.message ? err.message : '更新失败');
+    }
   }
 
   function handleRemoveAvatar() {
@@ -69,9 +70,13 @@ export function UserAvatarModal({ visible, user, onClose, onUpdated }: UserAvata
       title: '确定要移除该用户头像吗？',
       content: '移除后将使用昵称缩写作为默认头像。',
       onOk: async () => {
-        const res = await updateAvatarMutation.mutateAsync(null);
-        if (res.code === 0) { onUpdated(res.data); Toast.success('头像已移除'); onClose(); }
-        else Toast.error(res.message ?? '移除失败');
+        try {
+          onUpdated(await updateAvatar(null));
+          Toast.success('头像已移除');
+          onClose();
+        } catch (err) {
+          Toast.error(err instanceof Error && err.message ? err.message : '移除失败');
+        }
       },
     });
   }

@@ -49,7 +49,7 @@ export default function WikiRecyclePage() {
       actions: (record) => [
         ...(hasPermission('wiki:recycle:restore') ? [{
           key: 'restore', label: '还原',
-          onClick: () => restoreMutation.mutate(record.id, { onSuccess: () => Toast.success('已还原') }),
+          onClick: () => restoreMutation.mutate({ params: { id: record.id } }, { onSuccess: () => Toast.success('已还原') }),
         }] : []),
         ...(hasPermission('wiki:recycle:purge') ? [{
           key: 'purge', label: '彻底删除', danger: true,
@@ -58,7 +58,7 @@ export default function WikiRecyclePage() {
               title: `彻底删除「${record.title}」？`,
               content: '彻底删除后文档及其版本、评论、收藏将全部清除，不可恢复！',
               onOk: async () => {
-                await purgeMutation.mutateAsync(record.id);
+                await purgeMutation.mutateAsync({ params: { id: record.id } });
                 Toast.success('已彻底删除');
               },
             });

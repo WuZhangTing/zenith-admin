@@ -1,6 +1,6 @@
-import { http } from 'msw';
-import { ok, badRequest, notFound } from '@/mocks/utils/handlers';
-import type { UserApiToken, UserApiTokenCreated } from '@zenith/shared/identity';
+import { apiTokenContract, type UserApiToken, type UserApiTokenCreated } from '@zenith/shared/identity';
+import { mock } from '@/mocks/utils/contract';
+import { badRequest, notFound, nextIdFrom } from '@/mocks/utils/handlers';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 
 type TokenEntry = UserApiToken & { _full: string };
@@ -26,32 +26,29 @@ const mockTokenStore: TokenEntry[] = [
   },
 ];
 
-let nextId = 3;
-
 export const apiTokensHandlers = [
   // 获取 Token 列表（隐藏完整 token）
-  http.get('/api/api-tokens', () => {
+  mock(apiTokenContract.list, ({ ok }) => {
     const data: UserApiToken[] = mockTokenStore.map(({ _full: _, ...t }) => t);
     return ok(data);
   }),
 
   // 创建 Token（仅在此刻返回完整值）
-  http.post('/api/api-tokens', async ({ request }) => {
-    const body = await request.json() as { name?: string };
-    if (!body.name?.trim()) {
-      return badRequest('Token 名称不能为空');
+  mock(apiTokenContract.create, ({ body, ok }) => {
+    if (!body.name.trim()) {
+      return badRequest('Token 名称不能为空', { status: 400 });
     }
     if (mockTokenStore.length >= 20) {
-      return badRequest('最多只能创建 20 个 API Token');
+      return badRequest('最多只能创建 20 个 API Token', { status: 400 });
     }
     const token = `zat_demo${Math.random().toString(36).slice(2).padEnd(20, '0').slice(0, 20)}`;
     const entry: TokenEntry = {
-      id: nextId++,
+      id: nextIdFrom(mockTokenStore),
       name: body.name.trim(),
       tokenPrefix: `${token.slice(0, 12)}...`,
       _full: token,
       lastUsedAt: null,
-      expiresAt: null,
+      expiresAt: body.expiresAt ?? null,
       createdAt: mockDateTime(),
     };
     mockTokenStore.push(entry);
@@ -65,10 +62,9 @@ export const apiTokensHandlers = [
   }),
 
   // 撤销 Token
-  http.delete('/api/api-tokens/:id', ({ params }) => {
-    const id = Number(params.id);
-    const idx = mockTokenStore.findIndex((t) => t.id === id);
-    if (idx === -1) return notFound('Token 不存在');
+  mock(apiTokenContract.remove, ({ params, ok }) => {
+    const idx = mockTokenStore.findIndex((t) => t.id === params.id);
+    if (idx === -1) return notFound('Token 不存在', { status: 404 });
     mockTokenStore.splice(idx, 1);
     return ok(null, 'Token 已撤销');
   }),

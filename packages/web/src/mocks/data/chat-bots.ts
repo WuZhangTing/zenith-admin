@@ -1,5 +1,5 @@
 import { chatWebhookPublicContract, type ChatWebhook } from '@zenith/shared/chat';
-import { fillPath } from '@zenith/shared/core';
+import { urlOf } from '@/lib/contract-query';
 import { mockDateTime } from '@/mocks/utils/date';
 
 function token(seed: string): string {
@@ -15,7 +15,7 @@ export const mockChatWebhooks: ChatWebhook[] = [
     conversationId: 101,
     conversationName: '产品讨论组',
     enabled: true,
-    webhookUrl: fillPath(chatWebhookPublicContract.ingest.fullPath, { token: 'cwh_demo_monitor_0001abcd' }),
+    webhookUrl: urlOf(chatWebhookPublicContract.ingest, { params: { token: 'cwh_demo_monitor_0001abcd' } }),
     token: 'cwh_demo_monitor_0001abcd',
     lastUsedAt: mockDateTime(),
     createdAt: mockDateTime(),
@@ -29,7 +29,7 @@ export const mockChatWebhooks: ChatWebhook[] = [
     conversationId: 101,
     conversationName: '产品讨论组',
     enabled: false,
-    webhookUrl: fillPath(chatWebhookPublicContract.ingest.fullPath, { token: 'cwh_demo_ci_0002efgh' }),
+    webhookUrl: urlOf(chatWebhookPublicContract.ingest, { params: { token: 'cwh_demo_ci_0002efgh' } }),
     token: 'cwh_demo_ci_0002efgh',
     lastUsedAt: null,
     createdAt: mockDateTime(),
