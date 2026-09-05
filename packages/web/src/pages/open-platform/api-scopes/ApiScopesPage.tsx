@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Button, Tag, Form, Toast, Typography, Row, Col } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Trash2 } from 'lucide-react';
+import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
 import { API_SCOPE_GROUPS, API_SCOPE_GROUP_LABELS } from '@zenith/shared/open-platform';
-import type { ApiScope } from '@zenith/shared/open-platform';
+import type { ApiScope, CreateApiScopeInput } from '@zenith/shared/open-platform';
 import { copyableNoColumn, createdAtColumn } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -12,10 +13,9 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
-  openPlatformKeys,
+  apiScopeKeys,
   useApiScopeList,
-  useBatchDeleteApiScopes,
-  useDeleteApiScope,
+  useDeleteApiScopes,
   useSaveApiScope,
 } from '@/hooks/queries/open-platform';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -28,27 +28,19 @@ const { Text } = Typography;
 
 const GROUP_OPTIONS = API_SCOPE_GROUPS.map((g) => ({ value: g, label: API_SCOPE_GROUP_LABELS[g] ?? g }));
 
-type FormValues = {
-  code: string;
-  name: string;
-  scopeGroup: string;
-  description?: string;
-  status: 'enabled' | 'disabled';
-};
-
 export default function ApiScopesPage() {
   const { items: statusItems } = useDictItems('common_status');
   const STATUS_OPTIONS = statusItems.map((i) => ({ value: i.value, label: i.label }));
   const { hasPermission } = usePermission();
   const canManage = hasPermission('open:scope:manage');
 
-  interface SearchParams { keyword: string; scopeGroup?: string; status?: 'enabled' | 'disabled' }
+  interface SearchParams { keyword: string; scopeGroup?: string; status?: string }
   const defaultSearchParams: SearchParams = { keyword: '', scopeGroup: undefined, status: undefined };
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: openPlatformKeys.apiScopes.lists });
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: apiScopeKeys.lists });
 
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
 
@@ -57,27 +49,27 @@ export default function ApiScopesPage() {
     pageSize,
     keyword: submittedParams.keyword || undefined,
     scopeGroup: submittedParams.scopeGroup,
-    status: submittedParams.status,
+    status: enumValueOf(USER_STATUSES, submittedParams.status),
   });
   const data = listQuery.data ?? null;
-  const deleteMutation = useDeleteApiScope();
-  const batchDeleteMutation = useBatchDeleteApiScopes();
+  const deleteMutation = useDeleteApiScopes();
 
-  const modal = useEditModal<ApiScope, FormValues>({
+  const modal = useEditModal<ApiScope, Partial<CreateApiScopeInput>>({
     save: useSaveApiScope(),
     defaults: { scopeGroup: 'general', status: 'enabled' },
+    // 记录里的 null 描述在表单中视为未填
     toValues: (r) => ({
       code: r.code,
       name: r.name,
       scopeGroup: r.scopeGroup,
-      description: r.description ?? '',
+      description: r.description ?? undefined,
       status: r.status,
     }),
     labelWidth: 110,
   });
 
   async function handleDelete(id: number) {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('删除成功');
   }
 
@@ -86,7 +78,7 @@ export default function ApiScopesPage() {
       title: `确定删除选中的 ${selectedRowKeys.length} 个 Scope？`,
       content: '删除后不可恢复',
       onOk: async () => {
-        await batchDeleteMutation.mutateAsync(selectedRowKeys);
+        await deleteMutation.mutateAsync(selectedRowKeys);
         Toast.success('批量删除成功');
         setSelectedRowKeys([]);
       },
@@ -109,8 +101,8 @@ export default function ApiScopesPage() {
       align: 'right',
       dataIndex: 'usedByAppCount',
       width: 100,
-      render: (v: number | undefined) => (
-        (v ?? 0) > 0
+      render: (v: number) => (
+        v > 0
           ? <Tag size="small" color="orange">{v} 个应用</Tag>
           : <Text type="tertiary">未被引用</Text>
       ),
@@ -159,7 +151,7 @@ export default function ApiScopesPage() {
             <StatusSelect
               items={STATUS_OPTIONS}
               value={draftParams.status}
-              onChange={(v) => setDraftParams({ ...draftParams, status: v as 'enabled' | 'disabled' })}
+              onChange={(v) => setDraftParams({ ...draftParams, status: v as string })}
             />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />

@@ -1,48 +1,45 @@
-import { http } from 'msw';
-import { ok, badRequest, notFound, pageParams, nextIdFrom } from '@/mocks/utils/handlers';
+import { ratePlanContract } from '@zenith/shared/open-platform';
 import type { RatePlan } from '@zenith/shared/open-platform';
+import { mock } from '@/mocks/utils/contract';
+import { badRequest, notFound, nextIdFrom } from '@/mocks/utils/handlers';
 import { mockRatePlans } from '@/mocks/data/rate-plans';
 import { mockDateTime } from '@/mocks/utils/date';
 
-let plans: RatePlan[] = mockRatePlans.map((p) => ({ ...p }));
+const plans: RatePlan[] = mockRatePlans.map((p) => ({ ...p }));
 let nextId = nextIdFrom(plans);
-const BASE = '/api/rate-plans';
 
-function clearDefault(keepId?: number) {
-  plans = plans.map((p) => (p.id === keepId ? p : { ...p, isDefault: false }));
+/** 默认套餐唯一：保留 keepId，其余全部取消默认 */
+function clearDefault(keepId: number) {
+  for (const plan of plans) {
+    if (plan.id !== keepId) plan.isDefault = false;
+  }
 }
 
 export const ratePlansHandlers = [
-  http.get(`${BASE}/options`, () => ok(plans.filter((p) => p.status === 'enabled'), 'success')),
+  mock(ratePlanContract.options, ({ ok }) => ok(plans.filter((p) => p.status === 'enabled'))),
 
-  http.get(BASE, ({ request }) => {
-    const url = new URL(request.url);
-    const keyword = url.searchParams.get('keyword') ?? '';
-    const status = url.searchParams.get('status') ?? '';
-    const { page, pageSize } = pageParams(url);
+  mock(ratePlanContract.list, ({ query, ok, paginate }) => {
     let filtered = plans;
-    if (keyword) filtered = filtered.filter((p) => p.code.includes(keyword) || p.name.includes(keyword));
-    if (status) filtered = filtered.filter((p) => p.status === status);
-    const start = (page - 1) * pageSize;
-    return ok({ list: filtered.slice(start, start + pageSize), total: filtered.length, page, pageSize }, 'success');
+    if (query.keyword) filtered = filtered.filter((p) => p.code.includes(query.keyword!) || p.name.includes(query.keyword!));
+    if (query.status) filtered = filtered.filter((p) => p.status === query.status);
+    return ok(paginate(filtered));
   }),
 
-  http.post(BASE, async ({ request }) => {
-    const body = (await request.json()) as Partial<RatePlan>;
+  mock(ratePlanContract.create, ({ body, ok }) => {
     if (plans.some((p) => p.code === body.code)) {
       return badRequest('套餐编码已存在', { status: 400 });
     }
     const now = mockDateTime();
     const created: RatePlan = {
       id: nextId++,
-      code: body.code ?? '',
-      name: body.name ?? '',
+      code: body.code,
+      name: body.name,
       description: body.description ?? null,
-      qpsLimit: body.qpsLimit ?? 10,
-      dailyQuota: body.dailyQuota ?? 0,
-      monthlyQuota: body.monthlyQuota ?? 0,
-      isDefault: body.isDefault ?? false,
-      status: body.status ?? 'enabled',
+      qpsLimit: body.qpsLimit,
+      dailyQuota: body.dailyQuota,
+      monthlyQuota: body.monthlyQuota,
+      isDefault: body.isDefault,
+      status: body.status,
       createdAt: now,
       updatedAt: now,
     };
@@ -51,22 +48,21 @@ export const ratePlansHandlers = [
     return ok(created, '创建成功');
   }),
 
-  http.get(`${BASE}/:id`, ({ params }) => {
-    const found = plans.find((p) => p.id === Number(params.id));
-    return found ? ok(found, 'success') : notFound('限流套餐不存在', { status: 404 });
+  mock(ratePlanContract.detail, ({ params, ok }) => {
+    const found = plans.find((p) => p.id === params.id);
+    return found ? ok(found) : notFound('限流套餐不存在', { status: 404 });
   }),
 
-  http.put(`${BASE}/:id`, async ({ params, request }) => {
-    const idx = plans.findIndex((p) => p.id === Number(params.id));
+  mock(ratePlanContract.update, ({ params, body, ok }) => {
+    const idx = plans.findIndex((p) => p.id === params.id);
     if (idx === -1) return notFound('限流套餐不存在', { status: 404 });
-    const body = (await request.json()) as Partial<RatePlan>;
-    plans[idx] = { ...plans[idx], ...body, code: plans[idx].code, updatedAt: mockDateTime() };
+    plans[idx] = { ...plans[idx], ...body, updatedAt: mockDateTime() };
     if (plans[idx].isDefault) clearDefault(plans[idx].id);
     return ok(plans[idx], '更新成功');
   }),
 
-  http.delete(`${BASE}/:id`, ({ params }) => {
-    const idx = plans.findIndex((p) => p.id === Number(params.id));
+  mock(ratePlanContract.remove, ({ params, ok }) => {
+    const idx = plans.findIndex((p) => p.id === params.id);
     if (idx === -1) return notFound('限流套餐不存在', { status: 404 });
     plans.splice(idx, 1);
     return ok(null, '删除成功');

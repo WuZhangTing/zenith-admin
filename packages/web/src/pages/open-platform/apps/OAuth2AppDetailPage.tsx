@@ -152,7 +152,7 @@ function TokensTab({ clientId, canManage }: Readonly<{ clientId: string; canMana
             title: '确认撤销该令牌？',
             content: '撤销后客户端必须重新获取令牌。',
             onOk: async () => {
-              await revokeMutation.mutateAsync(record.id);
+              await revokeMutation.mutateAsync({ params: { id: record.id } });
               Toast.success('令牌已撤销');
             },
           });

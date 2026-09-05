@@ -1,6 +1,7 @@
 import { Tag, Form, Toast, Typography, Row, Col, Space } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { RatePlan } from '@zenith/shared/open-platform';
+import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
+import type { CreateRatePlanInput, RatePlan } from '@zenith/shared/open-platform';
 import { copyableNoColumn, createdAtColumn } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -8,7 +9,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { openPlatformKeys, useDeleteRatePlan, useRatePlanList, useSaveRatePlan } from '@/hooks/queries/open-platform';
+import { ratePlanKeys, useDeleteRatePlans, useRatePlanList, useSaveRatePlan } from '@/hooks/queries/open-platform';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -19,48 +20,38 @@ const { Text } = Typography;
 
 const fmtQuota = (n: number) => (n > 0 ? n.toLocaleString() : '不限');
 
-type FormValues = {
-  code: string;
-  name: string;
-  description?: string;
-  qpsLimit: number;
-  dailyQuota: number;
-  monthlyQuota: number;
-  isDefault: boolean;
-  status: 'enabled' | 'disabled';
-};
-
 export default function RatePlansPage() {
   const { items: statusItems } = useDictItems('common_status');
   const STATUS_OPTIONS = statusItems.map((i) => ({ value: i.value, label: i.label }));
   const { hasPermission } = usePermission();
   const canManage = hasPermission('open:rate-plan:manage');
 
-  interface SearchParams { keyword: string; status?: 'enabled' | 'disabled' }
+  interface SearchParams { keyword: string; status?: string }
   const defaultSearchParams: SearchParams = { keyword: '', status: undefined };
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: openPlatformKeys.ratePlans.lists });
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: ratePlanKeys.lists });
 
-    const listQuery = useRatePlanList({
+  const listQuery = useRatePlanList({
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    status: submittedParams.status,
+    status: enumValueOf(USER_STATUSES, submittedParams.status),
   });
   const data = listQuery.data ?? null;
-  const deleteMutation = useDeleteRatePlan();
+  const deleteMutation = useDeleteRatePlans();
 
-  const modal = useEditModal<RatePlan, FormValues>({
+  const modal = useEditModal<RatePlan, Partial<CreateRatePlanInput>>({
     entityName: '限流套餐',
     save: useSaveRatePlan(),
     defaults: { qpsLimit: 10, dailyQuota: 0, monthlyQuota: 0, isDefault: false, status: 'enabled' },
+    // 记录里的 null 描述在表单中视为未填
     toValues: (r) => ({
       code: r.code,
       name: r.name,
-      description: r.description ?? '',
+      description: r.description ?? undefined,
       qpsLimit: r.qpsLimit,
       dailyQuota: r.dailyQuota,
       monthlyQuota: r.monthlyQuota,
@@ -70,7 +61,7 @@ export default function RatePlansPage() {
   });
 
   async function handleDelete(id: number) {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('删除成功');
   }
 
@@ -130,7 +121,7 @@ export default function RatePlansPage() {
             <StatusSelect
               items={STATUS_OPTIONS}
               value={draftParams.status}
-              onChange={(v) => setDraftParams({ ...draftParams, status: v as 'enabled' | 'disabled' })}
+              onChange={(v) => setDraftParams({ ...draftParams, status: v as string })}
             />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />

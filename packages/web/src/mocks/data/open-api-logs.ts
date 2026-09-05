@@ -1,5 +1,7 @@
+import { openGatewayContract } from '@zenith/shared/open-platform';
 import type { OpenApiCallLog } from '@zenith/shared/open-platform';
 import dayjs from 'dayjs';
+import { urlOf } from '@/lib/contract-query';
 
 const APPS = [
   { clientId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', appName: '示例应用（授权码模式）', environment: 'production' as const },
@@ -7,10 +9,10 @@ const APPS = [
   { clientId: 'c0ffee00-1234-5678-9abc-def012345678', appName: '移动端公开客户端', environment: 'sandbox' as const },
 ];
 const ENDPOINTS = [
-  { method: 'GET', path: '/api/open/v1/ping', scope: null as string | null },
-  { method: 'GET', path: '/api/open/v1/echo', scope: 'data:read' },
-  { method: 'POST', path: '/api/open/v1/echo', scope: 'data:write' },
-  { method: 'GET', path: '/api/open/v1/userinfo', scope: 'user:read' },
+  { method: 'GET', path: urlOf(openGatewayContract.ping), scope: null as string | null },
+  { method: 'GET', path: urlOf(openGatewayContract.echoQuery), scope: 'data:read' },
+  { method: 'POST', path: urlOf(openGatewayContract.echoBody), scope: 'data:write' },
+  { method: 'GET', path: urlOf(openGatewayContract.userinfo), scope: 'user:read' },
 ];
 
 function pick<T>(arr: T[]): T {
@@ -26,6 +28,8 @@ function gen(): OpenApiCallLog[] {
       const app = pick(APPS);
       const ep = pick(ENDPOINTS);
       const success = Math.random() > 0.12;
+      // 签名通道无用户主体；Bearer 通道按用户授权令牌记录用户
+      const bearer = Math.random() > 0.5;
       const t = dayjs()
         .subtract(d, 'day')
         .hour(Math.floor(Math.random() * 24))
@@ -43,6 +47,8 @@ function gen(): OpenApiCallLog[] {
         ip: `203.0.113.${Math.floor(Math.random() * 254) + 1}`,
         userAgent: 'zenith-sdk/1.0',
         scope: ep.scope,
+        authChannel: bearer ? 'bearer' : 'signature',
+        userId: bearer ? 1 : null,
         errorMessage: success ? null : '调用失败',
         requestId: null,
         environment: app.environment,

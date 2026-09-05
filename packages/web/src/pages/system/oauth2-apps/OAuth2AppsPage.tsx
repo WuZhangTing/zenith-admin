@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Tag, TagGroup, Modal, Form, Toast, Typography, Checkbox, Spin, Banner, Row, Col, Switch, SideSheet, TextArea } from '@douyinfe/semi-ui';
+import { enumValueOf } from '@zenith/shared/core';
 import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OAUTH2_SCOPES, OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS, OPEN_APP_REVIEW_STATUS_LABELS, OPEN_APP_REVIEW_STATUSES } from '@zenith/shared/open-platform';
-import type { OAuth2Client } from '@zenith/shared/open-platform';
+import type { OAuth2Client, OAuth2GrantType } from '@zenith/shared/open-platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { copyableNoColumn, createdAtColumn } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -20,6 +21,7 @@ import {
   useRegenerateOAuth2AppSecret,
   useReviewOAuth2App,
   useSaveOAuth2App,
+  type SaveOAuth2AppValues,
 } from '@/hooks/queries/oauth2-apps';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -42,7 +44,7 @@ type FormValues = {
   logoUrl?: string;
   redirectUris: string[];
   allowedScopes: string[];
-  grantTypes: string[];
+  grantTypes: OAuth2GrantType[];
   isPublic: boolean;
   ratePlanId?: number | null;
   signEnabled?: boolean;
@@ -109,7 +111,7 @@ export default function OAuth2AppsPage() {
   const ratePlans = useOAuth2RatePlans().data ?? [];
   const scopeOptions = useOAuth2ApiScopes().data ?? [];
   const saveMutation = useSaveOAuth2App();
-  const appModal = useEditModal<OAuth2ClientSaved, FormValues, Record<string, unknown>>({
+  const appModal = useEditModal<OAuth2ClientSaved, FormValues, SaveOAuth2AppValues>({
     entityName: ' OAuth2 应用',
     save: saveMutation,
     useDetail: useOAuth2AppDetail,
@@ -121,16 +123,17 @@ export default function OAuth2AppsPage() {
       allowedScopes: ['openid', 'profile'],
       grantTypes: ['authorization_code', 'refresh_token'],
     },
+    // 记录里的 null 描述 / Logo / 套餐在表单中视为未填；授权类型按常量目录收窄
     toValues: (app) => ({
       name: app.name,
-      description: app.description ?? '',
-      logoUrl: app.logoUrl ?? '',
+      description: app.description ?? undefined,
+      logoUrl: app.logoUrl ?? undefined,
       redirectUris: app.redirectUris,
       allowedScopes: app.allowedScopes,
-      grantTypes: app.grantTypes,
+      grantTypes: app.grantTypes.flatMap((type) => enumValueOf(OAUTH2_GRANT_TYPES, type) ?? []),
       isPublic: app.isPublic,
       ratePlanId: app.ratePlanId ?? undefined,
-      signEnabled: app.signEnabled ?? false,
+      signEnabled: app.signEnabled,
       ipAllowlist: app.ipAllowlist,
       environment: app.environment,
       status: app.status,
@@ -154,13 +157,13 @@ export default function OAuth2AppsPage() {
 
   // ─── 删除 ──────────────────────────────────────────────────────────────
   async function handleDelete(id: number) {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync({ params: { id } });
     Toast.success('删除成功');
   }
 
   // ─── 重置 Secret ────────────────────────────────────────────────────────
   async function handleRegenerate(row: OAuth2Client) {
-    const result = await regenerateMutation.mutateAsync(row.id);
+    const result = await regenerateMutation.mutateAsync({ params: { id: row.id } });
     if (result.clientSecret) {
       setOneTimeClientId(result.clientId);
       setOneTimeSecret(result.clientSecret);
@@ -179,7 +182,7 @@ export default function OAuth2AppsPage() {
   const [reviewComment, setReviewComment] = useState('');
 
   async function handleApprove(record: OAuth2Client) {
-    await reviewMutation.mutateAsync({ id: record.id, action: 'approve' });
+    await reviewMutation.mutateAsync({ params: { id: record.id }, body: { action: 'approve' } });
     Toast.success('审核已通过');
   }
 
@@ -190,7 +193,7 @@ export default function OAuth2AppsPage() {
       Toast.warning('请填写驳回原因');
       return;
     }
-    await reviewMutation.mutateAsync({ id: reviewTarget.id, action: 'reject', comment });
+    await reviewMutation.mutateAsync({ params: { id: reviewTarget.id }, body: { action: 'reject', comment } });
     Toast.success('应用已驳回，审核意见已通知开发者');
     setReviewTarget(null);
     setReviewComment('');

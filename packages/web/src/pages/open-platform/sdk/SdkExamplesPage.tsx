@@ -1,11 +1,17 @@
 import { useState, useMemo } from 'react';
 import { Tabs, TabPane, Select, Input, Typography, Banner, Button, Space, Card } from '@douyinfe/semi-ui';
 import { Copy } from 'lucide-react';
+import { openGatewayContract } from '@zenith/shared/open-platform';
 import { config } from '@/config';
+import { urlOf } from '@/lib/contract-query';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { useOpenAppOptions } from '@/hooks/queries/open-platform';
 
 const { Text, Title } = Typography;
+
+/** 示例统一调用连通性测试端点；网关 v1 根路径即该端点去掉末段 */
+const PING_PATH = urlOf(openGatewayContract.ping);
+const GATEWAY_V1_PATH = PING_PATH.slice(0, PING_PATH.lastIndexOf('/'));
 
 function CodeBlock({ code }: { code: string }) {
   const copy = () => {
@@ -37,10 +43,10 @@ export default function SdkExamplesPage() {
 
   const base = useMemo(() => {
     const origin = config.apiBaseUrl || window.location.origin;
-    return `${origin.replace(/\/$/, '')}/api/open/v1`;
+    return `${origin.replace(/\/$/, '')}${GATEWAY_V1_PATH}`;
   }, []);
 
-  const snippets = useMemo(() => buildSnippets(appKey, secret, base), [appKey, secret, base]);
+  const snippets = useMemo(() => buildSnippets(appKey, secret, base, PING_PATH), [appKey, secret, base]);
 
   return (
     <div className="page-container">
@@ -92,7 +98,7 @@ export default function SdkExamplesPage() {
   );
 }
 
-function buildSnippets(appKey: string, secret: string, base: string) {
+function buildSnippets(appKey: string, secret: string, base: string, pingPath: string) {
   const curl = `#!/usr/bin/env bash
 APP_KEY="${appKey}"
 APP_SECRET="${secret}"
@@ -103,7 +109,7 @@ NONCE=$(openssl rand -hex 8)
 BODY=""
 BODY_HASH=$(printf '%s' "$BODY" | openssl dgst -sha256 -hex | sed 's/^.* //')
 # stringToSign = METHOD\\nPATH\\nCANONICAL_QUERY\\nTS\\nNONCE\\nSHA256(BODY)
-STS=$(printf 'GET\\n/api/open/v1/ping\\n\\n%s\\n%s\\n%s' "$TS" "$NONCE" "$BODY_HASH")
+STS=$(printf 'GET\\n${pingPath}\\n\\n%s\\n%s\\n%s' "$TS" "$NONCE" "$BODY_HASH")
 SIG=$(printf '%s' "$STS" | openssl dgst -sha256 -hmac "$APP_SECRET" -hex | sed 's/^.* //')
 
 curl "$BASE/ping" \\
@@ -134,7 +140,7 @@ function signHeaders(method, path, query = '', body = '') {
   return { 'X-App-Key': APP_KEY, 'X-Timestamp': ts, 'X-Nonce': nonce, 'X-Signature': signature };
 }
 
-const headers = signHeaders('GET', '/api/open/v1/ping');
+const headers = signHeaders('GET', '${pingPath}');
 const res = await fetch(BASE + '/ping', { headers });
 console.log(await res.json());`;
 
@@ -163,7 +169,7 @@ def sign_headers(method, path, query='', body=''):
     sig = hmac.new(APP_SECRET.encode(), string_to_sign.encode(), hashlib.sha256).hexdigest()
     return {'X-App-Key': APP_KEY, 'X-Timestamp': ts, 'X-Nonce': nonce, 'X-Signature': sig}
 
-resp = requests.get(BASE + '/ping', headers=sign_headers('GET', '/api/open/v1/ping'))
+resp = requests.get(BASE + '/ping', headers=sign_headers('GET', '${pingPath}'))
 print(resp.json())`;
 
   const pythonVerify = `import hmac, hashlib, re
@@ -186,7 +192,7 @@ String appKey = "${appKey}", appSecret = "${secret}", base = "${base}";
 String ts = String.valueOf(System.currentTimeMillis() / 1000);
 String nonce = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 16);
 String bodyHash = hex(MessageDigest.getInstance("SHA-256").digest("".getBytes()));
-String stringToSign = String.join("\\n", "GET", "/api/open/v1/ping", "", ts, nonce, bodyHash);
+String stringToSign = String.join("\\n", "GET", "${pingPath}", "", ts, nonce, bodyHash);
 Mac mac = Mac.getInstance("HmacSHA256");
 mac.init(new SecretKeySpec(appSecret.getBytes(), "HmacSHA256"));
 String sig = hex(mac.doFinal(stringToSign.getBytes()));
@@ -228,7 +234,7 @@ func signHeaders(method, path, query, body string) map[string]string {
 
 func main() {
   req, _ := http.NewRequest("GET", base+"/ping", nil)
-  for k, v := range signHeaders("GET", "/api/open/v1/ping", "", "") { req.Header.Set(k, v) }
+  for k, v := range signHeaders("GET", "${pingPath}", "", "") { req.Header.Set(k, v) }
   resp, _ := http.DefaultClient.Do(req); defer resp.Body.Close()
   fmt.Println(resp.Status)
 }`;

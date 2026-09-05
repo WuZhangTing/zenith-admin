@@ -56,7 +56,7 @@ describe('OpenAPI 文档生成', () => {
     // OpenAPIHono.route() 只在父子同为 OpenAPIHono 时合并子路由的 openAPIRegistry；
     // 父级退化成普通 Hono 会让 open-cms 的定义被静默丢弃（端点可访问但 Swagger 里没有）。
     const source = await readFile(new URL('../routes/open-platform/open-gateway.ts', import.meta.url), 'utf8');
-    expect(source).toContain('const router = new OpenAPIHono()');
-    expect(source).not.toContain('const router = new Hono()');
+    expect(source).toMatch(/const router = new OpenAPIHono\(/);
+    expect(source).not.toMatch(/const router = new Hono\(/);
   });
 });

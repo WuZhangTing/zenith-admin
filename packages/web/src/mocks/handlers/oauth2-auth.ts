@@ -1,40 +1,44 @@
 /**
- * MSW handlers for OAuth2 standard endpoints (authorize, token, userinfo, etc.)
+ * OAuth2 端点 Mock：授权同意页的两个业务信封端点由契约绑定；
+ * /token、/token/revoke、/token/introspect、/userinfo 是 RFC 协议端点（表单入参 + 顶层响应），保持 http.* 声明。
  */
 import { http, HttpResponse } from 'msw';
-import { ok, badRequest } from '@/mocks/utils/handlers';
+import { oauth2AuthContract, OAUTH2_SCOPE_DESCRIPTIONS } from '@zenith/shared/open-platform';
+import { mock } from '@/mocks/utils/contract';
+import { ok } from '@/mocks/utils/handlers';
 
-const BASE = '/api/oauth2';
+const BASE = oauth2AuthContract.basePath;
 
 // 简单的 mock token store
 const accessTokens = new Map<string, { userId: number; clientId: string; scopes: string[] }>();
 
 export const oauth2AuthHandlers = [
   // 查询应用授权信息
-  http.get(`${BASE}/authorize/info`, ({ request: req }) => {
-    const url = new URL(req.url);
-    const clientId = url.searchParams.get('client_id');
-    const scope = url.searchParams.get('scope') ?? 'openid';
-    if (!clientId) {
-      return badRequest('client_id 缺失', { status: 400 });
-    }
+  mock(oauth2AuthContract.authorizeInfo, ({ query, ok }) => {
+    const requestedScopes = query.scope.split(' ').filter(Boolean);
     return ok({
-      clientId,
+      clientId: query.client_id,
       name: 'Demo 应用（Mock）',
       logoUrl: null,
       description: '这是一个演示应用',
-      requestedScopes: scope.split(' ').filter(Boolean),
+      requestedScopes,
+      scopeDetails: requestedScopes.map((code) => ({
+        code,
+        name: code,
+        description: OAUTH2_SCOPE_DESCRIPTIONS[code] ?? null,
+        granted: false,
+      })),
       alreadyGranted: false,
-    }, 'success');
+      requiresPkce: true,
+    });
   }),
 
   // 用户确认授权
-  http.post(`${BASE}/authorize`, async ({ request: req }) => {
-    const body = await req.json() as Record<string, string>;
+  mock(oauth2AuthContract.authorize, ({ body, ok }) => {
     const code = `mock_code_${Date.now()}`;
     // mock 不需要真正存储 code，直接返回跳转 URL
     const stateParam = body.state ? `&state=${encodeURIComponent(body.state)}` : '';
-    return ok({ redirectUrl: `${body.redirect_uri}?code=${code}${stateParam}` }, 'success');
+    return ok({ redirectUrl: `${body.redirect_uri}?code=${code}${stateParam}` });
   }),
 
   // 令牌端点（form-urlencoded，mock 接受 JSON 也行）

@@ -1,87 +1,73 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse } from '@zenith/shared/core';
-import type { ApiScope, OAuth2Client, OAuth2ClientCreated, OAuth2MyGrant, OAuth2Token, OAuth2UserGrant, RatePlan } from '@zenith/shared/open-platform';
-import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
-import { request } from '@/utils/request';
+import { keepPreviousData, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { resourceKeyOf, type BodyOf, type QueryOf } from '@zenith/shared/core';
+import { apiScopeContract, oauth2ClientContract, ratePlanContract } from '@zenith/shared/open-platform';
+import { LOOKUP_STALE_TIME } from '@/lib/query';
+import { api, contractKey, useApiMutation, useApiQuery } from '@/lib/contract-query';
 
-export interface OAuth2AppListParams {
-  page: number;
-  pageSize: number;
-  keyword?: string;
-  environment?: 'production' | 'sandbox';
-  reviewStatus?: 'draft' | 'pending' | 'approved' | 'rejected';
-}
+export type OAuth2AppListParams = QueryOf<typeof oauth2ClientContract.list>;
+
+/** 新增与编辑共用同一表单：必填字段由表单 rules 保证，服务端 schema 兜底校验 */
+export type SaveOAuth2AppValues = BodyOf<typeof oauth2ClientContract.update>;
+
+const OAUTH2_APP_KEY = resourceKeyOf(oauth2ClientContract.basePath);
 
 export const oauth2AppKeys = {
-  all: ['oauth2-apps'] as const,
-  lists: ['oauth2-apps', 'list'] as const,
-  list: (params: OAuth2AppListParams) => ['oauth2-apps', 'list', params] as const,
-  detail: (id: number | undefined) => ['oauth2-apps', 'detail', id] as const,
-  ratePlans: ['oauth2-apps', 'rate-plans'] as const,
-  scopes: ['oauth2-apps', 'scopes'] as const,
-  grantsPrefix: ['oauth2-apps', 'grants'] as const,
-  grants: (id: number, page: number, pageSize: number) => ['oauth2-apps', 'grants', id, page, pageSize] as const,
-  tokensPrefix: ['oauth2-apps', 'tokens'] as const,
-  tokens: (clientId: string, page: number, pageSize: number) => ['oauth2-apps', 'tokens', clientId, page, pageSize] as const,
-  myGrantsPrefix: ['oauth2-apps', 'my-grants'] as const,
-  myGrants: (page: number, pageSize: number) => ['oauth2-apps', 'my-grants', page, pageSize] as const,
+  all: [OAUTH2_APP_KEY] as const,
+  lists: contractKey(oauth2ClientContract.list),
+  list: (params: OAuth2AppListParams) => contractKey(oauth2ClientContract.list, { query: params }),
+  detail: (id: number) => contractKey(oauth2ClientContract.detail, { params: { id } }),
+  grantsPrefix: contractKey(oauth2ClientContract.grants),
+  grants: (id: number, page: number, pageSize: number) => contractKey(oauth2ClientContract.grants, { params: { id }, query: { page, pageSize } }),
+  tokensPrefix: contractKey(oauth2ClientContract.tokens),
+  tokens: (clientId: string, page: number, pageSize: number) => contractKey(oauth2ClientContract.tokens, { query: { clientId, page, pageSize } }),
+  myGrantsPrefix: contractKey(oauth2ClientContract.myGrants),
+  myGrants: (page: number, pageSize: number) => contractKey(oauth2ClientContract.myGrants, { query: { page, pageSize } }),
 };
 
 export function useOAuth2AppList(params: OAuth2AppListParams) {
-  return useQuery({
-    queryKey: oauth2AppKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<OAuth2Client>>(`/api/oauth2/clients${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
+  return useApiQuery(oauth2ClientContract.list, { query: params }, { placeholderData: keepPreviousData });
 }
 
 export function useOAuth2AppDetail(id: number | undefined, enabled = true) {
-  return useQuery({
-    queryKey: oauth2AppKeys.detail(id),
-    queryFn: () => request.get<OAuth2Client>(`/api/oauth2/clients/${id}`).then(unwrap),
-    enabled: enabled && id !== undefined,
-  });
+  return useApiQuery(oauth2ClientContract.detail, { params: { id: id ?? 0 } }, { enabled: enabled && id !== undefined });
 }
 
+/** 限流套餐下拉源（启用项）：静态字典型数据，与应用增删改无关 */
 export function useOAuth2RatePlans() {
-  return useQuery({
-    queryKey: oauth2AppKeys.ratePlans,
-    queryFn: () => request.get<RatePlan[]>('/api/rate-plans/options', { silent: true }).then(unwrap),
-    staleTime: LOOKUP_STALE_TIME,
-  });
+  return useApiQuery(ratePlanContract.options, { staleTime: LOOKUP_STALE_TIME, requestOptions: { silent: true } });
 }
 
+/** API Scope 下拉源（启用项）：静态字典型数据，与应用增删改无关 */
 export function useOAuth2ApiScopes() {
-  return useQuery({
-    queryKey: oauth2AppKeys.scopes,
-    queryFn: () => request.get<ApiScope[]>('/api/api-scopes/options', { silent: true }).then(unwrap),
-    staleTime: LOOKUP_STALE_TIME,
-  });
+  return useApiQuery(apiScopeContract.options, { staleTime: LOOKUP_STALE_TIME, requestOptions: { silent: true } });
 }
 
+function invalidateApp(qc: QueryClient, id: number) {
+  void qc.invalidateQueries({ queryKey: oauth2AppKeys.detail(id) });
+  void qc.invalidateQueries({ queryKey: oauth2AppKeys.lists });
+}
+
+/** 无 id 走创建（POST，返回含一次性 clientSecret），有 id 走更新（PUT） */
 export function useSaveOAuth2App() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
+    mutationFn: ({ id, values }: { id?: number; values: SaveOAuth2AppValues }) =>
       (id === undefined
-        ? request.post<OAuth2ClientCreated>('/api/oauth2/clients', values)
-        : request.put<OAuth2Client>(`/api/oauth2/clients/${id}`, values)
-      ).then(unwrap),
+        ? api(oauth2ClientContract.create, { body: values as BodyOf<typeof oauth2ClientContract.create> })
+        : api(oauth2ClientContract.update, { params: { id }, body: values })),
     onSuccess: (_data, { id }) => {
       if (id !== undefined) void qc.invalidateQueries({ queryKey: oauth2AppKeys.detail(id) });
       void qc.invalidateQueries({ queryKey: oauth2AppKeys.lists });
-      // ratePlans / scopes 是静态字典型下拉源，与应用增删改无关
     },
   });
 }
 
 export function useDeleteOAuth2App() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/oauth2/clients/${id}`).then(unwrap),
-    onSuccess: (_data, id) => {
-      qc.removeQueries({ queryKey: oauth2AppKeys.detail(id) });
-      qc.removeQueries({ queryKey: ['oauth2-apps', 'grants', id] });
+  return useApiMutation(oauth2ClientContract.remove, {
+    invalidate: (qc, _output, { params }) => {
+      // 详情与授权记录必须移除而非失效：失效会让已删除记录在下次挂载时重新请求并 404
+      qc.removeQueries({ queryKey: oauth2AppKeys.detail(params.id) });
+      qc.removeQueries({ queryKey: contractKey(oauth2ClientContract.grants, { params: { id: params.id }, query: {} }) });
       void qc.invalidateQueries({ queryKey: oauth2AppKeys.lists });
       // 应用删除后其令牌一并失效
       void qc.invalidateQueries({ queryKey: oauth2AppKeys.tokensPrefix });
@@ -90,58 +76,32 @@ export function useDeleteOAuth2App() {
 }
 
 export function useRegenerateOAuth2AppSecret() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.post<{ clientId: string; clientSecret: string; previousValidUntil: string }>(`/api/oauth2/clients/${id}/regenerate-secret`).then(unwrap),
-    onSuccess: (_data, id) => {
-      void qc.invalidateQueries({ queryKey: oauth2AppKeys.detail(id) });
-      void qc.invalidateQueries({ queryKey: oauth2AppKeys.lists });
-    },
+  return useApiMutation(oauth2ClientContract.regenerateSecret, {
+    invalidate: (qc, _output, { params }) => invalidateApp(qc, params.id),
   });
 }
 
 export function useReviewOAuth2App() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, action, comment }: {
-      id: number;
-      action: 'approve' | 'reject';
-      comment?: string;
-    }) => request.post<OAuth2Client>(`/api/oauth2/clients/${id}/review`, { action, comment }).then(unwrap),
-    onSuccess: (_data, { id }) => {
-      void qc.invalidateQueries({ queryKey: oauth2AppKeys.detail(id) });
-      void qc.invalidateQueries({ queryKey: oauth2AppKeys.lists });
-    },
+  return useApiMutation(oauth2ClientContract.review, {
+    invalidate: (qc, _output, { params }) => invalidateApp(qc, params.id),
   });
 }
 
 export function useOAuth2AppGrants(id: number, page: number, pageSize: number) {
-  return useQuery({
-    queryKey: oauth2AppKeys.grants(id, page, pageSize),
-    queryFn: () => request.get<PaginatedResponse<OAuth2UserGrant>>(
-      `/api/oauth2/clients/${id}/grants${toQueryString({ page, pageSize })}`,
-    ).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
+  return useApiQuery(oauth2ClientContract.grants, { params: { id }, query: { page, pageSize } }, { placeholderData: keepPreviousData });
 }
 
 export function useOAuth2AppTokens(clientId: string | undefined, page: number, pageSize: number) {
-  return useQuery({
-    queryKey: oauth2AppKeys.tokens(clientId ?? '', page, pageSize),
-    queryFn: () => request.get<PaginatedResponse<OAuth2Token>>(
-      `/api/oauth2/clients/tokens${toQueryString({ clientId, page, pageSize })}`,
-    ).then(unwrap),
+  return useApiQuery(oauth2ClientContract.tokens, { query: { clientId: clientId ?? '', page, pageSize } }, {
     placeholderData: keepPreviousData,
     enabled: Boolean(clientId),
   });
 }
 
+/** 吊销令牌只影响令牌列表与授权记录，不改变应用本身 */
 export function useRevokeOAuth2Token() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/oauth2/clients/tokens/${id}`).then(unwrap),
-    // 吊销令牌只影响令牌列表与授权记录，不改变应用本身
-    onSuccess: () => {
+  return useApiMutation(oauth2ClientContract.revokeToken, {
+    invalidate: (qc) => {
       void qc.invalidateQueries({ queryKey: oauth2AppKeys.tokensPrefix });
       void qc.invalidateQueries({ queryKey: oauth2AppKeys.grantsPrefix });
     },
@@ -151,23 +111,14 @@ export function useRevokeOAuth2Token() {
 // ─── 我的已授权应用（用户自助）──────────────────────────────────────────────
 
 export function useMyOAuth2Grants(page: number, pageSize: number, enabled = true) {
-  return useQuery({
-    queryKey: oauth2AppKeys.myGrants(page, pageSize),
-    queryFn: () => request.get<PaginatedResponse<OAuth2MyGrant>>(
-      `/api/oauth2/clients/my-grants${toQueryString({ page, pageSize })}`,
-    ).then(unwrap),
-    placeholderData: keepPreviousData,
-    enabled,
-  });
+  return useApiQuery(oauth2ClientContract.myGrants, { query: { page, pageSize } }, { placeholderData: keepPreviousData, enabled });
 }
 
+/** 撤销会连带作废该用户在该应用下的令牌，管理端的令牌与授权记录同步过期 */
 export function useRevokeMyOAuth2Grant() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/oauth2/clients/my-grants/${id}`).then(unwrap),
-    onSuccess: () => {
+  return useApiMutation(oauth2ClientContract.revokeMyGrant, {
+    invalidate: (qc) => {
       void qc.invalidateQueries({ queryKey: oauth2AppKeys.myGrantsPrefix });
-      // 撤销会连带作废该用户在该应用下的令牌，管理端的令牌与授权记录同步过期
       void qc.invalidateQueries({ queryKey: oauth2AppKeys.tokensPrefix });
       void qc.invalidateQueries({ queryKey: oauth2AppKeys.grantsPrefix });
     },

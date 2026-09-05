@@ -1,33 +1,29 @@
-import { http } from 'msw';
-import { ok, pageParams } from '@/mocks/utils/handlers';
-import { OPEN_SIGNATURE_ALGORITHM, OPEN_SIGNATURE_TIMESTAMP_WINDOW, OPEN_SIGNATURE_HEADERS } from '@zenith/shared/open-platform';
-import type { OpenApiCallLog } from '@zenith/shared/open-platform';
-import { mockOpenApiLogs } from '@/mocks/data/open-api-logs';
 import dayjs from 'dayjs';
+import { OPEN_SIGNATURE_ALGORITHM, OPEN_SIGNATURE_TIMESTAMP_WINDOW, OPEN_SIGNATURE_HEADERS, openApiStatsContract, openSignatureContract } from '@zenith/shared/open-platform';
+import type { OpenApiCallLog, OpenApiStatsGroupItem } from '@zenith/shared/open-platform';
+import type { QueryOf } from '@zenith/shared/core';
+import { mock } from '@/mocks/utils/contract';
+import { mockOpenApiLogs } from '@/mocks/data/open-api-logs';
 
-function inRange(log: OpenApiCallLog, start: string | null, end: string | null): boolean {
+type LogFilter = QueryOf<typeof openApiStatsContract.logs>;
+
+function inRange(log: OpenApiCallLog, start: string | undefined, end: string | undefined): boolean {
   if (start && log.createdAt < start) return false;
   if (end && log.createdAt > end) return false;
   return true;
 }
 
-function filtered(url: URL): OpenApiCallLog[] {
-  const start = url.searchParams.get('startTime');
-  const end = url.searchParams.get('endTime');
-  const clientId = url.searchParams.get('clientId');
-  const keyword = url.searchParams.get('keyword')?.toLowerCase();
-  const method = url.searchParams.get('method');
-  const success = url.searchParams.get('success');
-  const statusCode = url.searchParams.get('statusCode');
-  const environment = url.searchParams.get('environment');
+/** 概览 / 趋势 / 分组只按范围维度过滤；日志表额外支持关键字、方法、结果、状态码 */
+function filtered(query: LogFilter): OpenApiCallLog[] {
+  const keyword = query.keyword?.toLowerCase();
   return mockOpenApiLogs.filter((log) =>
-    inRange(log, start, end)
-    && (!clientId || log.clientId === clientId)
+    inRange(log, query.startTime, query.endTime)
+    && (!query.clientId || log.clientId === query.clientId)
     && (!keyword || log.path.toLowerCase().includes(keyword) || (log.appName ?? '').toLowerCase().includes(keyword))
-    && (!method || log.method === method)
-    && (success === null || log.success === (success === 'true'))
-    && (!statusCode || log.statusCode === Number(statusCode))
-    && (!environment || log.environment === environment),
+    && (!query.method || log.method === query.method)
+    && (query.success === undefined || log.success === query.success)
+    && (query.statusCode === undefined || log.statusCode === query.statusCode)
+    && (!query.environment || log.environment === query.environment),
   );
 }
 
@@ -54,8 +50,8 @@ function pseudoSign(input: string): string {
 
 export const openPlatformHandlers = [
   // ─── 调用统计 ──────────────────────────────────────────────────────────────
-  http.get('/api/open-api-stats/overview', ({ request }) => {
-    const logs = filtered(new URL(request.url));
+  mock(openApiStatsContract.overview, ({ query, ok }) => {
+    const logs = filtered(query);
     const total = logs.length;
     const success = logs.filter((l) => l.success).length;
     const today = dayjs().format('YYYY-MM-DD');
@@ -72,16 +68,14 @@ export const openPlatformHandlers = [
       percentileRetentionDays: 90,
       activeApps: new Set(logs.map((l) => l.clientId)).size,
       todayCalls: logs.filter((l) => l.createdAt.startsWith(today)).length,
-    }, 'success');
+    });
   }),
 
-  http.get('/api/open-api-stats/trend', ({ request }) => {
-    const url = new URL(request.url);
-    const granularity = url.searchParams.get('granularity') ?? 'day';
-    const logs = filtered(url);
+  mock(openApiStatsContract.trend, ({ query, ok }) => {
+    const logs = filtered(query);
     const map = new Map<string, { total: number; success: number }>();
     for (const l of logs) {
-      const key = granularity === 'hour' ? `${l.createdAt.slice(0, 13)}:00:00` : l.createdAt.slice(0, 10);
+      const key = query.granularity === 'hour' ? `${l.createdAt.slice(0, 13)}:00:00` : l.createdAt.slice(0, 10);
       const e = map.get(key) ?? { total: 0, success: 0 };
       e.total += 1;
       if (l.success) e.success += 1;
@@ -90,31 +84,19 @@ export const openPlatformHandlers = [
     const data = [...map.entries()]
       .sort((a, b) => (a[0] < b[0] ? -1 : 1))
       .map(([time, v]) => ({ time, total: v.total, success: v.success, failed: v.total - v.success }));
-    return ok(data, 'success');
+    return ok(data);
   }),
 
-  http.get('/api/open-api-stats/by-app', ({ request }) => {
-    const url = new URL(request.url);
-    const limit = Number(url.searchParams.get('limit') ?? 10);
-    return ok(groupBy(filtered(url), (l) => l.clientId, (l) => l.appName ?? l.clientId, limit), 'success');
-  }),
+  mock(openApiStatsContract.byApp, ({ query, ok }) =>
+    ok(groupBy(filtered(query), (l) => l.clientId, (l) => l.appName ?? l.clientId, query.limit))),
 
-  http.get('/api/open-api-stats/by-endpoint', ({ request }) => {
-    const url = new URL(request.url);
-    const limit = Number(url.searchParams.get('limit') ?? 10);
-    return ok(groupBy(filtered(url), (l) => l.path, (l) => l.path, limit), 'success');
-  }),
+  mock(openApiStatsContract.byEndpoint, ({ query, ok }) =>
+    ok(groupBy(filtered(query), (l) => l.path, (l) => l.path, query.limit))),
 
-  http.get('/api/open-api-stats/logs', ({ request }) => {
-    const url = new URL(request.url);
-    const { page, pageSize } = pageParams(url);
-    const logs = filtered(url);
-    const start = (page - 1) * pageSize;
-    return ok({ list: logs.slice(start, start + pageSize), total: logs.length, page, pageSize }, 'success');
-  }),
+  mock(openApiStatsContract.logs, ({ query, ok, paginate }) => ok(paginate(filtered(query)))),
 
   // ─── 签名验签工具 ──────────────────────────────────────────────────────────
-  http.get('/api/open-signature/algorithm', () => ok({
+  mock(openSignatureContract.algorithm, ({ ok }) => ok({
     algorithm: OPEN_SIGNATURE_ALGORITHM,
     timestampWindow: OPEN_SIGNATURE_TIMESTAMP_WINDOW,
     headers: {
@@ -131,26 +113,25 @@ export const openPlatformHandlers = [
       '4. 用 AppSecret 作为密钥对待签名串做 HMAC-SHA256，输出十六进制即 X-Signature',
       '5. 请求时携带 X-App-Key、X-Timestamp（秒级）、X-Nonce（随机串）、X-Signature 四个请求头',
     ],
-  }, 'success')),
+  })),
 
-  http.post('/api/open-signature/verify', async ({ request }) => {
-    const body = (await request.json()) as Record<string, string>;
+  mock(openSignatureContract.verify, ({ body, ok }) => {
     const canonicalQuery = (body.query ?? '')
       .split('&')
       .filter(Boolean)
       .sort()
       .join('&');
     const stringToSign = [
-      (body.method ?? 'GET').toUpperCase(),
-      body.path ?? '',
+      body.method.toUpperCase(),
+      body.path,
       canonicalQuery,
-      body.timestamp ?? '',
-      body.nonce ?? '',
+      body.timestamp,
+      body.nonce,
       pseudoSign(body.body ?? ''),
     ].join('\n');
     const signature = pseudoSign(`${body.appKey}:${stringToSign}`);
     const matched = body.signature ? body.signature === signature : undefined;
-    return ok({ signature, stringToSign, matched }, 'success');
+    return ok({ signature, stringToSign, matched });
   }),
 ];
 
@@ -158,8 +139,8 @@ function groupBy(
   logs: OpenApiCallLog[],
   keyFn: (l: OpenApiCallLog) => string,
   labelFn: (l: OpenApiCallLog) => string,
-  limit: number,
-) {
+  limit?: number,
+): OpenApiStatsGroupItem[] {
   const map = new Map<string, { label: string; total: number; success: number; dur: number }>();
   for (const l of logs) {
     const key = keyFn(l);

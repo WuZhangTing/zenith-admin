@@ -15,12 +15,18 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import { Play } from 'lucide-react';
+import { enumValueOf } from '@zenith/shared/core';
+import { OPEN_API_DEBUG_METHODS, openGatewayContract } from '@zenith/shared/open-platform';
 import type { OpenApiDebugResult } from '@zenith/shared/open-platform';
+import { urlOf } from '@/lib/contract-query';
 import { useDebugEndpoints, useDebugMyApp, useMyAppList } from '@/hooks/queries/developer-apps';
 import { ResetButton } from '@/components/toolbar-controls';
 import { abortSubmit } from '@/lib/abort-submit';
 
 const { Paragraph, Text, Title } = Typography;
+
+/** 端点下拉的选中值：`METHOD 完整路径`，默认选中连通性测试 */
+const DEFAULT_ENDPOINT_KEY = `${openGatewayContract.ping.method.toUpperCase()} ${urlOf(openGatewayContract.ping)}`;
 
 function prettyJson(value: string): string {
   try {
@@ -44,7 +50,7 @@ export default function ApiDebugConsolePage() {
   const [appId, setAppId] = useState<number | undefined>(
     Number.isInteger(initialAppId) && initialAppId > 0 ? initialAppId : undefined,
   );
-  const [endpointKey, setEndpointKey] = useState<string>('GET /api/open/v1/ping');
+  const [endpointKey, setEndpointKey] = useState<string>(DEFAULT_ENDPOINT_KEY);
   const [pathParams, setPathParams] = useState('');
   const [queryText, setQueryText] = useState('{\n  "message": "hello"\n}');
   const [bodyText, setBodyText] = useState('{\n  "message": "hello from debug console"\n}');
@@ -63,7 +69,7 @@ export default function ApiDebugConsolePage() {
   }, [appId, apps]);
 
   const reset = () => {
-    setEndpointKey('GET /api/open/v1/ping');
+    setEndpointKey(DEFAULT_ENDPOINT_KEY);
     setPathParams('');
     setQueryText('{\n  "message": "hello"\n}');
     setBodyText('{\n  "message": "hello from debug console"\n}');
@@ -77,6 +83,11 @@ export default function ApiDebugConsolePage() {
     }
     if (!endpoint) {
       Toast.warning('请选择调试端点');
+      return;
+    }
+    const debugMethod = enumValueOf(OPEN_API_DEBUG_METHODS, method);
+    if (!debugMethod) {
+      Toast.warning(`调试台暂不支持 ${method} 请求`);
       return;
     }
     // 路径参数（如 /cms/contents/{id}）由使用者填入实际值后替换
@@ -106,8 +117,8 @@ export default function ApiDebugConsolePage() {
       return;
     }
     const response = await debugMutation.mutateAsync({
-      id: appId,
-      values: { method: method as 'GET' | 'POST' | 'PUT' | 'DELETE', path: resolvedPath, query, body },
+      params: { id: appId },
+      body: { method: debugMethod, path: resolvedPath, query, body },
     });
     setResult(response);
   };

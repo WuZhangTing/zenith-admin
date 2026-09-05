@@ -186,7 +186,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
   const myGrantsLoading = myGrantsQuery.isFetching;
 
   async function handleRevokeGrant(id: number) {
-    await revokeGrantMutation.mutateAsync(id);
+    await revokeGrantMutation.mutateAsync({ params: { id } });
     Toast.success('已撤销该应用的授权');
   }
 

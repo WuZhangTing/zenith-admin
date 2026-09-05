@@ -1,8 +1,8 @@
-import type { ApiScope, RatePlan } from '../open-platform/types';
+import type { ApiScope, RatePlan } from '../open-platform/contracts';
 import { SEED_DATE } from './_base';
 
 // ─── 开放平台：API Scope 注册表 ───────────────────────────────────────────────
-export const SEED_API_SCOPES: ApiScope[] = [
+const API_SCOPE_ROWS: Omit<ApiScope, 'usedByAppCount'>[] = [
   { id: 1, code: 'openid',         name: 'OpenID（身份）',   description: '确认用户身份（用户 ID）',   scopeGroup: 'user',    status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2, code: 'profile',        name: 'Profile（资料）',  description: '读取基本信息（昵称、头像）', scopeGroup: 'user',    status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 3, code: 'email',          name: 'Email（邮箱）',    description: '读取邮箱地址',              scopeGroup: 'user',    status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
@@ -22,6 +22,9 @@ export const SEED_API_SCOPES: ApiScope[] = [
   { id: 17, code: 'payment:refund:create', name: '创建退款', description: '为本应用支付意图发起退款', scopeGroup: 'payment', status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 18, code: 'payment:refund:read', name: '读取退款', description: '读取本应用退款状态', scopeGroup: 'payment', status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
+
+/** 引用计数由服务端按应用配置实时统计；种子与 Demo 初始态均为未被引用 */
+export const SEED_API_SCOPES: ApiScope[] = API_SCOPE_ROWS.map((row) => ({ ...row, usedByAppCount: 0 }));
 
 // ─── 开放平台：限流套餐 ───────────────────────────────────────────────────────
 export const SEED_RATE_PLANS: RatePlan[] = [

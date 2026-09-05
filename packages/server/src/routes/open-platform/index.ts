@@ -1,3 +1,14 @@
+import {
+  apiScopeContract,
+  appWebhookContract,
+  developerAppContract,
+  oauth2AuthContract,
+  oauth2ClientContract,
+  openApiStatsContract,
+  openGatewayContract,
+  openSignatureContract,
+  ratePlanContract,
+} from '@zenith/shared/open-platform';
 import { defineRouteDomain } from '../_kit';
 import apiScopesRoutes from './api-scopes';
 import appWebhooksRoutes from './app-webhooks';
@@ -12,14 +23,14 @@ import ratePlansRoutes from './rate-plans';
 export default defineRouteDomain({
   name: 'open-platform',
   mounts: () => [
-    ['/api/oauth2/clients', oauth2ClientsRoutes, { feature: 'open-platform' }],
-    ['/api/oauth2', oauth2AuthRoutes],
-    ['/api/api-scopes', apiScopesRoutes, { feature: 'open-platform' }],
-    ['/api/rate-plans', ratePlansRoutes, { feature: 'open-platform' }],
-    ['/api/open-signature', openSignatureRoutes, { feature: 'open-platform' }],
-    ['/api/open-api-stats', openApiStatsRoutes, { feature: 'open-platform' }],
-    ['/api/app-webhooks', appWebhooksRoutes, { feature: 'open-platform' }],
-    ['/api/developer-apps', developerAppsRoutes, { feature: 'open-platform' }],
-    ['/api/open', openGatewayRoutes],
+    [oauth2ClientContract.basePath, oauth2ClientsRoutes, { feature: 'open-platform' }],
+    [oauth2AuthContract.basePath, oauth2AuthRoutes],
+    [apiScopeContract.basePath, apiScopesRoutes, { feature: 'open-platform' }],
+    [ratePlanContract.basePath, ratePlansRoutes, { feature: 'open-platform' }],
+    [openSignatureContract.basePath, openSignatureRoutes, { feature: 'open-platform' }],
+    [openApiStatsContract.basePath, openApiStatsRoutes, { feature: 'open-platform' }],
+    [appWebhookContract.basePath, appWebhooksRoutes, { feature: 'open-platform' }],
+    [developerAppContract.basePath, developerAppsRoutes, { feature: 'open-platform' }],
+    [openGatewayContract.basePath, openGatewayRoutes],
   ],
 });

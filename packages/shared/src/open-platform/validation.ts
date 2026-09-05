@@ -1,7 +1,16 @@
 import * as z from 'zod';
 import { httpUrl, partialForUpdate } from '../core/validation';
 import { isSafeOAuthRedirectUri } from '../identity/constants';
-import { OAUTH2_GRANT_TYPES, OPEN_APP_ENVIRONMENTS, OPEN_WEBHOOK_EVENTS } from './constants';
+import { RULE_REF_KINDS } from '../rules/constants';
+import { createShortLinkSchema } from '../short-link/validation';
+import {
+  OAUTH2_CODE_CHALLENGE_METHODS,
+  OAUTH2_GRANT_TYPES,
+  OAUTH2_REVIEW_ACTIONS,
+  OPEN_API_DEBUG_METHODS,
+  OPEN_APP_ENVIRONMENTS,
+  OPEN_WEBHOOK_EVENTS,
+} from './constants';
 
 const ipOrCidrSchema = z.string().min(2).max(64).regex(
   /^((\d{1,3}\.){3}\d{1,3}|[0-9a-fA-F:]+)(\/\d{1,3})?$/,
@@ -67,6 +76,62 @@ export type UpdateOAuth2ClientInput = z.infer<typeof updateOAuth2ClientSchema>;
 export type CreateDeveloperOAuth2ClientInput = z.infer<typeof createDeveloperOAuth2ClientSchema>;
 
 export type UpdateDeveloperOAuth2ClientInput = z.infer<typeof updateDeveloperOAuth2ClientSchema>;
+
+/** 管理端审核开发者应用；驳回必须填写审核意见（服务端校验） */
+export const reviewOAuth2ClientSchema = z.object({
+  action: z.enum(OAUTH2_REVIEW_ACTIONS),
+  comment: z.string().max(500).optional(),
+});
+
+export type ReviewOAuth2ClientInput = z.infer<typeof reviewOAuth2ClientSchema>;
+
+// ─── OAuth2 授权端点（用户同意页） ──────────────────────────────────────────────
+const pkceCodeChallengeSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/, 'code_challenge 须为 43 位 base64url 字符');
+
+/** 用户确认授权（OAuth 2.1 授权码模式，强制 PKCE S256）；字段名沿用 RFC 6749 的下划线命名 */
+export const oauth2AuthorizeSchema = z.object({
+  client_id: z.string(),
+  redirect_uri: z.string(),
+  response_type: z.literal('code'),
+  scope: z.string(),
+  state: z.string().optional(),
+  code_challenge: pkceCodeChallengeSchema,
+  code_challenge_method: z.enum(OAUTH2_CODE_CHALLENGE_METHODS),
+});
+
+export type OAuth2AuthorizeInput = z.infer<typeof oauth2AuthorizeSchema>;
+
+// ─── 开发者中心：API 调试台 ───────────────────────────────────────────────────
+export const openApiDebugRequestSchema = z.object({
+  method: z.enum(OPEN_API_DEBUG_METHODS),
+  /** 完整开放 API 路径（如 /api/open/v1/ping）；由服务端按端点目录校验 */
+  path: z.string().min(1),
+  query: z.record(z.string(), z.string()).optional(),
+  body: z.unknown().optional(),
+});
+
+export type OpenApiDebugRequestInput = z.infer<typeof openApiDebugRequestSchema>;
+
+// ─── 开放网关核心端点 ─────────────────────────────────────────────────────────
+/** 规则中心统一求值；kind 缺省为决策表，kind=list 时传 subjects（待检测主体值集合） */
+export const openRuleEvaluateSchema = z.object({
+  kind: z.enum(RULE_REF_KINDS).default('table'),
+  key: z.string().trim().min(1, '缺少规则资产 key'),
+  facts: z.record(z.string(), z.unknown()).optional(),
+  subjects: z.array(z.coerce.string()).optional(),
+});
+
+export type OpenRuleEvaluateInput = z.infer<typeof openRuleEvaluateSchema>;
+
+/** 开放应用生成短链：目标地址 + 可选自定义短码 / 标题 / 有效期，规则复用短链域 */
+export const openShortLinkCreateSchema = createShortLinkSchema.pick({
+  targetUrl: true,
+  code: true,
+  title: true,
+  expiresAt: true,
+});
+
+export type OpenShortLinkCreateInput = z.infer<typeof openShortLinkCreateSchema>;
 
 // ─── 开放平台：API Scope ──────────────────────────────────────────────────────
 export const createApiScopeSchema = z.object({
