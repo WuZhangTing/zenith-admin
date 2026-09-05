@@ -1,6 +1,6 @@
-import { http } from 'msw';
-import { ok, badRequest, notFound, paginate } from '@/mocks/utils/handlers';
-import type { DirectorySyncSource, ResolveDirectorySyncConflictInput } from '@zenith/shared/identity';
+import { directorySyncContract, directorySyncSourceContract, type DirectorySyncSource } from '@zenith/shared/identity';
+import { mock } from '@/mocks/utils/contract';
+import { badRequest, notFound } from '@/mocks/utils/handlers';
 import { mockDateTime } from '@/mocks/utils/date';
 import { createImmediateMockTask } from './async-tasks';
 import {
@@ -9,55 +9,39 @@ import {
   simulateDirectorySyncRun,
 } from '../data/directory-sync';
 
-function findSource(id: string | readonly string[]) {
-  return mockDirectorySyncSources.find((s) => s.id === Number(id));
+function findSource(id: number) {
+  return mockDirectorySyncSources.find((s) => s.id === id);
 }
 
 export const directorySyncHandlers = [
   // ─── 同步源 ─────────────────────────────────────────────────────────────
-  http.get('/api/directory-sync/sources', ({ request }) => {
-    const url = new URL(request.url);
-    const keyword = url.searchParams.get('keyword') || '';
-    const type = url.searchParams.get('type') || '';
-    const status = url.searchParams.get('status') || '';
+  mock(directorySyncSourceContract.list, ({ query, ok, paginate }) => {
+    const { keyword, type, status } = query;
     let list = [...mockDirectorySyncSources];
     if (keyword) list = list.filter((s) => s.name.includes(keyword) || (s.remark ?? '').includes(keyword));
     if (type) list = list.filter((s) => s.type === type);
     if (status) list = list.filter((s) => s.status === status);
-    return ok(paginate(list, url));
+    return ok(paginate(list));
   }),
 
-  http.post('/api/directory-sync/sources', async ({ request }) => {
-    const body = (await request.json()) as Partial<DirectorySyncSource> & {
-      contactSecret?: string | null;
-      callbackToken?: string | null;
-      callbackAesKey?: string | null;
-    };
+  mock(directorySyncSourceContract.create, ({ body, ok }) => {
     if (mockDirectorySyncSources.some((s) => s.name === body.name)) {
       return badRequest('同名同步源已存在', { status: 400 });
     }
     const now = mockDateTime();
     const newId = getNextDirectorySyncSourceId();
+    const { contactSecret, callbackToken, callbackAesKey, ...rest } = body;
     const source: DirectorySyncSource = {
+      ...rest,
       id: newId,
-      name: body.name ?? '',
-      type: (body.type ?? 'ldap') as DirectorySyncSource['type'],
-      status: body.status ?? 'disabled',
       tenantId: body.tenantId ?? null,
       identityProviderId: body.identityProviderId ?? null,
       identityProviderName: body.identityProviderId ? '企业 AD' : null,
       oauthProvider: body.oauthProvider ?? null,
-      matchKey: body.matchKey ?? 'phone',
-      fieldMapping: body.fieldMapping ?? {},
-      scopeConfig: body.scopeConfig ?? {},
-      conflictPolicy: body.conflictPolicy ?? 'suspend',
-      lifecycle: body.lifecycle ?? { disableOnLeave: true, kickSessions: true, defaultRoleIds: [] },
-      syncDepartments: body.syncDepartments ?? true,
       cronExpression: body.cronExpression ?? null,
-      circuitBreakerPercent: body.circuitBreakerPercent ?? 30,
-      contactSecretSet: Boolean(body.contactSecret),
-      callbackTokenSet: Boolean(body.callbackToken),
-      callbackAesKeySet: Boolean(body.callbackAesKey),
+      contactSecretSet: Boolean(contactSecret),
+      callbackTokenSet: Boolean(callbackToken),
+      callbackAesKeySet: Boolean(callbackAesKey),
       callbackUrlKey: `demo-callback-key-${newId}`,
       callbackLastEventAt: null,
       nextRunAt: null,
@@ -71,20 +55,15 @@ export const directorySyncHandlers = [
     return ok(source, '创建成功');
   }),
 
-  http.get('/api/directory-sync/sources/:id', ({ params }) => {
-    const source = findSource(params.id as string);
+  mock(directorySyncSourceContract.detail, ({ params, ok }) => {
+    const source = findSource(params.id);
     if (!source) return notFound('同步源不存在', { status: 404 });
     return ok(source);
   }),
 
-  http.put('/api/directory-sync/sources/:id', async ({ params, request }) => {
-    const source = findSource(params.id as string);
+  mock(directorySyncSourceContract.update, ({ params, body, ok }) => {
+    const source = findSource(params.id);
     if (!source) return notFound('同步源不存在', { status: 404 });
-    const body = (await request.json()) as Partial<DirectorySyncSource> & {
-      contactSecret?: string | null;
-      callbackToken?: string | null;
-      callbackAesKey?: string | null;
-    };
     const { contactSecret, callbackToken, callbackAesKey, ...rest } = body;
     Object.assign(source, { ...rest, updatedAt: mockDateTime() });
     if (contactSecret) source.contactSecretSet = true;
@@ -93,15 +72,15 @@ export const directorySyncHandlers = [
     return ok(source, '更新成功');
   }),
 
-  http.delete('/api/directory-sync/sources/:id', ({ params }) => {
-    const idx = mockDirectorySyncSources.findIndex((s) => s.id === Number(params.id));
+  mock(directorySyncSourceContract.remove, ({ params, ok }) => {
+    const idx = mockDirectorySyncSources.findIndex((s) => s.id === params.id);
     if (idx === -1) return notFound('同步源不存在', { status: 404 });
     mockDirectorySyncSources.splice(idx, 1);
     return ok(null, '删除成功');
   }),
 
-  http.post('/api/directory-sync/sources/:id/test', ({ params }) => {
-    const source = findSource(params.id as string);
+  mock(directorySyncSourceContract.test, ({ params, ok }) => {
+    const source = findSource(params.id);
     if (!source) return notFound('同步源不存在', { status: 404 });
     return ok({
       ok: true,
@@ -114,8 +93,8 @@ export const directorySyncHandlers = [
     });
   }),
 
-  http.post('/api/directory-sync/sources/:id/preview', ({ params }) => {
-    const source = findSource(params.id as string);
+  mock(directorySyncSourceContract.preview, ({ params, ok }) => {
+    const source = findSource(params.id);
     if (!source) return notFound('同步源不存在', { status: 404 });
     simulateDirectorySyncRun(source, { dryRun: true, triggerType: 'preview' });
     const task = createImmediateMockTask({
@@ -128,8 +107,8 @@ export const directorySyncHandlers = [
     return ok(task, '预览任务已提交，请在同步记录中查看差异');
   }),
 
-  http.post('/api/directory-sync/sources/:id/run', ({ params }) => {
-    const source = findSource(params.id as string);
+  mock(directorySyncSourceContract.run, ({ params, ok }) => {
+    const source = findSource(params.id);
     if (!source) return notFound('同步源不存在', { status: 404 });
     simulateDirectorySyncRun(source, { dryRun: false, triggerType: 'manual' });
     const task = createImmediateMockTask({
@@ -143,34 +122,30 @@ export const directorySyncHandlers = [
   }),
 
   // ─── 同步记录 ───────────────────────────────────────────────────────────
-  http.get('/api/directory-sync/runs', ({ request }) => {
-    const url = new URL(request.url);
-    const sourceId = url.searchParams.get('sourceId');
-    const status = url.searchParams.get('status') || '';
+  mock(directorySyncContract.listRuns, ({ query, ok, paginate }) => {
+    const { sourceId, status } = query;
     let list = [...mockDirectorySyncRuns];
-    if (sourceId) list = list.filter((r) => r.sourceId === Number(sourceId));
+    if (sourceId) list = list.filter((r) => r.sourceId === sourceId);
     if (status) list = list.filter((r) => r.status === status);
-    return ok(paginate(list, url));
+    return ok(paginate(list));
   }),
 
-  http.get('/api/directory-sync/runs/:id', ({ params }) => {
-    const run = mockDirectorySyncRuns.find((r) => r.id === Number(params.id));
+  mock(directorySyncContract.runDetail, ({ params, ok }) => {
+    const run = mockDirectorySyncRuns.find((r) => r.id === params.id);
     if (!run) return notFound('同步记录不存在', { status: 404 });
     return ok(run);
   }),
 
-  http.get('/api/directory-sync/runs/:id/items', ({ params, request }) => {
-    const url = new URL(request.url);
-    const action = url.searchParams.get('action') || '';
-    const entityType = url.searchParams.get('entityType') || '';
-    let list = mockDirectorySyncRunItems.filter((i) => i.runId === Number(params.id));
+  mock(directorySyncContract.listRunItems, ({ params, query, ok, paginate }) => {
+    const { action, entityType } = query;
+    let list = mockDirectorySyncRunItems.filter((i) => i.runId === params.id);
     if (action) list = list.filter((i) => i.action === action);
     if (entityType) list = list.filter((i) => i.entityType === entityType);
-    return ok(paginate(list, url, 20));
+    return ok(paginate(list));
   }),
 
-  http.post('/api/directory-sync/runs/:id/retry', ({ params }) => {
-    const run = mockDirectorySyncRuns.find((r) => r.id === Number(params.id));
+  mock(directorySyncContract.retryRun, ({ params, ok }) => {
+    const run = mockDirectorySyncRuns.find((r) => r.id === params.id);
     if (!run) return notFound('同步记录不存在', { status: 404 });
     const source = mockDirectorySyncSources.find((s) => s.id === run.sourceId);
     if (!source) return badRequest('同步源已删除', { status: 400 });
@@ -186,22 +161,18 @@ export const directorySyncHandlers = [
   }),
 
   // ─── 冲突处理 ───────────────────────────────────────────────────────────
-  http.get('/api/directory-sync/conflicts', ({ request }) => {
-    const url = new URL(request.url);
-    const keyword = url.searchParams.get('keyword') || '';
-    const sourceId = url.searchParams.get('sourceId');
-    const status = url.searchParams.get('status') || '';
+  mock(directorySyncContract.listConflicts, ({ query, ok, paginate }) => {
+    const { keyword, sourceId, status } = query;
     let list = [...mockDirectorySyncConflicts];
     if (keyword) list = list.filter((c) => (c.name ?? '').includes(keyword) || c.externalId.includes(keyword));
-    if (sourceId) list = list.filter((c) => c.sourceId === Number(sourceId));
+    if (sourceId) list = list.filter((c) => c.sourceId === sourceId);
     if (status) list = list.filter((c) => c.status === status);
-    return ok(paginate(list, url));
+    return ok(paginate(list));
   }),
 
-  http.post('/api/directory-sync/conflicts/ignore', async ({ request }) => {
-    const { ids = [] } = (await request.json()) as { ids?: number[] };
-    if (ids.length === 0) return badRequest('请选择要忽略的冲突', { status: 400 });
-    const selected = new Set(ids);
+  mock(directorySyncContract.ignoreConflicts, ({ body, ok }) => {
+    if (body.ids.length === 0) return badRequest('请选择要忽略的冲突', { status: 400 });
+    const selected = new Set(body.ids);
     let count = 0;
     const now = mockDateTime();
     for (const conflict of mockDirectorySyncConflicts) {
@@ -218,11 +189,10 @@ export const directorySyncHandlers = [
     return ok(null, `已忽略 ${count} 条冲突`);
   }),
 
-  http.post('/api/directory-sync/conflicts/:id/resolve', async ({ params, request }) => {
-    const conflict = mockDirectorySyncConflicts.find((c) => c.id === Number(params.id));
+  mock(directorySyncContract.resolveConflict, ({ params, body, ok }) => {
+    const conflict = mockDirectorySyncConflicts.find((c) => c.id === params.id);
     if (!conflict) return notFound('冲突记录不存在', { status: 404 });
     if (conflict.status !== 'pending') return badRequest('该冲突已处理', { status: 400 });
-    const body = (await request.json()) as ResolveDirectorySyncConflictInput;
     if (conflict.conflictType === 'multi_match' && body.resolution === 'source' && !body.targetUserId) {
       return badRequest('请选择要绑定的本地账号', { status: 400 });
     }

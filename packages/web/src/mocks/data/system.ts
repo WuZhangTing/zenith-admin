@@ -1,4 +1,5 @@
-import type { SystemConfig, CronJob, FileStorageConfig, OnlineUser } from '@zenith/shared/platform';
+import type { SystemConfig, CronJob, FileStorageConfig } from '@zenith/shared/platform';
+import type { OnlineSession } from '@zenith/shared/identity';
 import { SEED_SYSTEM_CONFIGS, SEED_CRON_JOBS } from '@zenith/shared/seed';
 import { mockDateTimeOffset } from '@/mocks/utils/date';
 
@@ -93,7 +94,7 @@ export const mockFileStorageConfigs: MockFileStorageConfig[] = [
   },
 ];
 
-export const mockOnlineSessions: OnlineUser[] = [
+export const mockOnlineSessions: OnlineSession[] = [
   {
     tokenId: 'mock-token-id-001',
     userId: 1,

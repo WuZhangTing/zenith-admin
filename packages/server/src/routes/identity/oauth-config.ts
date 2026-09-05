@@ -1,11 +1,10 @@
-import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { oauthConfigContract, type OAuthProviderType } from '@zenith/shared/identity';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { platformAdminOnly } from '../../middleware/platform-admin';
-import type { OAuthProviderType } from '@zenith/shared/identity';
-import { jsonContent, validationHook, commonErrorResponses, ok, okBody } from '../../lib/openapi-schemas';
-import { OAuthConfigItemDTO } from '../../lib/openapi-dtos';
-import { updateOauthConfigSchema } from '@zenith/shared/identity';
+import { defineContractRoute } from '../../lib/contract-route';
+import { validationHook, okBody } from '../../lib/openapi-schemas';
 import { listOauthConfigs, updateOauthConfig, getOauthConfigBeforeAudit } from '../../services/identity/oauth-config.service';
 
 const oauthConfigRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -15,29 +14,15 @@ const oauthConfigRouter = new OpenAPIHono({ defaultHook: validationHook });
 // 单租户部署没有「平台 / 租户」之分，由权限码控制即可
 const platformOnly = platformAdminOnly({ message: '多租户模式下仅平台管理员可管理第三方登录配置', onlyInMultiTenant: true });
 
-const listRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/', tags: ['OAuthConfig'], summary: '获取所有 OAuth 配置',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, platformOnly, guard({ permission: 'system:oauth-config:view' })] as const,
-    responses: { ...commonErrorResponses, ...ok(z.array(OAuthConfigItemDTO), 'OAuth 配置列表') },
-  }),
+const listRoute = defineContractRoute(oauthConfigContract.list, {
+  middleware: [authMiddleware, platformOnly, guard({ permission: 'system:oauth-config:view' })] as const,
   handler: async (c) => c.json(okBody(await listOauthConfigs(), 'success'), 200),
 });
 
-const updateRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/{provider}', tags: ['OAuthConfig'], summary: '更新指定 provider 的 OAuth 配置',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, platformOnly, guard({ permission: 'system:oauth-config:update', audit: { description: '更新OAuth配置', module: 'OAuth配置' } })] as const,
-    request: {
-      params: z.object({ provider: z.string().openapi({ param: { name: 'provider', in: 'path' }, example: 'github', description: 'OAuth 提供方' }) }),
-      body: { content: jsonContent(updateOauthConfigSchema), required: true },
-    },
-    responses: { ...commonErrorResponses, ...ok(OAuthConfigItemDTO.nullable(), '保存成功') },
-  }),
+const updateRoute = defineContractRoute(oauthConfigContract.update, {
+  middleware: [authMiddleware, platformOnly, guard({ permission: 'system:oauth-config:update', audit: { description: '更新OAuth配置', module: 'OAuth配置' } })] as const,
   handler: async (c) => {
-    const provider = c.req.param('provider') as OAuthProviderType;
+    const provider = c.req.valid('param').provider as OAuthProviderType;
     const before = await getOauthConfigBeforeAudit(provider);
     if (before) setAuditBeforeData(c, before);
     const result = await updateOauthConfig(provider, c.req.valid('json'));

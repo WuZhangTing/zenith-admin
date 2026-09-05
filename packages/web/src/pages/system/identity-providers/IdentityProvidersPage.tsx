@@ -3,7 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Col, Form, Modal, Row, SideSheet, Spin, Switch, Table, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { IdentityProviderType, TenantIdentityProvider } from '@zenith/shared/identity';
-import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
+import { IDENTITY_PROVIDER_STATUSES, IDENTITY_PROVIDER_TYPES, SUPER_ADMIN_CODE, identityProviderContract } from '@zenith/shared/identity';
+import { enumValueOf, type BodyOf } from '@zenith/shared/core';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -41,6 +42,9 @@ const defaultSearchParams: SearchParams = {
   status: undefined,
   tenantId: '',
 };
+
+/** 保存载荷：创建入参的部分形态；表单以带点号的扁平键维护属性映射，提交前在 beforeSave 收敛 */
+type IdentityProviderSavePayload = Partial<BodyOf<typeof identityProviderContract.create>>;
 
 const providerTypeOptions = [
   { value: 'oidc', label: 'OIDC' },
@@ -120,9 +124,9 @@ export default function IdentityProvidersPage() {
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    type: submittedParams.type || undefined,
-    status: submittedParams.status || undefined,
-    tenantId: submittedParams.tenantId || undefined,
+    type: enumValueOf(IDENTITY_PROVIDER_TYPES, submittedParams.type),
+    status: enumValueOf(IDENTITY_PROVIDER_STATUSES, submittedParams.status),
+    tenantId: submittedParams.tenantId ? Number(submittedParams.tenantId) : undefined,
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -136,7 +140,7 @@ export default function IdentityProvidersPage() {
     .filter((item) => item.code !== SUPER_ADMIN_CODE)
     .map((item) => ({ value: item.id, label: item.name }));
   const saveMutation = useSaveIdentityProvider();
-  const modal = useEditModal<TenantIdentityProvider, Record<string, unknown>, Record<string, unknown>>({
+  const modal = useEditModal<TenantIdentityProvider, Record<string, unknown>, IdentityProviderSavePayload>({
     entityName: '企业身份源',
     save: saveMutation,
     useDetail: useIdentityProviderDetail,
@@ -169,23 +173,28 @@ export default function IdentityProvidersPage() {
         'attributeMapping.department': provider.attributeMapping?.department || initMapping.department,
       };
     },
-    beforeSave: (values) => {
+    beforeSave: (values): IdentityProviderSavePayload => {
       const activeMapping = mappingForType(providerType);
       const { tenantId, ...rest } = values;
+      // 属性映射在表单里是带点号的扁平字段；空值回落到该类型的默认映射
+      const mapped = (key: keyof typeof activeMapping): string => {
+        const value = values[`attributeMapping.${key}`];
+        return typeof value === 'string' && value ? value : activeMapping[key];
+      };
       return {
-        ...rest,
+        ...(rest as IdentityProviderSavePayload),
         // 非平台管理员不提交 tenantId：服务端会强制落到自身租户，显式传值反而会被 403 拒绝
-        ...(isPlatformAdmin ? { tenantId: tenantId ?? null } : {}),
+        ...(isPlatformAdmin ? { tenantId: (tenantId as number | null | undefined) ?? null } : {}),
         type: providerType,
         attributeMapping: {
-          subject: values['attributeMapping.subject'] || activeMapping.subject,
-          email: values['attributeMapping.email'] || activeMapping.email,
-          username: values['attributeMapping.username'] || activeMapping.username,
-          nickname: values['attributeMapping.nickname'] || activeMapping.nickname,
-          phone: values['attributeMapping.phone'] || activeMapping.phone,
-          department: values['attributeMapping.department'] || activeMapping.department,
+          subject: mapped('subject'),
+          email: mapped('email'),
+          username: mapped('username'),
+          nickname: mapped('nickname'),
+          phone: mapped('phone'),
+          department: mapped('department'),
         },
-        defaultRoleIds: Array.isArray(values.defaultRoleIds) ? values.defaultRoleIds : [],
+        defaultRoleIds: Array.isArray(values.defaultRoleIds) ? (values.defaultRoleIds as number[]) : [],
       };
     },
     labelWidth: 130,
@@ -245,7 +254,7 @@ export default function IdentityProvidersPage() {
 
   async function handleTestConnection(row: TenantIdentityProvider) {
     try {
-      const result = await testConnectionMutation.mutateAsync(row.id);
+      const result = await testConnectionMutation.mutateAsync({ params: { id: row.id } });
       if (result.ok) Toast.success(result.message);
       else Toast.error(result.message);
     } catch (err) {
@@ -263,7 +272,7 @@ export default function IdentityProvidersPage() {
   async function handleLdapSearch() {
     if (!ldapSearchProvider) return;
     try {
-      await ldapSearchMutation.mutateAsync({ id: ldapSearchProvider.id, keyword: ldapSearchKeyword || undefined });
+      await ldapSearchMutation.mutateAsync({ params: { id: ldapSearchProvider.id }, query: { limit: 20, keyword: ldapSearchKeyword || undefined } });
     } catch (err) {
       Toast.error((err as Error).message);
     }
@@ -275,7 +284,7 @@ export default function IdentityProvidersPage() {
       content: '将按同步过滤器读取目录用户，并创建、绑定或更新本地账号基础资料。',
       onOk: async () => {
         try {
-          const result = await syncDirectoryMutation.mutateAsync(row.id);
+          const result = await syncDirectoryMutation.mutateAsync({ params: { id: row.id }, body: { limit: 500 } });
           if (result.status === 'failed') Toast.error(result.message);
           else Toast.success(result.message);
           void queryClient.invalidateQueries({ queryKey: identityProviderKeys.lists });

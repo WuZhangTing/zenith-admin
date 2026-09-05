@@ -1,10 +1,10 @@
-import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createMenuSchema, updateMenuSchema } from '@zenith/shared/identity';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { menuContract } from '@zenith/shared/identity';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { platformAdminOnly } from '../../middleware/platform-admin';
-import { jsonContent, validationHook, commonErrorResponses, conflictResponse, ok, okMsg, IdParam, okBody } from '../../lib/openapi-schemas';
-import { MenuDTO } from '../../lib/openapi-dtos';
+import { defineContractRoute } from '../../lib/contract-route';
+import { validationHook, conflictResponse, okBody } from '../../lib/openapi-schemas';
 import {
   listUserMenuTree,
   listMenuTree,
@@ -19,140 +19,47 @@ import {
 
 const menusRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-// ─── Routes ────────────────────────────────────────────────────────────────
-const userMenuRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get',
-    path: '/user',
-    tags: ['Menus'],
-    summary: '当前用户可见菜单树',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware] as const,
-    responses: {
-      ...commonErrorResponses,
-      ...ok(z.array(MenuDTO), '菜单树'),
-    },
-  }),
-  handler: async (c) => {
-    const tree = await listUserMenuTree();
-    return c.json(okBody(tree), 200);
-  },
+// 多租户模式下菜单是平台级全局资源，写操作仅平台管理员可用
+const platformOnly = platformAdminOnly({ message: '多租户模式下仅平台管理员可管理全局菜单', onlyInMultiTenant: true });
+
+const userMenuRoute = defineContractRoute(menuContract.userTree, {
+  middleware: [authMiddleware] as const,
+  handler: async (c) => c.json(okBody(await listUserMenuTree()), 200),
 });
 
-const listRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get',
-    path: '/',
-    tags: ['Menus'],
-    summary: '菜单树（管理用）',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: '' })] as const,
-    responses: {
-      ...commonErrorResponses,
-      ...ok(z.array(MenuDTO), '全量菜单树'),
-    },
-  }),
-  handler: async (c) => {
-    return c.json(okBody(await listMenuTree()), 200);
-  },
+const listRoute = defineContractRoute(menuContract.tree, {
+  middleware: [authMiddleware, guard({ permission: '' })] as const,
+  handler: async (c) => c.json(okBody(await listMenuTree()), 200),
 });
 
-const flatRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get',
-    path: '/flat',
-    tags: ['Menus'],
-    summary: '平铺菜单列表',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:menu:list' })] as const,
-    responses: {
-      ...commonErrorResponses,
-      ...ok(z.array(MenuDTO), '平铺菜单'),
-    },
-  }),
-  handler: async (c) => {
-    return c.json(okBody(await listMenusFlat()), 200);
-  },
+const flatRoute = defineContractRoute(menuContract.flat, {
+  middleware: [authMiddleware, guard({ permission: 'system:menu:list' })] as const,
+  handler: async (c) => c.json(okBody(await listMenusFlat()), 200),
 });
 
-const getOneRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/{id}', tags: ['Menus'], summary: '获取菜单详情',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:menu:list' })] as const,
-    request: { params: IdParam },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(MenuDTO, '菜单详情'),
-      404: { content: jsonContent(z.object({ message: z.string() })), description: '菜单不存在' },
-    },
-  }),
+const getOneRoute = defineContractRoute(menuContract.detail, {
+  middleware: [authMiddleware, guard({ permission: 'system:menu:list' })] as const,
   handler: async (c) => c.json(okBody(await getMenu(c.req.valid('param').id)), 200),
 });
 
-const createMenuRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post',
-    path: '/',
-    tags: ['Menus'],
-    summary: '新增菜单',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, platformAdminOnly({ message: '多租户模式下仅平台管理员可管理全局菜单', onlyInMultiTenant: true }), guard({ permission: 'system:menu:create', audit: { description: '创建菜单', module: '菜单管理' } })] as const,
-    request: { body: { content: jsonContent(createMenuSchema), required: true } },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(MenuDTO, '创建成功'),
-    },
-  }),
-  handler: async (c) => {
-    const data = c.req.valid('json');
-    const menu = await createMenu(data);
-    return c.json(okBody(menu, '创建成功'), 200);
-  },
+const createMenuRoute = defineContractRoute(menuContract.create, {
+  middleware: [authMiddleware, platformOnly, guard({ permission: 'system:menu:create', audit: { description: '创建菜单', module: '菜单管理' } })] as const,
+  handler: async (c) => c.json(okBody(await createMenu(c.req.valid('json')), '创建成功'), 200),
 });
 
-const updateMenuRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put',
-    path: '/{id}',
-    tags: ['Menus'],
-    summary: '更新菜单',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, platformAdminOnly({ message: '多租户模式下仅平台管理员可管理全局菜单', onlyInMultiTenant: true }), guard({ permission: 'system:menu:update', audit: { description: '更新菜单', module: '菜单管理' } })] as const,
-    request: {
-      params: IdParam,
-      body: { content: jsonContent(updateMenuSchema), required: true },
-    },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(MenuDTO, '更新成功'),
-    },
-  }),
+const updateMenuRoute = defineContractRoute(menuContract.update, {
+  middleware: [authMiddleware, platformOnly, guard({ permission: 'system:menu:update', audit: { description: '更新菜单', module: '菜单管理' } })] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
-    const data = c.req.valid('json');
     const before = await getMenuBeforeAudit(id);
     if (before) setAuditBeforeData(c, before);
-    const menu = await updateMenu(id, data);
-    return c.json(okBody(menu, '更新成功'), 200);
+    return c.json(okBody(await updateMenu(id, c.req.valid('json')), '更新成功'), 200);
   },
 });
 
-const deleteMenuRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete',
-    path: '/{id}',
-    tags: ['Menus'],
-    summary: '删除菜单及子菜单',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, platformAdminOnly({ message: '多租户模式下仅平台管理员可管理全局菜单', onlyInMultiTenant: true }), guard({ permission: 'system:menu:delete', audit: { description: '删除菜单', module: '菜单管理' } })] as const,
-    request: { params: IdParam },
-    responses: {
-      ...commonErrorResponses,
-      ...conflictResponse,
-      ...okMsg('删除成功'),
-    },
-  }),
+const deleteMenuRoute = defineContractRoute(menuContract.remove, {
+  middleware: [authMiddleware, platformOnly, guard({ permission: 'system:menu:delete', audit: { description: '删除菜单', module: '菜单管理' } })] as const,
+  responses: conflictResponse,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getMenuCascadeBeforeAudit(id);

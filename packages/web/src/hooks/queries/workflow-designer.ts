@@ -3,6 +3,8 @@ import type { PaginatedResponse } from '@zenith/shared/core';
 import type { Dict } from '@zenith/shared/platform';
 import type { WorkflowDataSource, WorkflowDataSourceOption, WorkflowDefinition, WorkflowDefinitionHealthReport, WorkflowFlowData, WorkflowForm, WorkflowRelationOption, WorkflowSimulationCase, WorkflowSimulationDecision, WorkflowSimulationResult } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
+import { api } from '@/lib/contract-query';
+import { positionContract, userGroupContract } from '@zenith/shared/identity';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
 import { workflowDefinitionKeys } from './workflow-definitions';
 
@@ -92,7 +94,7 @@ export function useWorkflowDesignerDecisionRefOptions(kind: WorkflowDecisionRefK
 export function useWorkflowDesignerUserGroupOptions(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: workflowDesignerKeys.userGroupOptions,
-    queryFn: () => request.get<Array<{ id: number; name: string }>>('/api/user-groups/all').then(unwrap),
+    queryFn: () => api(userGroupContract.all),
     staleTime: LOOKUP_STALE_TIME,
     enabled: options?.enabled ?? true,
   });
@@ -101,7 +103,7 @@ export function useWorkflowDesignerUserGroupOptions(options?: { enabled?: boolea
 export function useWorkflowDesignerPositionOptions(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: workflowDesignerKeys.positionOptions,
-    queryFn: () => request.get<Array<{ id: number; name: string }>>('/api/positions/all').then(unwrap),
+    queryFn: () => api(positionContract.all),
     staleTime: LOOKUP_STALE_TIME,
     enabled: options?.enabled ?? true,
   });

@@ -3,13 +3,12 @@ import { useQuery } from '@tanstack/react-query';
 import { Button, Col, Form, Row, Spin, Switch, Toast } from '@douyinfe/semi-ui';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import { ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
-import type { PaginatedResponse } from '@zenith/shared/core';
-import type { Department, User } from '@zenith/shared/identity';
+import { DEPARTMENT_CATEGORIES, userContract, type Department } from '@zenith/shared/identity';
+import { enumValueOf } from '@zenith/shared/core';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import DictTag from '@/components/DictTag';
 import { useDictItems } from '@/hooks/useDictItems';
-import { request } from '@/utils/request';
-import { toQueryString, unwrap } from '@/lib/query';
+import { api } from '@/lib/contract-query';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useTreeExpansion } from '@/hooks/useTreeExpansion';
@@ -25,6 +24,7 @@ import {
   departmentKeys,
   useDeleteDepartment,
   useDepartmentDetail,
+  type DepartmentFormValues,
   useDepartmentTreeSearch,
   useFlatDepartments,
   useSaveDepartment,
@@ -125,7 +125,7 @@ export default function DepartmentsPage() {
   const flatDepartmentsQuery = useFlatDepartments();
   const allDepartments = useMemo(() => flatDepartmentsQuery.data ?? [], [flatDepartmentsQuery.data]);
   const saveMutation = useSaveDepartment();
-  const modal = useEditModal<Department>({
+  const modal = useEditModal<Department, DepartmentFormValues>({
     entityName: '部门',
     save: saveMutation,
     useDetail: useDepartmentDetail,
@@ -134,7 +134,7 @@ export default function DepartmentsPage() {
       parentId: department.parentId,
       name: department.name,
       code: department.code,
-      category: department.category ?? 'department',
+      category: enumValueOf(DEPARTMENT_CATEGORIES, department.category) ?? 'department',
       leaderId: department.leaderId ?? undefined,
       phone: department.phone,
       email: department.email,
@@ -147,10 +147,7 @@ export default function DepartmentsPage() {
   const [leaderKeyword, setLeaderKeyword] = useState('');
   const leaderOptionsQuery = useQuery({
     queryKey: ['users', 'options', leaderKeyword],
-    queryFn: () =>
-      request
-        .get<PaginatedResponse<User>>(`/api/users${toQueryString({ pageSize: 50, keyword: leaderKeyword || undefined })}`)
-        .then(unwrap),
+    queryFn: () => api(userContract.list, { query: { pageSize: 50, keyword: leaderKeyword || undefined } }),
     enabled: modal.visible,
     staleTime: 30_000,
   });
@@ -186,7 +183,7 @@ export default function DepartmentsPage() {
   };
 
   const handleDelete = async (id: number) => {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync({ params: { id } });
     Toast.success('删除成功');
   };
 

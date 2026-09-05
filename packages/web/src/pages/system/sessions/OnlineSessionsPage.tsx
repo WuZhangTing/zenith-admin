@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { RadioGroup, Radio, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
-import type { OnlineUser } from '@zenith/shared/platform';
+import type { OnlineSession } from '@zenith/shared/identity';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { usePermission } from '@/hooks/usePermission';
@@ -8,7 +8,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { dateTimeColumn, renderEllipsis } from '../../../utils/table-columns';
-import { sessionKeys, useForceLogoutSession, useSessionList } from '@/hooks/queries/sessions';
+import { sessionKeys, useForceLogoutSession, useForceLogoutUserSessions, useSessionList } from '@/hooks/queries/sessions';
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
@@ -27,6 +27,7 @@ export default function OnlineSessionsPage() {
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
   const forceLogoutMutation = useForceLogoutSession();
+  const forceLogoutUserMutation = useForceLogoutUserSessions();
 
   // 从本地 JWT 解码当前会话 tokenId（jti），无需额外请求
   const currentTokenId = useMemo<string | null>(() => {
@@ -40,7 +41,7 @@ export default function OnlineSessionsPage() {
     }
   }, []);
 
-  const handleForceLogout = (record: OnlineUser) => {
+  const handleForceLogout = (record: OnlineSession) => {
     // 模式引用，Modal.confirm 内部无法直接读 state，改用 ref
     let logoutMode: 'single' | 'all' = 'single';
 
@@ -59,18 +60,19 @@ export default function OnlineSessionsPage() {
         </Space>
       ),
       onOk: async () => {
-        await forceLogoutMutation.mutateAsync({ mode: logoutMode, tokenId: record.tokenId, userId: record.userId });
+        if (logoutMode === 'all') await forceLogoutUserMutation.mutateAsync({ params: { id: record.userId } });
+        else await forceLogoutMutation.mutateAsync({ params: { tokenId: record.tokenId } });
         Toast.success(logoutMode === 'all' ? '已强制下线全部会话' : '已强制下线');
       },
     });
   };
 
-  const columns: ColumnProps<OnlineUser>[] = [
+  const columns: ColumnProps<OnlineSession>[] = [
     {
       title: '用户名',
       dataIndex: 'username',
       width: 180,
-      render: (v: string, record: OnlineUser) => (
+      render: (v: string, record: OnlineSession) => (
         <Space>
           <span>{v}</span>
           {record.tokenId === currentTokenId && (
@@ -88,7 +90,7 @@ export default function OnlineSessionsPage() {
     { title: '浏览器', dataIndex: 'browser', width: 160, render: renderEllipsis },
     { title: '操作系统', dataIndex: 'os', width: 160, render: renderEllipsis },
     dateTimeColumn('登录时间', 'loginAt'),
-    createOperationColumn<OnlineUser>({
+    createOperationColumn<OnlineSession>({
       width: 120,
       actions: (record) => [
         {

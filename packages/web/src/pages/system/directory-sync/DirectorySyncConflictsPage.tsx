@@ -18,6 +18,7 @@ import {
 } from '@/hooks/queries/directory-sync';
 import { useAllUsers } from '@/hooks/queries/users';
 import type { DirectorySyncConflict, DirectorySyncResolution } from '@zenith/shared/identity';
+import { enumValueOf } from '@zenith/shared/core';
 import {
   DIRECTORY_SYNC_CONFLICT_STATUSES, DIRECTORY_SYNC_CONFLICT_STATUS_LABELS,
   DIRECTORY_SYNC_CONFLICT_TYPE_LABELS, DIRECTORY_SYNC_ENTITY_TYPE_LABELS,
@@ -73,7 +74,7 @@ export default function DirectorySyncConflictsPage() {
     pageSize,
     keyword: submittedParams.keyword || undefined,
     sourceId: submittedParams.sourceId ? Number(submittedParams.sourceId) : undefined,
-    status: submittedParams.status || undefined,
+    status: enumValueOf(DIRECTORY_SYNC_CONFLICT_STATUSES, submittedParams.status),
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -115,7 +116,7 @@ export default function DirectorySyncConflictsPage() {
       return;
     }
     resolveMutation.mutate(
-      { id: resolving.id, resolution, targetUserId },
+      { params: { id: resolving.id }, body: { resolution, targetUserId } },
       {
         onSuccess: () => {
           Toast.success('裁决成功');
@@ -126,7 +127,7 @@ export default function DirectorySyncConflictsPage() {
   }
 
   function handleIgnore(ids: number[]) {
-    ignoreMutation.mutate(ids, {
+    ignoreMutation.mutate({ body: { ids } }, {
       onSuccess: () => {
         Toast.success(`已忽略 ${ids.length} 条冲突`);
         setSelectedRowKeys([]);

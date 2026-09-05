@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
-import { request } from '@/utils/request';
+import { authContract } from '@zenith/shared/identity';
+import { api } from '@/lib/contract-query';
 
 export const CLEAR_LOGS_LABELS: Record<number, string> = { 30: '一个月前', 90: '三个月前', 180: '六个月前', 365: '一年前' };
 
@@ -42,8 +43,8 @@ export function useClearLogs({ clean, onCleared }: UseClearLogsOptions): ClearLo
     if (!password) { setPasswordError('请输入密码'); return; }
     setVerifying(true);
     try {
-      const verifyRes = await request.post('/api/auth/verify-password', { password }, { skipAuth: true });
-      if (verifyRes.code !== 0) { setPasswordError('密码错误，请重试'); return; }
+      // skipAuth：密码错误返回 401，不得触发 token 刷新 / 退出登录
+      await api(authContract.verifyPassword, { body: { password } }, { skipAuth: true });
     } catch {
       setPasswordError('密码错误，请重试'); return;
     } finally {

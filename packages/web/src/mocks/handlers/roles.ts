@@ -1,51 +1,47 @@
-import { http } from 'msw';
-import { ok, badRequest, notFound, conflict, paginate } from '@/mocks/utils/handlers';
+import { roleContract, type Role } from '@zenith/shared/identity';
+import { mock } from '@/mocks/utils/contract';
+import { badRequest, notFound, conflict } from '@/mocks/utils/handlers';
 import { mockRoles, getNextRoleId } from '@/mocks/data/roles';
 import { mockUsers } from '@/mocks/data/users';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { Role } from '@zenith/shared/identity';
 
 export const rolesHandlers = [
-  // 角色列表（支持服务端分页）
-  http.get('/api/roles', ({ request }) => {
-    const url = new URL(request.url);
-    const keyword = url.searchParams.get('keyword') ?? '';
-    const status = url.searchParams.get('status') ?? '';
+  // 所有角色（不分页，供下拉框使用）
+  mock(roleContract.all, ({ ok }) => {
+    return ok(mockRoles);
+  }),
 
+  // 角色列表（支持服务端分页）
+  mock(roleContract.list, ({ query, ok, paginate }) => {
+    const { keyword, status } = query;
     const filtered = mockRoles.filter((r) => {
       if (keyword && !r.name.includes(keyword) && !r.code.includes(keyword)) return false;
       if (status && r.status !== status) return false;
       return true;
     });
-    return ok(paginate(filtered, url));
-  }),
-
-  // 所有角色（不分页，供下拉框使用）
-  http.get('/api/roles/all', () => {
-    return ok(mockRoles);
+    return ok(paginate(filtered));
   }),
 
   // 获取单个角色
-  http.get('/api/roles/:id', ({ params }) => {
-    const role = mockRoles.find((r) => r.id === Number(params.id));
-    if (!role) return notFound('角色不存在');
+  mock(roleContract.detail, ({ params, ok }) => {
+    const role = mockRoles.find((r) => r.id === params.id);
+    if (!role) return notFound('角色不存在', { status: 404 });
     return ok(role);
   }),
 
   // 新增角色
-  http.post('/api/roles', async ({ request }) => {
-    const body = await request.json() as Partial<Role> & { menuIds?: number[] };
+  mock(roleContract.create, ({ body, ok }) => {
     if (body.code === 'super_admin') {
       return badRequest('角色编码 super_admin 为系统保留编码，不允许使用', { status: 400 });
     }
     const newRole: Role = {
       id: getNextRoleId(),
-      name: body.name ?? '',
-      code: body.code ?? '',
+      name: body.name,
+      code: body.code,
       description: body.description,
-      dataScope: body.dataScope ?? 'all',
-      status: body.status ?? 'enabled',
-      menuIds: body.menuIds ?? [],
+      dataScope: body.dataScope,
+      status: body.status,
+      menuIds: [],
       deptScopeIds: body.deptScopeIds ?? [],
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),
@@ -55,10 +51,9 @@ export const rolesHandlers = [
   }),
 
   // 更新角色
-  http.put('/api/roles/:id', async ({ params, request }) => {
-    const role = mockRoles.find((r) => r.id === Number(params.id));
-    if (!role) return notFound('角色不存在');
-    const body = await request.json() as Partial<Role>;
+  mock(roleContract.update, ({ params, body, ok }) => {
+    const role = mockRoles.find((r) => r.id === params.id);
+    if (!role) return notFound('角色不存在', { status: 404 });
     if (body.code !== undefined && body.code !== role.code) {
       if (body.code === 'super_admin') {
         return badRequest('角色编码 super_admin 为系统保留编码，不允许使用', { status: 400 });
@@ -67,14 +62,16 @@ export const rolesHandlers = [
         return badRequest('超级管理员角色编码不允许修改', { status: 400 });
       }
     }
-    Object.assign(role, body, { updatedAt: mockDateTime() });
+    const { deptScopeIds, ...rest } = body;
+    Object.assign(role, rest, { updatedAt: mockDateTime() });
+    if (deptScopeIds !== undefined) role.deptScopeIds = deptScopeIds ?? [];
     return ok(role, '更新成功');
   }),
 
   // 删除角色（在用保护：已分配用户的角色返回 409）
-  http.delete('/api/roles/:id', ({ params }) => {
-    const index = mockRoles.findIndex((r) => r.id === Number(params.id));
-    if (index === -1) return notFound('角色不存在');
+  mock(roleContract.remove, ({ params, ok }) => {
+    const index = mockRoles.findIndex((r) => r.id === params.id);
+    if (index === -1) return notFound('角色不存在', { status: 404 });
     const role = mockRoles[index];
     if (role.code === 'super_admin') {
       return badRequest('超级管理员角色不允许删除', { status: 400 });
@@ -88,22 +85,19 @@ export const rolesHandlers = [
   }),
 
   // 更新角色菜单
-  http.put('/api/roles/:id/menus', async ({ params, request }) => {
-    const role = mockRoles.find((r) => r.id === Number(params.id));
-    if (!role) return notFound('角色不存在');
-    const body = await request.json() as { menuIds: number[] };
+  mock(roleContract.assignMenus, ({ params, body, ok }) => {
+    const role = mockRoles.find((r) => r.id === params.id);
+    if (!role) return notFound('角色不存在', { status: 404 });
     role.menuIds = body.menuIds;
     role.updatedAt = mockDateTime();
     return ok(null, '菜单权限更新成功');
   }),
 
-  // 获取角色下的菜单 ID 列表
-
-  // 获取角色下的用户列表（与真实接口 GET /api/roles/:id/users 对齐）
-  http.get('/api/roles/:id/users', ({ params }) => {
-    const roleId = Number(params.id);
+  // 获取角色下的用户列表
+  mock(roleContract.users, ({ params, ok }) => {
+    const roleId = params.id;
     const role = mockRoles.find((r) => r.id === roleId);
-    if (!role) return notFound('角色不存在');
+    if (!role) return notFound('角色不存在', { status: 404 });
     const list = mockUsers
       .filter((u) => u.roles.some((r) => r.id === roleId))
       .map((u) => ({
@@ -114,13 +108,12 @@ export const rolesHandlers = [
     return ok(list);
   }),
 
-  // 分配角色用户（先清后设，与真实接口 PUT /api/roles/:id/users 对齐）
-  http.put('/api/roles/:id/users', async ({ params, request }) => {
-    const roleId = Number(params.id);
+  // 分配角色用户（先清后设）
+  mock(roleContract.assignUsers, ({ params, body, ok }) => {
+    const roleId = params.id;
     const role = mockRoles.find((r) => r.id === roleId);
-    if (!role) return notFound('角色不存在');
-    const body = await request.json() as { userIds: number[] };
-    const nextIds = new Set(body.userIds ?? []);
+    if (!role) return notFound('角色不存在', { status: 404 });
+    const nextIds = new Set(body.userIds);
     mockUsers.forEach((u) => {
       const has = u.roles.some((r) => r.id === roleId);
       if (nextIds.has(u.id) && !has) u.roles = [...u.roles, role];

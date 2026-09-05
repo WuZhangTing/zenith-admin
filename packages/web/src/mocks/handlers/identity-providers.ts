@@ -1,11 +1,14 @@
-import { http } from 'msw';
-import { ok, badRequest, notFound, pageParams } from '@/mocks/utils/handlers';
-import type { LdapDirectoryUser, TenantIdentityProvider } from '@zenith/shared/identity';
-import { mockDateTime } from '../utils/date';
-
-const API = import.meta.env.VITE_API_BASE_URL || '';
-
-let nextId = 4;
+import {
+  enterpriseAuthContract,
+  identityProviderContract,
+  type LdapDirectoryUser,
+  type LoginResponse,
+  type TenantIdentityProvider,
+} from '@zenith/shared/identity';
+import { mock } from '@/mocks/utils/contract';
+import { badRequest, notFound, nextIdFrom } from '@/mocks/utils/handlers';
+import { mockUsers } from '@/mocks/data/users';
+import { mockDateTime } from '@/mocks/utils/date';
 
 const directoryUsers: LdapDirectoryUser[] = [
   {
@@ -148,65 +151,40 @@ const providers: TenantIdentityProvider[] = [
   },
 ];
 
+/** 企业登录演示统一落到 admin 账号 */
+function enterpriseLoginResult(tokenPrefix: string): LoginResponse {
+  const { password: _, ...user } = mockUsers[0];
+  return {
+    user,
+    token: { accessToken: `${tokenPrefix}-access-token`, refreshToken: `${tokenPrefix}-refresh-token` },
+  };
+}
+
 export const identityProvidersHandlers = [
-  http.get(`${API}/api/identity-providers`, ({ request }) => {
-    const url = new URL(request.url);
-    const { page, pageSize } = pageParams(url);
-    const keyword = url.searchParams.get('keyword') || '';
-    const type = url.searchParams.get('type') || '';
-    const status = url.searchParams.get('status') || '';
+  mock(identityProviderContract.list, ({ query, ok, paginate }) => {
+    const { keyword, type, status } = query;
     let list = [...providers];
     if (keyword) list = list.filter((item) => item.name.includes(keyword) || item.code.includes(keyword));
     if (type) list = list.filter((item) => item.type === type);
     if (status) list = list.filter((item) => item.status === status);
-    const total = list.length;
-    list = list.slice((page - 1) * pageSize, page * pageSize);
-    return ok({ list, total, page, pageSize });
+    return ok(paginate(list));
   }),
 
-  http.get(`${API}/api/identity-providers/:id`, ({ params }) => {
-    const item = providers.find((provider) => provider.id === Number(params.id));
-    if (!item) return notFound('身份源不存在');
+  mock(identityProviderContract.detail, ({ params, ok }) => {
+    const item = providers.find((provider) => provider.id === params.id);
+    if (!item) return notFound('身份源不存在', { status: 404 });
     return ok(item);
   }),
 
-  http.post(`${API}/api/identity-providers`, async ({ request }) => {
-    const body = await request.json() as Partial<TenantIdentityProvider>;
+  mock(identityProviderContract.create, ({ body, ok }) => {
     const item: TenantIdentityProvider = {
-      id: nextId++,
+      ...body,
+      id: nextIdFrom(providers),
       tenantId: body.tenantId ?? null,
       tenantName: body.tenantId ? '演示租户' : null,
-      name: body.name || '新身份源',
-      code: body.code || `idp_${nextId}`,
-      type: body.type || 'oidc',
-      status: body.status || 'disabled',
-      issuer: body.issuer ?? null,
-      authorizationEndpoint: body.authorizationEndpoint ?? null,
-      tokenEndpoint: body.tokenEndpoint ?? null,
-      userinfoEndpoint: body.userinfoEndpoint ?? null,
-      jwksUri: body.jwksUri ?? null,
-      clientId: body.clientId ?? null,
       clientSecret: body.clientSecret ? '******' : '',
-      scopes: body.scopes || 'openid profile email',
-      samlSsoUrl: body.samlSsoUrl ?? null,
-      samlEntityId: body.samlEntityId ?? null,
       samlCertificate: body.samlCertificate ? '******' : '',
-      ldapUrl: body.ldapUrl ?? null,
-      ldapStartTls: body.ldapStartTls ?? false,
-      ldapSkipTlsVerify: body.ldapSkipTlsVerify ?? false,
-      ldapBaseDn: body.ldapBaseDn ?? null,
-      ldapBindDn: body.ldapBindDn ?? null,
       ldapBindPassword: body.ldapBindPassword ? '******' : '',
-      ldapUserFilter: body.ldapUserFilter ?? null,
-      ldapUserSearchFilter: body.ldapUserSearchFilter ?? null,
-      ldapSyncFilter: body.ldapSyncFilter ?? null,
-      ldapGroupBaseDn: body.ldapGroupBaseDn ?? null,
-      ldapGroupFilter: body.ldapGroupFilter ?? null,
-      ldapTimeoutMs: body.ldapTimeoutMs ?? 5000,
-      attributeMapping: body.attributeMapping || { subject: 'sub', email: 'email', username: 'preferred_username', nickname: 'name', phone: 'phone_number', department: 'department' },
-      jitEnabled: body.jitEnabled ?? false,
-      autoLinkByEmail: body.autoLinkByEmail ?? false,
-      defaultRoleIds: body.defaultRoleIds || [],
       remark: body.remark ?? '',
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),
@@ -215,10 +193,9 @@ export const identityProvidersHandlers = [
     return ok(item, '创建成功');
   }),
 
-  http.put(`${API}/api/identity-providers/:id`, async ({ params, request }) => {
-    const item = providers.find((provider) => provider.id === Number(params.id));
-    if (!item) return notFound('身份源不存在');
-    const body = await request.json() as Partial<TenantIdentityProvider>;
+  mock(identityProviderContract.update, ({ params, body, ok }) => {
+    const item = providers.find((provider) => provider.id === params.id);
+    if (!item) return notFound('身份源不存在', { status: 404 });
     Object.assign(item, body, {
       tenantName: body.tenantId ? '演示租户' : null,
       clientSecret: body.clientSecret && body.clientSecret !== '******' ? '******' : item.clientSecret,
@@ -229,26 +206,25 @@ export const identityProvidersHandlers = [
     return ok(item, '更新成功');
   }),
 
-  http.post(`${API}/api/identity-providers/:id/test`, ({ params }) => {
-    const item = providers.find((provider) => provider.id === Number(params.id));
-    if (!item) return notFound('身份源不存在');
+  mock(identityProviderContract.test, ({ params, ok }) => {
+    const item = providers.find((provider) => provider.id === params.id);
+    if (!item) return notFound('身份源不存在', { status: 404 });
     return ok({ ok: item.type === 'ldap' || item.type === 'ad', message: '连接成功', sampleUsers: directoryUsers.slice(0, 2) });
   }),
 
-  http.get(`${API}/api/identity-providers/:id/ldap/users`, ({ request, params }) => {
-    const item = providers.find((provider) => provider.id === Number(params.id));
-    if (!item) return notFound('身份源不存在');
-    const url = new URL(request.url);
-    const keyword = (url.searchParams.get('keyword') || '').toLowerCase();
+  mock(identityProviderContract.ldapUsers, ({ params, query, ok }) => {
+    const item = providers.find((provider) => provider.id === params.id);
+    if (!item) return notFound('身份源不存在', { status: 404 });
+    const keyword = (query.keyword ?? '').toLowerCase();
     const list = keyword
       ? directoryUsers.filter((user) => [user.username, user.nickname, user.email, user.department].some((value) => value?.toLowerCase().includes(keyword)))
       : directoryUsers;
-    return ok(list);
+    return ok(list.slice(0, query.limit));
   }),
 
-  http.post(`${API}/api/identity-providers/:id/sync`, ({ params }) => {
-    const item = providers.find((provider) => provider.id === Number(params.id));
-    if (!item) return notFound('身份源不存在');
+  mock(identityProviderContract.sync, ({ params, ok }) => {
+    const item = providers.find((provider) => provider.id === params.id);
+    if (!item) return notFound('身份源不存在', { status: 404 });
     return ok({
       logId: 1,
       status: 'success',
@@ -262,51 +238,37 @@ export const identityProvidersHandlers = [
     }, '同步完成');
   }),
 
-  http.delete(`${API}/api/identity-providers/:id`, ({ params }) => {
-    const index = providers.findIndex((provider) => provider.id === Number(params.id));
-    if (index === -1) return notFound('身份源不存在');
+  mock(identityProviderContract.remove, ({ params, ok }) => {
+    const index = providers.findIndex((provider) => provider.id === params.id);
+    if (index === -1) return notFound('身份源不存在', { status: 404 });
     providers.splice(index, 1);
     return ok(null, '删除成功');
   }),
 
-  http.get(`${API}/api/auth/enterprise/providers`, ({ request }) => {
-    const url = new URL(request.url);
-    const tenantCode = url.searchParams.get('tenantCode');
+  mock(enterpriseAuthContract.providers, ({ query, ok }) => {
+    const tenantCode = query.tenantCode ?? null;
     const visible = providers
       .filter((item) => item.status === 'enabled' && (tenantCode ? item.tenantId === 1 : item.tenantId === null))
       .map(({ id, name, code, type }) => ({ id, name, code, type }));
     return ok({ tenantCode, providers: visible });
   }),
 
-  http.post(`${API}/api/auth/enterprise/ldap/login`, async ({ request }) => {
-    const body = await request.json() as { providerId: number; username: string; password: string; redirectTo?: string | null };
+  mock(enterpriseAuthContract.ldapLogin, ({ body, ok }) => {
     const provider = providers.find((item) => item.id === body.providerId);
     if (!provider || (provider.type !== 'ldap' && provider.type !== 'ad')) {
-      return badRequest('身份源不可用');
+      return badRequest('身份源不可用', { status: 400 });
     }
     if (!body.username || !body.password) {
-      return badRequest('目录账号或密码错误');
+      return badRequest('目录账号或密码错误', { status: 400 });
     }
     return ok({
       redirectTo: body.redirectTo || '/',
-      loginResult: {
-        user: {
-          id: 1,
-          username: 'admin',
-          nickname: '管理员',
-          email: 'admin@example.com',
-          status: 'enabled',
-          roles: [],
-          createdAt: mockDateTime(),
-          updatedAt: mockDateTime(),
-        },
-        token: { accessToken: 'mock-ldap-access-token', refreshToken: 'mock-ldap-refresh-token' },
-      },
+      loginResult: enterpriseLoginResult('mock-ldap'),
     }, '登录成功');
   }),
 
-  http.get(`${API}/api/auth/enterprise/:id`, ({ params }) => {
-    const provider = providers.find((item) => item.id === Number(params.id));
+  mock(enterpriseAuthContract.authUrl, ({ params, ok }) => {
+    const provider = providers.find((item) => item.id === params.id);
     return ok({
       authUrl: provider?.type === 'saml'
         ? `/enterprise/callback?samlTicket=demo-saml-ticket-${params.id}`
@@ -315,41 +277,17 @@ export const identityProvidersHandlers = [
     });
   }),
 
-  http.post(`${API}/api/auth/enterprise/callback`, () => {
+  mock(enterpriseAuthContract.callback, ({ ok }) => {
     return ok({
       redirectTo: '/',
-      loginResult: {
-        user: {
-          id: 1,
-          username: 'admin',
-          nickname: '管理员',
-          email: 'admin@example.com',
-          status: 'enabled',
-          roles: [],
-          createdAt: mockDateTime(),
-          updatedAt: mockDateTime(),
-        },
-        token: { accessToken: 'mock-enterprise-access-token', refreshToken: 'mock-enterprise-refresh-token' },
-      },
+      loginResult: enterpriseLoginResult('mock-enterprise'),
     }, '登录成功');
   }),
 
-  http.post(`${API}/api/auth/enterprise/saml/exchange`, () => {
+  mock(enterpriseAuthContract.samlExchange, ({ ok }) => {
     return ok({
       redirectTo: '/',
-      loginResult: {
-        user: {
-          id: 1,
-          username: 'admin',
-          nickname: '管理员',
-          email: 'admin@example.com',
-          status: 'enabled',
-          roles: [],
-          createdAt: mockDateTime(),
-          updatedAt: mockDateTime(),
-        },
-        token: { accessToken: 'mock-saml-access-token', refreshToken: 'mock-saml-refresh-token' },
-      },
+      loginResult: enterpriseLoginResult('mock-saml'),
     }, '登录成功');
   }),
 ];

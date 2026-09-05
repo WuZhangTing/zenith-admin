@@ -29,7 +29,7 @@ import {
   useAlertRecipientUsers,
   useAllUsers,
   useAssignUserRoles,
-  useBatchDeleteUsers,
+  useDeleteUsers,
   useSaveUser,
   useSaveUserDataPermission,
   useSaveUserMenus,
@@ -60,6 +60,7 @@ beforeEach(() => {
     .on('PUT', '/api/users/1/roles', null)
     .on('PUT', '/api/users/1/data-permission', null)
     .on('PUT', '/api/users/1/menus', null)
+    .on('DELETE', '/api/users/1', null)
     .on('DELETE', '/api/users/batch', null);
 });
 
@@ -129,7 +130,7 @@ describe('权限类写操作只影响各自的权限查询', () => {
     const fetches = observeFetches(qc);
     api.resetCalls();
 
-    await result.current.saveDataPermission.mutateAsync({ userId: 1, dataScope: 'dept', deptScopeIds: [3] });
+    await result.current.saveDataPermission.mutateAsync({ params: { id: 1 }, body: { dataScope: 'dept', deptScopeIds: [3] } });
     await waitFor(() => expect(fetches.countOf(userKeys.dataPermission(1))).toBe(1));
 
     expect(fetches.countOf(userKeys.lists)).toBe(0);
@@ -160,7 +161,7 @@ describe('权限类写操作只影响各自的权限查询', () => {
     });
 
     const fetches = observeFetches(qc);
-    await result.current.saveMenus.mutateAsync({ userId: 1, menuIds: [1, 2] });
+    await result.current.saveMenus.mutateAsync({ params: { id: 1 }, body: { menuIds: [1, 2] } });
     await waitFor(() => expect(fetches.countOf(userKeys.effectivePermissions(1))).toBe(1));
 
     expect(fetches.countOf(userKeys.lists)).toBe(0);
@@ -189,7 +190,7 @@ describe('权限类写操作只影响各自的权限查询', () => {
     });
 
     const fetches = observeFetches(qc);
-    await result.current.assignRoles.mutateAsync({ id: 1, roleIds: [2] });
+    await result.current.assignRoles.mutateAsync({ params: { id: 1 }, body: { roleIds: [2] } });
     await waitFor(() => expect(fetches.countOf(userKeys.effectivePermissions(1))).toBe(1));
     await waitFor(() => expect(result.current.list.isFetching).toBe(false));
 
@@ -202,11 +203,11 @@ describe('权限类写操作只影响各自的权限查询', () => {
   });
 });
 
-describe('useBatchDeleteUsers', () => {
+describe('useDeleteUsers', () => {
   it('drops every per-user cache of the deleted users', async () => {
     const qc = createTestQueryClient();
     const { result } = renderHook(
-      () => ({ list: useUserList(LIST_PARAMS), batchDelete: useBatchDeleteUsers() }),
+      () => ({ list: useUserList(LIST_PARAMS), batchDelete: useDeleteUsers() }),
       { wrapper: createWrapper(qc) },
     );
     await waitFor(() => expect(result.current.list.isSuccess).toBe(true));

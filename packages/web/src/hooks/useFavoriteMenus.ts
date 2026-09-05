@@ -3,9 +3,9 @@
  * 在内存中维护有序的收藏菜单 ID 列表，与后端同步。
  */
 import { useCallback, useMemo } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { request } from '@/utils/request';
-import { unwrap } from '@/lib/query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { authContract } from '@zenith/shared/identity';
+import { api, useApiMutation } from '@/lib/contract-query';
 
 const favoriteMenuKeys = {
   all: ['auth', 'favorite-menus'] as const,
@@ -15,15 +15,15 @@ export function useFavoriteMenus() {
   const queryClient = useQueryClient();
   const favoritesQuery = useQuery({
     queryKey: favoriteMenuKeys.all,
-    queryFn: () => request.get<number[]>('/api/auth/favorite-menus').then(unwrap),
+    queryFn: () => api(authContract.favoriteMenus),
   });
   const favorites = useMemo(() => favoritesQuery.data ?? [], [favoritesQuery.data]);
 
-  const saveMutation = useMutation({
-    mutationFn: (ids: number[]) => request.put('/api/auth/favorite-menus', { menuIds: ids }).then(unwrap),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: favoriteMenuKeys.all }),
+  const saveMutation = useApiMutation(authContract.saveFavoriteMenus, {
+    invalidate: (qc) => void qc.invalidateQueries({ queryKey: favoriteMenuKeys.all }),
   });
-  const { mutate: saveFavoriteMenus } = saveMutation;
+  const { mutate: saveFavoriteMenusRaw } = saveMutation;
+  const saveFavoriteMenus = useCallback((ids: number[]) => saveFavoriteMenusRaw({ body: { menuIds: ids } }), [saveFavoriteMenusRaw]);
 
   const isFavorite = useCallback((menuId: number) => favorites.includes(menuId), [favorites]);
 

@@ -1,24 +1,15 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse } from '@zenith/shared/core';
-import type { LoginLog, OAuthAccount, OAuthAuthUrl, OAuthProviderType, User, UserApiToken, UserApiTokenCreated, UserSession } from '@zenith/shared/identity';
-import type { MfaFactor, OperationLog, TotpSetupResult } from '@zenith/shared/platform';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import type { QueryOf } from '@zenith/shared/core';
+import { apiTokenContract, authContract, oauthContract } from '@zenith/shared/identity';
+import { api, useApiMutation } from '@/lib/contract-query';
+import { unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
-import { toQueryString, unwrap } from '@/lib/query';
 import type { PasswordPolicy } from '@/utils/password-policy';
 import { updateCachedAuthUser } from './auth';
 
-export interface ProfileLogParams {
-  page: number;
-  pageSize: number;
-}
+export type ProfileLoginLogParams = NonNullable<QueryOf<typeof authContract.myLoginLogs>>;
 
-export interface UpdateProfilePayload {
-  nickname?: string;
-  email?: string;
-  phone?: string;
-  gender?: string | null;
-  avatar?: string | null;
-}
+export type ProfileOperationLogParams = NonNullable<QueryOf<typeof authContract.myOperationLogs>>;
 
 export const profileKeys = {
   all: ['profile'] as const,
@@ -27,9 +18,9 @@ export const profileKeys = {
   mfaFactors: ['profile', 'mfa-factors'] as const,
   sessions: ['profile', 'sessions'] as const,
   loginLogs: ['profile', 'login-logs'] as const,
-  loginLogList: (params: ProfileLogParams) => ['profile', 'login-logs', params] as const,
+  loginLogList: (params: ProfileLoginLogParams) => ['profile', 'login-logs', params] as const,
   operationLogs: ['profile', 'operation-logs'] as const,
-  operationLogList: (params: ProfileLogParams) => ['profile', 'operation-logs', params] as const,
+  operationLogList: (params: ProfileOperationLogParams) => ['profile', 'operation-logs', params] as const,
   apiTokens: ['profile', 'api-tokens'] as const,
 };
 
@@ -43,7 +34,7 @@ export function useProfilePasswordPolicy() {
 export function useProfileOauthAccounts(enabled = true) {
   return useQuery({
     queryKey: profileKeys.oauthAccounts,
-    queryFn: () => request.get<OAuthAccount[]>('/api/auth/oauth/accounts').then(unwrap),
+    queryFn: () => api(oauthContract.accounts),
     enabled,
   });
 }
@@ -51,7 +42,7 @@ export function useProfileOauthAccounts(enabled = true) {
 export function useProfileMfaFactors(enabled = true) {
   return useQuery({
     queryKey: profileKeys.mfaFactors,
-    queryFn: () => request.get<MfaFactor[]>('/api/auth/mfa/factors').then(unwrap),
+    queryFn: () => api(authContract.mfaFactors),
     enabled,
   });
 }
@@ -59,28 +50,24 @@ export function useProfileMfaFactors(enabled = true) {
 export function useProfileSessions(enabled = true) {
   return useQuery({
     queryKey: profileKeys.sessions,
-    queryFn: () => request.get<UserSession[]>('/api/auth/my-sessions').then(unwrap),
+    queryFn: () => api(authContract.mySessions),
     enabled,
   });
 }
 
-export function useProfileLoginLogs(params: ProfileLogParams, enabled = true) {
+export function useProfileLoginLogs(params: ProfileLoginLogParams, enabled = true) {
   return useQuery({
     queryKey: profileKeys.loginLogList(params),
-    queryFn: () =>
-      request.get<PaginatedResponse<LoginLog>>(`/api/auth/my-login-logs${toQueryString(params)}`).then(unwrap),
+    queryFn: () => api(authContract.myLoginLogs, { query: params }),
     placeholderData: keepPreviousData,
     enabled,
   });
 }
 
-export function useProfileOperationLogs(params: ProfileLogParams, enabled = true) {
+export function useProfileOperationLogs(params: ProfileOperationLogParams, enabled = true) {
   return useQuery({
     queryKey: profileKeys.operationLogList(params),
-    queryFn: () =>
-      request
-        .get<PaginatedResponse<OperationLog>>(`/api/auth/my-operation-logs${toQueryString(params)}`)
-        .then(unwrap),
+    queryFn: () => api(authContract.myOperationLogs, { query: params }),
     placeholderData: keepPreviousData,
     enabled,
   });
@@ -89,101 +76,74 @@ export function useProfileOperationLogs(params: ProfileLogParams, enabled = true
 export function useProfileApiTokens(enabled = true) {
   return useQuery({
     queryKey: profileKeys.apiTokens,
-    queryFn: () => request.get<UserApiToken[]>('/api/api-tokens').then(unwrap),
+    queryFn: () => api(apiTokenContract.list),
     enabled,
   });
 }
 
+/** 修改资料后直接回填登录态里的用户快照，头像 / 昵称立即生效 */
 export function useUpdateProfile() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (values: UpdateProfilePayload) => request.put<Omit<User, 'password'>>('/api/auth/profile', values).then(unwrap),
-    onSuccess: (user) => updateCachedAuthUser(qc, user),
+  return useApiMutation(authContract.updateProfile, {
+    invalidate: (qc, user) => updateCachedAuthUser(qc, user),
   });
 }
 
 export function useChangeProfilePassword() {
-  return useMutation({
-    mutationFn: (values: { oldPassword: string; newPassword: string }) =>
-      request.put<null>('/api/auth/password', values).then(unwrap),
-  });
+  return useApiMutation(authContract.changePassword);
 }
 
 export function useProfileOAuthBindUrl() {
-  return useMutation({
-    mutationFn: (provider: OAuthProviderType) =>
-      request.get<OAuthAuthUrl>(`/api/auth/oauth/${provider}/bind`).then(unwrap),
-  });
+  return useApiMutation(oauthContract.bindUrl);
 }
 
 export function useUnbindProfileOAuth() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (provider: OAuthProviderType) => request.delete<null>(`/api/auth/oauth/unbind/${provider}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: profileKeys.oauthAccounts }),
+  return useApiMutation(oauthContract.unbind, {
+    invalidate: (qc) => void qc.invalidateQueries({ queryKey: profileKeys.oauthAccounts }),
   });
 }
 
 export function useBeginTotpSetup() {
-  return useMutation({
-    mutationFn: () => request.post<TotpSetupResult>('/api/auth/mfa/totp/setup').then(unwrap),
-  });
+  return useApiMutation(authContract.beginTotpSetup);
 }
 
 export function useVerifyTotpSetup() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (values: { factorId: number; code: string }) =>
-      request.post<null>('/api/auth/mfa/totp/verify', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: profileKeys.mfaFactors }),
+  return useApiMutation(authContract.verifyTotpSetup, {
+    invalidate: (qc) => void qc.invalidateQueries({ queryKey: profileKeys.mfaFactors }),
   });
 }
 
 export function useDisableMfaFactor() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.post<null>(`/api/auth/mfa/factors/${id}/disable`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: profileKeys.mfaFactors }),
+  return useApiMutation(authContract.disableMfaFactor, {
+    invalidate: (qc) => void qc.invalidateQueries({ queryKey: profileKeys.mfaFactors }),
   });
 }
 
 export function useDeleteMfaFactor() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/auth/mfa/factors/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: profileKeys.mfaFactors }),
+  return useApiMutation(authContract.deleteMfaFactor, {
+    invalidate: (qc) => void qc.invalidateQueries({ queryKey: profileKeys.mfaFactors }),
   });
 }
 
 export function useKickOtherProfileSessions() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => request.delete<{ count: number }>('/api/auth/my-sessions/others').then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: profileKeys.sessions }),
+  return useApiMutation(authContract.deleteOtherSessions, {
+    invalidate: (qc) => void qc.invalidateQueries({ queryKey: profileKeys.sessions }),
   });
 }
 
 export function useKickProfileSession() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (tokenId: string) => request.delete<null>(`/api/auth/my-sessions/${tokenId}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: profileKeys.sessions }),
+  return useApiMutation(authContract.deleteSession, {
+    invalidate: (qc) => void qc.invalidateQueries({ queryKey: profileKeys.sessions }),
   });
 }
 
 export function useCreateApiToken() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (values: { name: string; expiresAt?: string }) =>
-      request.post<UserApiTokenCreated>('/api/api-tokens', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: profileKeys.apiTokens }),
+  return useApiMutation(apiTokenContract.create, {
+    invalidate: (qc) => void qc.invalidateQueries({ queryKey: profileKeys.apiTokens }),
   });
 }
 
 export function useDeleteApiToken() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/api-tokens/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: profileKeys.apiTokens }),
+  return useApiMutation(apiTokenContract.remove, {
+    invalidate: (qc) => void qc.invalidateQueries({ queryKey: profileKeys.apiTokens }),
   });
 }

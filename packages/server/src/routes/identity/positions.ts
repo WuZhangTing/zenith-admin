@@ -1,9 +1,9 @@
-import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createPositionSchema, updatePositionSchema } from '@zenith/shared/identity';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { positionContract } from '@zenith/shared/identity';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
-import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
-import { PositionDTO, PositionUserPreviewDTO } from '../../lib/openapi-dtos';
+import { defineContractRoute } from '../../lib/contract-route';
+import { validationHook, okBody } from '../../lib/openapi-schemas';
 import { defineScopeMembersRoute } from './_scope-members';
 import {
   listAllPositions,
@@ -22,67 +22,30 @@ import {
 
 const positionsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const BatchDeleteBody = z.object({ ids: z.array(z.number()) });
+const read = [authMiddleware, guard({ permission: 'system:position:list' })] as const;
 
-const allRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/all', tags: ['Positions'], summary: '全量岗位（供下拉框）',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:position:list' })] as const,
-    request: {},
-    responses: { ...ok(z.array(PositionDTO), '全量岗位'), ...commonErrorResponses },
-  }),
+const allRoute = defineContractRoute(positionContract.all, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await listAllPositions()), 200),
 });
 
-const listRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/', tags: ['Positions'], summary: '岗位列表',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:position:list' })] as const,
-    request: {
-      query: PaginationQuery.extend({
-        keyword: z.string().optional(),
-        status: z.enum(['enabled', 'disabled']).optional(),
-        startTime: dateRangeBound('起始时间'),
-        endTime: dateRangeBound('结束时间'),
-      }),
-    },
-    responses: { ...okPaginated(PositionDTO, '岗位列表'), ...commonErrorResponses },
-  }),
+const listRoute = defineContractRoute(positionContract.list, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await listPositions(c.req.valid('query'))), 200),
 });
 
-const getOneRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/{id}', tags: ['Positions'], summary: '岗位详情',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:position:list' })] as const,
-    request: { params: IdParam },
-    responses: { ...ok(PositionDTO, '岗位详情'), ...commonErrorResponses },
-  }),
+const getOneRoute = defineContractRoute(positionContract.detail, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await getPosition(c.req.valid('param').id)), 200),
 });
 
-const createPositionRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/', tags: ['Positions'], summary: '创建岗位',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:position:create', audit: { description: '创建岗位', module: '岗位管理' } })] as const,
-    request: { body: { content: jsonContent(createPositionSchema), required: true } },
-    responses: { ...ok(PositionDTO, '创建成功'), ...commonErrorResponses },
-  }),
+const createPositionRoute = defineContractRoute(positionContract.create, {
+  middleware: [authMiddleware, guard({ permission: 'system:position:create', audit: { description: '创建岗位', module: '岗位管理' } })] as const,
   handler: async (c) => c.json(okBody(await createPosition(c.req.valid('json')), '创建成功'), 200),
 });
 
-const updatePositionRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/{id}', tags: ['Positions'], summary: '更新岗位',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:position:update', audit: { description: '更新岗位', module: '岗位管理' } })] as const,
-    request: { params: IdParam, body: { content: jsonContent(updatePositionSchema), required: true } },
-    responses: { ...ok(PositionDTO, '更新成功'), ...commonErrorResponses },
-  }),
+const updatePositionRoute = defineContractRoute(positionContract.update, {
+  middleware: [authMiddleware, guard({ permission: 'system:position:update', audit: { description: '更新岗位', module: '岗位管理' } })] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getPositionBeforeAudit(id);
@@ -93,14 +56,8 @@ const updatePositionRoute = defineOpenAPIRoute({
   },
 });
 
-const batchDeleteRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/batch', tags: ['Positions'], summary: '批量删除岗位',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:position:delete', audit: { description: '批量删除岗位', module: '岗位管理' } })] as const,
-    request: { body: { content: jsonContent(BatchDeleteBody), required: true } },
-    responses: { ...okMsg('删除成功'), ...commonErrorResponses },
-  }),
+const batchDeleteRoute = defineContractRoute(positionContract.removeBatch, {
+  middleware: [authMiddleware, guard({ permission: 'system:position:delete', audit: { description: '批量删除岗位', module: '岗位管理' } })] as const,
   handler: async (c) => {
     const { ids } = c.req.valid('json');
     const before = await getPositionsBeforeAudit(ids);
@@ -110,14 +67,8 @@ const batchDeleteRoute = defineOpenAPIRoute({
   },
 });
 
-const deleteRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/{id}', tags: ['Positions'], summary: '删除岗位',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:position:delete', audit: { description: '删除岗位', module: '岗位管理' } })] as const,
-    request: { params: IdParam },
-    responses: { ...okMsg('删除成功'), ...commonErrorResponses },
-  }),
+const deleteRoute = defineContractRoute(positionContract.remove, {
+  middleware: [authMiddleware, guard({ permission: 'system:position:delete', audit: { description: '删除岗位', module: '岗位管理' } })] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getPositionBeforeAudit(id);
@@ -127,33 +78,19 @@ const deleteRoute = defineOpenAPIRoute({
   },
 });
 
-const MembersBody = z.object({ userIds: z.array(z.number().int().positive()) });
-
-const listMembersRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/{id}/members', tags: ['Positions'], summary: '获取岗位成员',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:position:list' })] as const,
-    request: { params: IdParam },
-    responses: { ...ok(z.array(PositionUserPreviewDTO), '成员列表'), ...commonErrorResponses },
-  }),
+const listMembersRoute = defineContractRoute(positionContract.members, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await listPositionMembers(c.req.valid('param').id)), 200),
 });
 
 const memberPreviewRoute = defineScopeMembersRoute({
+  op: positionContract.memberPreview,
   scopeType: 'position',
-  tag: 'Positions',
   permission: 'system:position:list',
-  summary: '岗位成员分页预览',
 });
 
-const setMembersRoute = defineOpenAPIRoute({
-  route: createRoute({    method: 'put', path: '/{id}/members', tags: ['Positions'], summary: '设置岗位成员（全量覆盖）',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:position:update', audit: { description: '设置岗位成员', module: '岗位管理' } })] as const,
-    request: { params: IdParam, body: { content: jsonContent(MembersBody), required: true } },
-    responses: { ...okMsg('保存成功'), ...commonErrorResponses },
-  }),
+const setMembersRoute = defineContractRoute(positionContract.setMembers, {
+  middleware: [authMiddleware, guard({ permission: 'system:position:update', audit: { description: '设置岗位成员', module: '岗位管理' } })] as const,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { userIds } = c.req.valid('json');
@@ -166,6 +103,7 @@ const setMembersRoute = defineOpenAPIRoute({
   },
 });
 
+// DELETE /batch 必须先于 DELETE /{id} 注册，否则 "batch" 会被当成 id
 positionsRouter.openapiRoutes([allRoute, listRoute, getOneRoute, createPositionRoute, updatePositionRoute, batchDeleteRoute, deleteRoute, listMembersRoute, memberPreviewRoute, setMembersRoute] as const);
 
 export default positionsRouter;

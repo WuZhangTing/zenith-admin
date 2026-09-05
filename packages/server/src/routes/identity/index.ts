@@ -1,10 +1,31 @@
-import { tenantContract, tenantPackageContract } from '@zenith/shared/identity';
+import {
+  apiTokenContract,
+  authContract,
+  departmentContract,
+  directorySyncContract,
+  directorySyncSourceContract,
+  enterpriseAuthContract,
+  identityProviderContract,
+  identitySecurityContract,
+  loginLogContract,
+  menuContract,
+  oauthConfigContract,
+  oauthContract,
+  positionContract,
+  roleContract,
+  sessionContract,
+  tenantContract,
+  tenantPackageContract,
+  userContract,
+  userGroupContract,
+} from '@zenith/shared/identity';
 import { defineRouteDomain } from '../_kit';
 import apiTokensRoutes from './api-tokens';
 import authRoutes from './auth';
 import departmentsRoutes from './departments';
 import directorySyncRoutes from './directory-sync';
 import directorySyncCallbacksRoutes from './directory-sync-callbacks';
+import directorySyncSourcesRoutes from './directory-sync-sources';
 import enterpriseAuthRoutes from './enterprise-auth';
 import identityProvidersRoutes from './identity-providers';
 import identitySecurityRoutes from './identity-security';
@@ -23,26 +44,27 @@ import usersRoutes from './users';
 export default defineRouteDomain({
   name: 'identity',
   mounts: () => [
-    ['/api/auth', authRoutes],
-    ['/api/users', usersRoutes],
-    ['/api/departments', departmentsRoutes],
-    ['/api/positions', positionsRoutes],
-    ['/api/user-groups', userGroupsRoutes],
-    ['/api/menus', menusRoutes],
-    ['/api/roles', rolesRoutes],
-    ['/api/login-logs', loginLogsRoutes],
-    ['/api/identity-security', identitySecurityRoutes],
-    ['/api/identity-providers', identityProvidersRoutes],
-    ['/api/directory-sync', directorySyncRoutes],
-    // 机器端点（平台回调 / SCIM）：公开路径，自带验签与 Bearer 校验
-    ['/api/directory-sync', directorySyncCallbacksRoutes],
-    ['/api/sessions', sessionsRoutes],
+    [authContract.basePath, authRoutes],
+    [userContract.basePath, usersRoutes],
+    [departmentContract.basePath, departmentsRoutes],
+    [positionContract.basePath, positionsRoutes],
+    [userGroupContract.basePath, userGroupsRoutes],
+    [menuContract.basePath, menusRoutes],
+    [roleContract.basePath, rolesRoutes],
+    [loginLogContract.basePath, loginLogsRoutes],
+    [identitySecurityContract.basePath, identitySecurityRoutes],
+    [identityProviderContract.basePath, identityProvidersRoutes],
+    [directorySyncSourceContract.basePath, directorySyncSourcesRoutes],
+    [directorySyncContract.basePath, directorySyncRoutes],
+    // 机器端点（平台回调 / SCIM）：公开路径，自带验签与 Bearer 校验；响应由平台协议决定，不走契约
+    [directorySyncContract.basePath, directorySyncCallbacksRoutes],
+    [sessionContract.basePath, sessionsRoutes],
     [tenantContract.basePath, tenantsRoutes],
     [tenantPackageContract.basePath, tenantPackagesRoutes],
-    ['/api/auth/oauth', oauthRoutes],
-    ['/api/auth/enterprise', enterpriseAuthRoutes],
-    ['/api/oauth-config', oauthConfigRoutes],
+    [oauthContract.basePath, oauthRoutes],
+    [enterpriseAuthContract.basePath, enterpriseAuthRoutes],
+    [oauthConfigContract.basePath, oauthConfigRoutes],
     // 个人访问令牌属于账号安全能力（入口在个人中心），归 identity 域
-    ['/api/api-tokens', apiTokensRoutes],
+    [apiTokenContract.basePath, apiTokensRoutes],
   ],
 });

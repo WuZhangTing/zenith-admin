@@ -3,13 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { Button, Form, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { TOKEN_KEY, REFRESH_TOKEN_KEY } from '@zenith/shared/core';
+import { authContract } from '@zenith/shared/identity';
+import { api } from '@/lib/contract-query';
+import { ApiError } from '@/lib/query';
 import { approvalRequest } from '../lib/approval-request';
-
-interface LoginResult {
-  token?: { accessToken: string; refreshToken: string };
-  requirePasswordChange?: boolean;
-  mfaRequired?: boolean;
-}
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -23,25 +20,25 @@ export default function LoginPage() {
 
   const submit = async () => {
     if (!formApi || submitting) return;
+    let values: { username: string; password: string };
     try {
-      const values = await formApi.validate() as { username: string; password: string };
-      setSubmitting(true);
-      const res = await approvalRequest.post<LoginResult>('/api/auth/login', values, { skipAuth: true, silent: true });
-      if (res.code !== 0) {
-        Toast.error(res.message || '登录失败');
-        return;
-      }
-      const token = res.data?.token;
-      if (!token?.accessToken) {
-        // MFA / 强制改密等增强流程不在轻页覆盖范围
+      values = await formApi.validate() as { username: string; password: string };
+    } catch {
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await api(authContract.login, { body: values }, { client: approvalRequest, skipAuth: true, silent: true });
+      // MFA 等增强流程不在轻页覆盖范围
+      if (!('token' in result)) {
         Toast.info('该账号需要在桌面端完成登录（MFA 或修改密码）');
         return;
       }
-      localStorage.setItem(TOKEN_KEY, token.accessToken);
-      if (token.refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, token.refreshToken);
+      localStorage.setItem(TOKEN_KEY, result.token.accessToken);
+      localStorage.setItem(REFRESH_TOKEN_KEY, result.token.refreshToken);
       navigate('/', { replace: true });
-    } catch {
-      /* 校验失败 */
+    } catch (err) {
+      Toast.error((err instanceof ApiError && err.message) || '登录失败');
     } finally {
       setSubmitting(false);
     }

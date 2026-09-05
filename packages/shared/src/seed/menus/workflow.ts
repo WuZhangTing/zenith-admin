@@ -1,4 +1,4 @@
-import type { Menu } from '../../identity/types';
+import type { Menu } from '../../identity/contracts';
 import { SEED_DATE } from '../_base';
 
 /** 工作流引擎（4000 段）— 按角色分三组:审批中心(4200)/流程管理(4300)/运维与集成(4400) */

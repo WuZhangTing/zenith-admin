@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Button, Form, Space, Spin, Switch, Toast, SideSheet, Empty } from '@douyinfe/semi-ui';
 import { Trash2, Users } from 'lucide-react';
 import type { Position } from '@zenith/shared/identity';
+import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
+import type { PositionFormValues } from '@/hooks/queries/positions';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useDictItems } from '@/hooks/useDictItems';
 import { UserTransferSelect } from '@/components/UserTransferSelect';
@@ -55,7 +57,7 @@ export default function PositionsPage() {
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    status: submittedParams.status || undefined,
+    status: enumValueOf(USER_STATUSES, submittedParams.status),
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
   });
   const data = listQuery.data?.list ?? [];
@@ -73,7 +75,7 @@ export default function PositionsPage() {
   const [memberIds, setMemberIds] = useState<number[]>([]);
   const membersQuery = usePositionMembers(memberPosition?.id, memberSheetVisible);
   const saveMutation = useSavePosition();
-  const positionModal = useEditModal<Position>({
+  const positionModal = useEditModal<Position, PositionFormValues>({
     entityName: '岗位',
     save: saveMutation,
     useDetail: usePositionDetail,
@@ -83,7 +85,8 @@ export default function PositionsPage() {
       code: position.code,
       sort: position.sort,
       status: position.status,
-      remark: position.remark,
+      // 记录里的 null 备注在表单中视为未填
+      remark: position.remark ?? undefined,
     }),
   });
   const toggleStatusMutation = useSavePosition();
@@ -134,7 +137,7 @@ export default function PositionsPage() {
 
   const handleSaveMembers = async () => {
     if (!memberPosition) return;
-    await assignMembersMutation.mutateAsync({ id: memberPosition.id, userIds: memberIds });
+    await assignMembersMutation.mutateAsync({ params: { id: memberPosition.id }, body: { userIds: memberIds } });
     Toast.success('保存成功');
     setMemberSheetVisible(false);
   };
