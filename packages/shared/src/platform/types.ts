@@ -1,8 +1,6 @@
-import type { AnalyticsDeviceType, AnalyticsEnvironment, AnalyticsEventSource } from '../analytics/types';
 import type { ChatMessage, ChatReactionGroup, ChatVoteData } from '../chat/contracts';
 import type { RtcIceCandidateInit, RtcInvitePayload, RtcPeerInfo } from '../chat/types';
 import type { EntityStatus } from '../core/types';
-import type { UserBehaviorEventType } from '../identity/types';
 import type { Announcement, ChannelMessage, InAppMessage } from '../messaging/types';
 import type { MpKfSession, MpMessageDirection, MpMessageType } from '../mp/types';
 import type { AsyncTask } from '../tasks/contracts';
@@ -275,56 +273,6 @@ export interface MonitorHistory {
   range: string;
   bucketSec: number;
   points: MonitorHistoryPoint[];
-}
-
-export interface SessionListItem {
-  id: number;
-  sessionId: string;
-  userId: number | null;
-  username: string | null;
-  startedAt: string;
-  endedAt: string;
-  durationMs: number;
-  pageCount: number;
-  eventCount: number;
-  entryPage: string | null;
-  exitPage: string | null;
-  referrer: string | null;
-  browser: string | null;
-  os: string | null;
-  deviceType: AnalyticsDeviceType | null;
-  region: string | null;
-  isBounce: boolean;
-  memberId: number | null;
-  source: AnalyticsEventSource;
-  appId: string;
-  environment: AnalyticsEnvironment;
-}
-
-export interface SessionTimelineEvent {
-  id: number;
-  eventType: UserBehaviorEventType;
-  eventName: string | null;
-  pagePath: string;
-  pageTitle: string | null;
-  elementLabel: string | null;
-  componentArea: string | null;
-  durationMs: number | null;
-  properties: Record<string, unknown> | null;
-  createdAt: string;
-}
-
-export interface SessionTimeline {
-  sessionId: string;
-  username: string | null;
-  userId: number | null;
-  startedAt: string | null;
-  durationMs: number | null;
-  entryPage: string | null;
-  deviceType: string | null;
-  browser: string | null;
-  os: string | null;
-  items: SessionTimelineEvent[];
 }
 
 // ─── 系统参数配置 ──────────────────────────────────────────

@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { errorGroups, errorEvents, errorGroupIdentities, sourceMaps, users } from '../../db/schema';
 import type { ErrorGroupRow, ErrorEventRow } from '../../db/schema';
-import type { FrontendErrorType, ErrorLevel, UpdateErrorGroupInput, SourceMapUploadInput, AnalyticsEventSource, AnalyticsEnvironment } from '@zenith/shared/analytics';
+import type { FrontendErrorType, ErrorLevel, ErrorBreadcrumb, UpdateErrorGroupInput, SourceMapUploadInput, AnalyticsEventSource, AnalyticsEnvironment } from '@zenith/shared/analytics';
 import { currentUserOrNull } from '../../lib/context';
 import { currentMemberOrNull } from '../../lib/member-context';
 import { tenantScope, getCreateTenantId } from '../../lib/tenant';
@@ -71,7 +71,7 @@ export function mapEvent(row: ErrorEventRow) {
     userId: row.userId,
     username: row.username,
     sessionId: row.sessionId,
-    breadcrumbs: (row.breadcrumbs as Record<string, unknown>[] | null) ?? null,
+    breadcrumbs: (row.breadcrumbs as ErrorBreadcrumb[] | null) ?? null,
     context: row.context ?? null,
     httpStatus: row.httpStatus,
     httpMethod: row.httpMethod,

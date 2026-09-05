@@ -22,7 +22,6 @@
  *   - dtos/monitor.ts        服务器监控
  *   - dtos/sessions.ts       在线会话 / 用户登录会话
  *   - dtos/workflow.ts       工作流
- *   - dtos/dashboard.ts      仪表盘
  *   - dtos/region.ts         地区
  *   - dtos/messages.ts       消息模板
  */

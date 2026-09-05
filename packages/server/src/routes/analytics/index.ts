@@ -1,3 +1,12 @@
+import {
+  analyticsCampaignContract,
+  analyticsContract,
+  analyticsExperimentContract,
+  analyticsSiteContract,
+  dashboardContract,
+  frontendErrorContract,
+  sessionReplayContract,
+} from '@zenith/shared/analytics';
 import { defineRouteDomain } from '../_kit';
 import analyticsCampaignsRoutes from './analytics-campaigns';
 import analyticsExperimentsRoutes from './analytics-experiments';
@@ -10,12 +19,12 @@ import sessionReplaysRoutes from './session-replays';
 export default defineRouteDomain({
   name: 'analytics',
   mounts: () => [
-    ['/api/analytics', analyticsRoutes, { feature: 'analytics' }],
-    ['/api/analytics', analyticsSitesRoutes, { feature: 'analytics' }],
-    ['/api/analytics', analyticsCampaignsRoutes, { feature: 'analytics' }],
-    ['/api/analytics', analyticsExperimentsRoutes, { feature: 'analytics' }],
-    ['/api/frontend-errors', frontendErrorsRoutes],
-    ['/api/session-replays', sessionReplaysRoutes],
-    ['/api/dashboard', dashboardRoutes],
+    [analyticsContract.basePath, analyticsRoutes, { feature: 'analytics' }],
+    [analyticsSiteContract.basePath, analyticsSitesRoutes, { feature: 'analytics' }],
+    [analyticsCampaignContract.basePath, analyticsCampaignsRoutes, { feature: 'analytics' }],
+    [analyticsExperimentContract.basePath, analyticsExperimentsRoutes, { feature: 'analytics' }],
+    [frontendErrorContract.basePath, frontendErrorsRoutes],
+    [sessionReplayContract.basePath, sessionReplaysRoutes],
+    [dashboardContract.basePath, dashboardRoutes],
   ],
 });
